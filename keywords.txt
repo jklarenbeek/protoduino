@@ -1,0 +1,106 @@
+# Syntax coloring map For protoduino
+
+# Datatypes (KEYWORD1)
+lc_t        KEYWORD1
+ptstate_t   KEYWORD1
+clock_time_t        KEYWORD1
+rune16_t    KEYWORD1
+rune32_t    KEYWORD1
+
+# Methods and Functions (KEYWORD2)
+PT_INIT                 KEYWORD2
+PT_FINAL                KEYWORD2
+PT_RAISE                KEYWORD2
+PT_IFERROR              KEYWORD2
+PT_THROW                KEYWORD2
+PT_RETHROW              KEYWORD2
+PT_WAIT_ONE             KEYWORD2
+PT_WAIT_UNTIL           KEYWORD2
+PT_WAIT_WHILE           KEYWORD2
+PT_ISRUNNING            KEYWORD2
+PT_SCHEDULE             KEYWORD2
+PT_WAIT_THREAD          KEYWORD2
+PT_SPAWN                KEYWORD2
+PT_RESTART              KEYWORD2
+PT_EXIT                 KEYWORD2
+PT_YIELD                KEYWORD2
+PT_YIELD_UNTIL          KEYWORD2
+PT_FOREACH              KEYWORD2
+PT_ENDEACH              KEYWORD2
+
+clock_time              KEYWORD2
+get_clock_seconds              KEYWORD2
+get_clock_millis              KEYWORD2
+timer_set              KEYWORD2
+timer_diff              KEYWORD2
+timer_expired              KEYWORD2
+timer_reset              KEYWORD2
+timer_restart              KEYWORD2
+timer_remaining              KEYWORD2
+PT_WAIT_DELAY              KEYWORD2
+
+utf8_ecpy               KEYWORD2
+utf8_torune16               KEYWORD2
+utf8_fromrune16               KEYWORD2
+utf8_len               KEYWORD2
+utf8_rune16len               KEYWORD2
+utf8_rune16nlen               KEYWORD2
+
+utf8_getr               KEYWORD2
+utf8_putr               KEYWORD2
+utf8_puts               KEYWORD2
+utf8_puts_P               KEYWORD2
+utf8_puti               KEYWORD2
+
+rune16_strcat               KEYWORD2
+rune16_strchr               KEYWORD2
+rune16_strcmp               KEYWORD2
+rune16_strcpy               KEYWORD2
+rune16_strecpy               KEYWORD2
+rune16_strlen               KEYWORD2
+rune16_strncat               KEYWORD2
+rune16_strncmp               KEYWORD2
+rune16_strncpy               KEYWORD2
+rune16_strrchr               KEYWORD2
+rune16_strstr               KEYWORD2
+rune16_tolower               KEYWORD2
+rune16_toupper               KEYWORD2
+rune16_totitle               KEYWORD2
+rune16_islower               KEYWORD2
+rune16_isupper               KEYWORD2
+rune16_isalpha               KEYWORD2
+rune16_istitle               KEYWORD2
+rune16_isspace               KEYWORD2
+
+# Instances (KEYWORD2)
+PT_ERROR_STATE          KEYWORD2
+
+# Structures (KEYWORD3)
+pt          KEYWORD3
+timer       KEYWORD3
+
+# Constants (LITERAL1)
+PT_WAITING          LITERAL1
+PT_YIELDED          LITERAL1
+PT_EXITED          LITERAL1
+PT_EDNDED          LITERAL1
+PT_ERROR          LITERAL1
+PT_FINALIZING          LITERAL1
+
+CLOCK_SECOND        LITERAL1
+CLOCK_MILLIS        LITERAL1
+
+UTF8_DECODE_ERROR          LITERAL1
+UTF8_RET_SUCCESS          LITERAL1
+UTF8_RET_CORRUPT          LITERAL1
+UTF8_RET_OVERFLOW          LITERAL1
+UTF8_RET_INCOMPLETE          LITERAL1
+
+# Preprocessor Macros (PREPROCESSOR)
+PT_THREAD           PREPROCESSOR
+PT_BEGIN            PREPROCESSOR
+PT_END              PREPROCESSOR
+PT_CATCH            PREPROCESSOR
+PT_CATCHANY         PREPROCESSOR
+PT_FINALLY          PREPROCESSOR
+
