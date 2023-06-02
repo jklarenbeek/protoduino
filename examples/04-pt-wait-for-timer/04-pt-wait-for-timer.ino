@@ -15,7 +15,7 @@ static ptstate_t protothread1(struct pt *pt)
   Serial.print(count);
   Serial.println(" - protothread1: Setting timer1 for 3 seconds and awaits.");
   
-  timer_set(&timer1, get_clock_seconds(3));
+  timer_set(&timer1, clock_from_seconds(3));
 
   PT_WAIT_UNTIL(pt, timer_expired(&timer1));
 

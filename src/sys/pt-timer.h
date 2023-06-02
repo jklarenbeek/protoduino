@@ -103,12 +103,12 @@ inline clock_time_t clock_time() {
   return ((clock_time_t)micros());
 }
 
-inline clock_time_t get_clock_seconds(uint16_t seconds)
+inline clock_time_t clock_from_seconds(uint16_t seconds)
 {
   return (clock_time_t)seconds * CLOCK_SECOND;
 }
 
-inline clock_time_t get_clock_millis(uint16_t milliseconds)
+inline clock_time_t clock_from_millis(uint16_t milliseconds)
 {
   return (clock_time_t)milliseconds * CLOCK_MILLIS;
 }
@@ -246,7 +246,7 @@ inline clock_time_t timer_remaining(struct timer *t)
 #define PT_WAIT_DELAY(pt, milliseconds) \
   do { \
     static struct timer CC_CONCAT2(__DELAY__, __LINE__); \
-    timer_set(&CC_CONCAT2(__DELAY__, __LINE__), get_clock_millis(milliseconds)); \
+    timer_set(&CC_CONCAT2(__DELAY__, __LINE__), clock_from_millis(milliseconds)); \
     PT_WAIT_UNTIL(pt, timer_expired(&CC_CONCAT2(__DELAY__, __LINE__))); \
   } while(0);
 

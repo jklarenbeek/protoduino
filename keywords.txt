@@ -29,8 +29,8 @@ PT_FOREACH              KEYWORD2
 PT_ENDEACH              KEYWORD2
 
 clock_time              KEYWORD2
-get_clock_seconds              KEYWORD2
-get_clock_millis              KEYWORD2
+clock_from_seconds              KEYWORD2
+clock_from_millis              KEYWORD2
 timer_set              KEYWORD2
 timer_diff              KEYWORD2
 timer_expired              KEYWORD2
