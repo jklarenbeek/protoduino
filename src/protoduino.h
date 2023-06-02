@@ -6,6 +6,8 @@
 	#include <Arduino.h>
 #endif
 
+#include <stdbool.h>
+
 #include "sys/cc.h"
 
 #endif
