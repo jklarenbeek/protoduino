@@ -56,7 +56,9 @@
  * Local continuations
  * \author
  * Adam Dunkels <adam@sics.se>
- *
+ * 
+ * This header file serves as a wrapper for the local continuations implementation used in the Protoduino library. It includes the appropriate local continuations implementation based on the LC_INCLUDE macro. If LC_INCLUDE is defined, it includes the specified header file. Otherwise, it includes the default implementation provided in "lc-switch.h".
+ * 
  */
 
 #ifdef DOXYGEN

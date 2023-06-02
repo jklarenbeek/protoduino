@@ -85,7 +85,7 @@ const size_t vt_key_mappings_size = (sizeof(vt_key_mappings) / sizeof(struct vt_
 int8_t vt_buffer_add(char * buffer, uint8_t * idx, const rune16_t ch)
 {
     if (ch > 0x7F)
-        return VT_ERR_INVALID_INPUT; // invalid rune
+        return VT_ERR_INVALID_INPUT; // invalid rune?? TODO> WHY?
 
     if(!(*idx < (VT_KEY_BUF_LEN - 1)))
         return VT_ERR_BUFFER_OVERFLOW;

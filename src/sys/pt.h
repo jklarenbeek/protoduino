@@ -163,8 +163,7 @@ enum ptstate_t : uint8_t
  */
 #define PT_END(pt) \
   LC_END((pt)->lc, return PT_ENDED); \
-  PT_INIT(pt); \
-  return PT_ENDED; }
+  }
 
 /** @} */
 
@@ -504,6 +503,11 @@ enum ptstate_t : uint8_t
  *             This function will yield the protothread, until the
  *             specified condition evaluates to true.
  *
+ * \warning I have worked with this macro many times, and want to
+ *          caution you of using it. In this case the yield will
+ *          remain until the condition is met. But instead, logically
+ *          it should return PT_WAITING
+ * 
  * \hideinitializer
  */
 #define PT_YIELD_UNTIL(pt, cond) \

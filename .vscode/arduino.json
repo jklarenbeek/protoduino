@@ -1,4 +1,5 @@
 {
     "sketch": "examples\\98-pt-basic-term\\98-pt-basic-term.ino",
-    "board": "arduino:avr:uno"
+    "board": "arduino:avr:uno",
+    "output": "..\\..\\build"
 }
