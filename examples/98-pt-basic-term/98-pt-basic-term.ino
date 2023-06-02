@@ -1,5 +1,3 @@
-
-#include <Arduino.h>
 #include <protoduino.h>
 #include <sys/pt.h>
 #include <utf/vt100.h>
