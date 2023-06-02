@@ -1,3 +1,6 @@
 {
-    "aws.telemetry": false
+    "aws.telemetry": false,
+    "files.associations": {
+        "rune16_private.h": "c"
+    }
 }

@@ -17,8 +17,8 @@
  * Joham (http://github.com/jklarenbeek)
  *  
  */
-#include "rune.h"
-#include "rune_private.h"
+#include "rune16.h"
+#include "rune16_private.h"
 
 rune16_t * rune16_strcat(rune16_t *s1, rune16_t *s2)
 {
