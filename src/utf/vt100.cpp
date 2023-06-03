@@ -80,17 +80,44 @@ CC_CONST_PSTRUCT_ARR(vt_key_map, vt_key_mappings) =
   { VT_KEY_ALT_LEFT , KEY_CR }, // ?
 };
 
+// VT400 output sequence codes.
+CC_CONST_PSTR(VT_SEQ_CSI                 ,"\e[");     // code introducer
+CC_CONST_PSTR(VT_SEQ_CLEAR               ,"\e[2J");   // clear screen
+CC_CONST_PSTR(VT_SEQ_CLRTOBOT            ,"\e[J");    // clear to bottom
+CC_CONST_PSTR(VT_SEQ_CLRTOEOL            ,"\e[K");    // clear to end of line
+CC_CONST_PSTR(VT_SEQ_DELCH               ,"\e[P");    // delete character
+CC_CONST_PSTR(VT_SEQ_NEXTLINE            ,"\eE");     // goto next line (scroll up at end of scrolling region)
+CC_CONST_PSTR(VT_SEQ_INSERTLINE          ,"\e[L");    // insert line
+CC_CONST_PSTR(VT_SEQ_DELETELINE          ,"\e[M");    // delete line
+CC_CONST_PSTR(VT_SEQ_ATTRSET             ,"\e[0");    // set attributes, e.g. "\e[0;7;1m"
+CC_CONST_PSTR(VT_SEQ_ATTRSET_REVERSE     ,";7");      // reverse
+CC_CONST_PSTR(VT_SEQ_ATTRSET_UNDERLINE   ,";4");      // underline
+CC_CONST_PSTR(VT_SEQ_ATTRSET_BLINK       ,";5");      // blink
+CC_CONST_PSTR(VT_SEQ_ATTRSET_BOLD        ,";1");      // bold
+CC_CONST_PSTR(VT_SEQ_ATTRSET_DIM         ,";2");      // dim
+CC_CONST_PSTR(VT_SEQ_ATTRSET_FCOLOR      ,";3");      // forground color
+CC_CONST_PSTR(VT_SEQ_ATTRSET_BCOLOR      ,";4");      // background color
+CC_CONST_PSTR(VT_SEQ_INSERT_MODE         ,"\e[4h");   // set insert mode
+CC_CONST_PSTR(VT_SEQ_REPLACE_MODE        ,"\e[4l");   // set replace mode
+CC_CONST_PSTR(VT_SEQ_RESET_SCRREG        ,"\e[r");    // reset scrolling region
+CC_CONST_PSTR(VT_SEQ_LOAD_G1             ,"\e)0");    // load G1 character set
+CC_CONST_PSTR(VT_SEQ_CURSOR_VIS          ,"\e[?25");  // set cursor visible/not visible
+
+#define VT_IF_ESCAPE_END(c) ((c >= 'A' && c <= 'D') || c == 'G' || c == 'Z' || c == '~')
+
+#define VT_ESCAPE_BUFLEN 6
+
 const size_t vt_key_mappings_size = (sizeof(vt_key_mappings) / sizeof(struct vt_key_map));
 
-int8_t vt_buffer_add(char * buffer, uint8_t * idx, const rune16_t ch)
+int8_t vt_escape_add(char * buffer, uint8_t * idx, const rune16_t ch)
 {
     if (ch > 0x7F)
-        return VT_ERR_INVALID_INPUT; // invalid rune?? TODO> WHY?
+        return VT_ERR_INVALID_INPUT;
 
-    if(!(*idx < (VT_KEY_BUF_LEN - 1)))
+    if(!(*idx < (VT_ESCAPE_BUFLEN - 1)))
         return VT_ERR_BUFFER_OVERFLOW;
     
-    if (VT_IS_KEY_SEQ_END(ch))
+    if (VT_IF_ESCAPE_END(ch))
     {
         buffer[(*idx)++] = ch; ;
         buffer[(*idx)++] = '\0';
@@ -103,9 +130,9 @@ int8_t vt_buffer_add(char * buffer, uint8_t * idx, const rune16_t ch)
     }
 }
 
-rune16_t vt_buffer_match(const char * buffer, const uint8_t len)
+rune16_t vt_escape_match(const char * buffer, const uint8_t len)
 {
-    uint8_t size = min(len, VT_KEY_BUF_LEN);
+    uint8_t size = min(len, VT_ESCAPE_BUFLEN);
     for(int idx = 0; idx < vt_key_mappings_size; ++idx)
     {
         if (strncmp_P(buffer, vt_key_mappings[idx].vt_seq, size))
@@ -117,7 +144,7 @@ rune16_t vt_buffer_match(const char * buffer, const uint8_t len)
     return UTF8_DECODE_ERROR;
 }
 
-rune16_t vt_get_key_symbol(const rune16_t rune)
+rune16_t vt_escape_symbol(const rune16_t rune)
 {
     switch(rune)
     {
@@ -154,27 +181,3 @@ rune16_t vt_get_key_symbol(const rune16_t rune)
         default: return rune;
     };
 }
-
-
-// VT400 output sequence codes.
-CC_CONST_PSTR(VT_SEQ_CSI                 ,"\e[");     // code introducer
-CC_CONST_PSTR(VT_SEQ_CLEAR               ,"\e[2J");   // clear screen
-CC_CONST_PSTR(VT_SEQ_CLRTOBOT            ,"\e[J");    // clear to bottom
-CC_CONST_PSTR(VT_SEQ_CLRTOEOL            ,"\e[K");    // clear to end of line
-CC_CONST_PSTR(VT_SEQ_DELCH               ,"\e[P");    // delete character
-CC_CONST_PSTR(VT_SEQ_NEXTLINE            ,"\eE");     // goto next line (scroll up at end of scrolling region)
-CC_CONST_PSTR(VT_SEQ_INSERTLINE          ,"\e[L");    // insert line
-CC_CONST_PSTR(VT_SEQ_DELETELINE          ,"\e[M");    // delete line
-CC_CONST_PSTR(VT_SEQ_ATTRSET             ,"\e[0");    // set attributes, e.g. "\e[0;7;1m"
-CC_CONST_PSTR(VT_SEQ_ATTRSET_REVERSE     ,";7");      // reverse
-CC_CONST_PSTR(VT_SEQ_ATTRSET_UNDERLINE   ,";4");      // underline
-CC_CONST_PSTR(VT_SEQ_ATTRSET_BLINK       ,";5");      // blink
-CC_CONST_PSTR(VT_SEQ_ATTRSET_BOLD        ,";1");      // bold
-CC_CONST_PSTR(VT_SEQ_ATTRSET_DIM         ,";2");      // dim
-CC_CONST_PSTR(VT_SEQ_ATTRSET_FCOLOR      ,";3");      // forground color
-CC_CONST_PSTR(VT_SEQ_ATTRSET_BCOLOR      ,";4");      // background color
-CC_CONST_PSTR(VT_SEQ_INSERT_MODE         ,"\e[4h");   // set insert mode
-CC_CONST_PSTR(VT_SEQ_REPLACE_MODE        ,"\e[4l");   // set replace mode
-CC_CONST_PSTR(VT_SEQ_RESET_SCRREG        ,"\e[r");    // reset scrolling region
-CC_CONST_PSTR(VT_SEQ_LOAD_G1             ,"\e)0");    // load G1 character set
-CC_CONST_PSTR(VT_SEQ_CURSOR_VIS          ,"\e[?25");  // set cursor visible/not visible

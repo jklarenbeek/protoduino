@@ -10,7 +10,7 @@ struct ptterm {
   Stream * stream;              // stream for getc and putc
   rune16_t value;               // yielded rune
   uint8_t vt_idx;               // current index of buffer
-  char vt_buf[VT_KEY_BUF_LEN];  // current escape buffer
+  char vt_buf[VT_ESCAPE_BUFLEN];  // current escape buffer
 };
 
 
@@ -39,7 +39,7 @@ static ptstate_t getch(struct ptterm *self)
       do
       {
         PT_GETR(self, &self->value);
-        ret = vt_buffer_add(self->vt_buf, &self->vt_idx, self->value);
+        ret = vt_escape_add(self->vt_buf, &self->vt_idx, self->value);
       }
       while(ret > 0);
 
@@ -47,7 +47,7 @@ static ptstate_t getch(struct ptterm *self)
       if (ret == 0)
       {
         // find the rune keycode for the escape sequence
-        rune = vt_buffer_match(self->vt_buf, self->vt_idx);
+        rune = vt_escape_match(self->vt_buf, self->vt_idx);
         if (rune == UTF8_DECODE_ERROR)
         {
           PT_THROW(self, PT_ERROR_FILE_NOT_FOUND); // escape sequence not found.
@@ -83,7 +83,7 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
   {
     stream->print("echo '");
 
-    utf8_putr(stream, vt_get_key_symbol(pt1.value));
+    utf8_putr(stream, vt_escape_symbol(pt1.value));
 
     stream->print("' (");
     stream->print(pt1.value);

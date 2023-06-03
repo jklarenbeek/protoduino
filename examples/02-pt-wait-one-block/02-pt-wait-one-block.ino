@@ -1,6 +1,6 @@
 /**
  * This example demonstrates what happens when a protothread ends
- * or exits. It clearly show how protothreads v1 is different from
+ * or exits. It clearly shows how protothreads v1 is different from
  * protothread v2 in that the protothread is not automatically
  * reset to its init state when a protothread is ended or exited.
  */

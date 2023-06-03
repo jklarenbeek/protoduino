@@ -9,7 +9,6 @@
  * protothread contains a while(1)/forever loop, this will
  * go on forever.
  */
-#include <Arduino.h>
 #include <protoduino.h>
 #include <sys/pt.h>
 
@@ -34,7 +33,7 @@ static ptstate_t protothread1(struct pt *pt)
   PT_BEGIN(pt);
 
   /* We loop forever here. */
-  while(1)
+  forever: while(1)
   {
     Serial.print(count++);
     Serial.println(" - Protothread 1 running");
@@ -55,7 +54,7 @@ static ptstate_t protothread2(struct pt *pt)
 {
   PT_BEGIN(pt);
 
-  while(1) // and here too
+  forever: while(1) // and here too
   {
     Serial.print(count++);
     Serial.println(" - Protothread 2 running");
@@ -79,7 +78,7 @@ static ptstate_t protothread3(struct pt *pt)
 {
   PT_BEGIN(pt);
 
-  while(1) {
+  forever: while(1) {
 
     Serial.print(count++);
     Serial.println(" - Protothread 3 running");
