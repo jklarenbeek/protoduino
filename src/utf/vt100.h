@@ -122,6 +122,7 @@
 ///
 ///
 ///
+#define VT_ESCAPE_BUFLEN 6
 
 #define VT_ERR_INVALID_INPUT -1
 #define VT_ERR_BUFFER_OVERFLOW -2

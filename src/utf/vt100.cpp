@@ -105,8 +105,6 @@ CC_CONST_PSTR(VT_SEQ_CURSOR_VIS          ,"\e[?25");  // set cursor visible/not 
 
 #define VT_IF_ESCAPE_END(c) ((c >= 'A' && c <= 'D') || c == 'G' || c == 'Z' || c == '~')
 
-#define VT_ESCAPE_BUFLEN 6
-
 const size_t vt_key_mappings_size = (sizeof(vt_key_mappings) / sizeof(struct vt_key_map));
 
 int8_t vt_escape_add(char * buffer, uint8_t * idx, const rune16_t ch)
