@@ -78,7 +78,7 @@ The string library seamlessly integrates with the Stream class, allowing you to 
 
 The string library is extensively documented using Doxygen notation, making it easy to understand the available functions, their parameters, and return values. The Doxygen documentation provides detailed explanations and usage examples, aiding developers in utilizing the library effectively.
 
-### - **Getting Started**
+### **Getting Started**
 
 To start using the string library in your protoduino project, follow these steps:
 
