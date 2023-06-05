@@ -12,7 +12,7 @@ If you are interested in using protoduino, you can find the source code and docu
 
 ## **Protothreads v2**
 
-Protothreads v2 is an enhanced version of the protothreads library, designed to provide lightweight cooperative multitasking capabilities for embedded systems. It builds upon the features of protothreads v1.4 while introducing several new features and improvements.
+Protothreads v2 is an enhanced version of the protothreads library, designed to provide lightweight cooperative multitasking and native exception handling capabilities for embedded systems. It builds upon the features of protothreads v1.4 while introducing several new features and improvements.
 
 ### **Differences from Protothreads v1.4**
 
@@ -32,7 +32,7 @@ The `PT_SCHEDULE` macro in protothreads v2 must only be used within a protothrea
 
 Protothreads v2 introduces native exception handling capabilities. The `PT_ERROR` state enables a protothread to support lightweight exception handling without the explicit declaration of a `PT_TRY` macro; The `PT_BEGIN` macro is enough. A protothread in v2 can raise an exception using `PT_RAISE` and catch the exception using `PT_CATCHANY` or `PT_CATCH`. When an exception is handled within the protothread, the thread can gracefully exit, restart, or throw an error to the parent thread using the `PT_THROW` or `PT_RETHROW` macros. Unless you know the what and the why, it is advised, that the latter macros should only be used within a `PT_CATCHANY` or `PT_CATCH` control block. See the `08-pt-try-catch.ini` example for its usage.
 
-#### - **Error Handling in Parent Threads**
+#### - **Error Handling**
 
 When a spawned protothread using the `PT_SPAWN` or `PT_FOREACH` macros throw an error, the parent thread can handle the error using the `PT_ONERROR` macro. The `PT_ONERROR` macro requires the returned state of a protothread to deside whether or not an error occured, which is by design stored in the local variable `PT_ERROR_STATE` and should be used in the majority of cases when using `PT_ONERROR`. The `PT_ERROR_STATE` local variable replaces the `PT_YIELD_FLAG` variable used in protothreads v1.4 and therefor doesn't add any overhead using error handling. See the `08-pt-try-catch.ini` example for its usage.
 
@@ -42,11 +42,11 @@ Protothreads v2 includes additional macros `PT_FOREACH` and `PT_ENDEACH`, which 
 
 #### - **Code Restrictions**
 
-Within the protothread, normal code can be used, with a few restrictions. For example, a `PT_YIELD` statement should not be placed in a `PT_CATCHANY`, `PT_CATCH`, or `PT_FINALLY` block.
+Within the protothread, normal code can be used, with a few restrictions. These restrictions are similar with protothreads v1.4, i.e. watch out with local variables, but also warns you for example, with the use of a `PT_YIELD` statement which should preferably not be placed in a `PT_CATCHANY`, `PT_CATCH`, or `PT_FINALLY` block.
 
 #### - **PT_FINALLY Clause**
 
-Protothreads v2 introduces the `PT_FINALLY` clause, which can be called by the parent thread using `PT_FINAL`. This provides a way to gracefully handle the shutdown of a protothread, serving as a substitute for the `PROCESS_EXITHANDLER` macro in Contiki-OS.
+Protothreads v2 introduces the `PT_FINALLY` clause, which can be called by the parent thread using the `PT_FINAL` macro. This provides a way to gracefully handle the shutdown of a protothread, serving as a substitute for the `PROCESS_EXITHANDLER` macro in Contiki-OS.
 
 ### **Compatibility**
 
