@@ -162,7 +162,7 @@ void init_pt(struct ptyield * p, uint8_t node)
  * cycle through the protothread instances without changing 
  * a exited or ended state.
  */
-bool is_running() 
+bool run_once() 
 {
   Serial.print(count);
   Serial.println(" - protopump is_running()");
@@ -193,7 +193,7 @@ void loop()
 
   // start the protopump and run until both protothread
   // instances have either exited, ended, or threw an error.
-  while(is_running()) {
+  while(run_once()) {
 
     print_thread(st1, &pt1);
     print_thread(st2, &pt2);

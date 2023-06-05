@@ -58,8 +58,9 @@
  * 
  */
 
-#include "sys\pt-sem.h"
- 
+#include <protoduino.h>
+#include <sys/pt-sem.h>
+
 #define NUM_ITEMS 32
 #define BUFSIZE 8
 
@@ -162,7 +163,7 @@ void loop()
 {
   PT_INIT(&driver_pt);
 
-  while(PT_SCHEDULE(driver_thread(&driver_pt))) {
+  while(PT_ISRUNNING(driver_thread(&driver_pt))) {
 
     /*
      * When running this example on a multitasking system, we must

@@ -124,7 +124,8 @@ void setup()
 
 void loop()
 {
-  Serial.println("void loop()");
+  Serial.print("void loop(): ");
+  Serial.println(count);
 
   protothread1(&pt1);
   protothread2(&pt2);

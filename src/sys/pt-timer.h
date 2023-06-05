@@ -38,7 +38,7 @@
  * Timer library header file.
  * \author
  * Adam Dunkels <adam@sics.se>
- * Johannes Klarenbeek <jklarenbeek@gmail.com>
+ * Johannes Klarenbeek https://github.com/jklarenbeek
  */
 
 /** \addtogroup timers

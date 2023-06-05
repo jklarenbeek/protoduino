@@ -58,7 +58,7 @@ static ptstate_t protothread2(struct pt *pt)
 
   PT_WAIT_ONE(pt);
 
-  Serial.print(count);
+  Serial.print(count++);
   Serial.println(" - Protothread 2 continue 1");
 
   PT_WAIT_ONE(pt);
@@ -79,12 +79,12 @@ static ptstate_t protothread3(struct pt *pt)
 
   PT_WAIT_ONE(pt);
 
-  Serial.print(count);
+  Serial.print(count++);
   Serial.println(" - Protothread 3 continue 1");
 
   PT_WAIT_ONE(pt);
 
-  Serial.print(count);
+  Serial.print(count++);
   Serial.println(" - Protothread 3 continue 2");
 
   PT_WAIT_ONE(pt);

@@ -165,16 +165,16 @@ rune16_t vt_escape_symbol(const rune16_t rune)
         case KEY_END: return ACS_END;
         case KEY_BTAB: return ACS_BTAB;
 
-        case KEY_DL:
-        case KEY_IL:
-        case KEY_SF:
-        case KEY_SB:
+        // case KEY_DL:
+        // case KEY_IL:
+        // case KEY_SF:
+        // case KEY_SB:
 
-        case KEY_NW:
-        case KEY_PW:
-        case KEY_MLU:
-        case KEY_MLD: 
-            return ASC_UNKNOWN;
+        // case KEY_NW:
+        // case KEY_PW:
+        // case KEY_MLU:
+        // case KEY_MLD: 
+        //     return ASC_UNKNOWN;
 
         default: return rune;
     };

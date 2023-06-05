@@ -11,7 +11,7 @@
  * This header file provides UTF-8 support functions and type definitions.
  * It includes the "protoduino.h" header file for necessary declarations.
  *
- * \author Joham <jklarenbeek@gmail.com>
+ * \author Joham https://github.com/jklarenbeek
  * \date 2023
  */
 

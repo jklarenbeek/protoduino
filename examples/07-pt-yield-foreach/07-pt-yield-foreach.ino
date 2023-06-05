@@ -102,7 +102,7 @@ static ptstate_t iterator2(struct ptyield *self, uint8_t max)
   PT_BEGIN(self);
 
   /* We loop forever here. */
-  while(1) {
+  forever: while(1) {
 
     /**
      * As previously mentioned is the calling PT_FOREACH macro non-

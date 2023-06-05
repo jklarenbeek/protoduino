@@ -1,3 +1,9 @@
+/**
+ *   @author http://github.com/jklarenbeek
+ *
+ *	This demo will not work correctly on SimulIde, since it appears not to support unicode in its serial monitor.
+ *	SimulIde also has a problem with flushing/sending its buffer in the same way as a real arduino does.
+ */ 
 #include <protoduino.h>
 #include <sys/pt.h>
 #include <utf/vt100.h>
@@ -71,6 +77,52 @@ static ptstate_t getch(struct ptterm *self)
   PT_END(self);
 }
 
+int8_t putr(Stream *st, const rune16_t rune)
+{
+  int size = st->availableForWrite();
+	
+  /*
+	 * one character sequence
+	 *	00000-0007F => 00-7F
+	 */
+	if (rune < 0x80) {
+    if (size < 1)
+      return 0;
+
+		st->write((uint8_t)rune);
+		return 1;
+	}
+
+	/*
+	 * two character sequence
+	 *	00080-007FF => T2 Tx
+	 */
+	if(rune < 0x800) {
+    if (size < 2)
+      return 0;
+
+		st->write(0b11000000 | (uint8_t)(rune >> 6));
+		st->write(0b10000000 | (uint8_t)(rune & 0b00111111));
+		return 2;
+	}
+
+	/*
+	 * three character sequence
+	 *	00800-0FFFF => T3 Tx Tx
+	 */
+	if(rune <= 0xFFFF) { // should always be true at this point
+    if (size < 3)
+      return 0;
+
+		st->write(0b11100000 | (uint8_t)(rune >> 12));
+		st->write(0b10000000 | (uint8_t)((rune >> 6) & 0b00111111));
+		st->write(0b10000000 | (uint8_t)(rune & 0b00111111));
+		return 3;
+	}
+
+  return 0;
+}
+
 static ptstate_t main_driver(struct pt *self, Stream *stream)
 {
   static struct ptterm pt1;
@@ -82,9 +134,9 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
   PT_FOREACH(self, &pt1, getch(&pt1))
   {
     stream->print("echo '");
-
-    utf8_putr(stream, vt_escape_symbol(pt1.value));
-
+    stream->flush();
+    putr(stream, vt_escape_symbol(pt1.value));
+    stream->flush();
     stream->print("' (");
     stream->print(pt1.value);
     stream->println(")");
