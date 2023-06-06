@@ -74,7 +74,6 @@ To start using the protothreads library in your protoduino project, follow these
 
 For more information and detailed usage examples, refer to the complete documentation available in the `examples/` directory.
 
-
 ## **UTF8 and UNICODE16 String Library**
 
 Protoduino includes a powerful string library that provides various functions for manipulating and working with strings. The string library is designed to handle UTF-8 encoded strings and provides support for Unicode characters.
