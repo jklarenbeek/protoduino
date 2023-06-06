@@ -54,6 +54,27 @@ Protothreads v2 is an almost backward-compatible library that preserves the func
 
 Protothreads v2 differs to v1 in that it is the responsibility of the caller to reset the state of a protothread. This is automatically done, when you spawn a child protothread with the `PT_SPAWN` or `PT_FOREACH` macros. Looking at Contiki-OS, which uses protothread v1 at its foundation, I could not detect any immediate problems in its `process.h` file, which is the ultimate parent. Since protoduino and protothread v2, haven't been tested in conjunction with Contiki-OS, there isn't much to say about compatability.
 
+### **Getting Started**
+
+To start using the protothreads library in your protoduino project, follow these steps:
+
+1. Download the protoduino library from the [GitHub repository](https://github.com/jklarenbeek/protoduino).
+
+2. Extract the downloaded ZIP file to a convenient location on your computer.
+
+3. Open the Arduino IDE or your preferred development environment.
+
+4. In the IDE, navigate to **Sketch > Include Library > Add .ZIP Library**.
+
+5. Browse to the extracted Protothreads v2 library folder and select it.
+
+6. Click the **Open** button to install the library.
+
+7. Include the necessary header files in your source code, such as `<protoduino.h>` and `<sys/pt.h>`
+
+For more information and detailed usage examples, refer to the complete documentation available in the `examples/` directory.
+
+
 ## **UTF8 and UNICODE16 String Library**
 
 Protoduino includes a powerful string library that provides various functions for manipulating and working with strings. The string library is designed to handle UTF-8 encoded strings and provides support for Unicode characters.
