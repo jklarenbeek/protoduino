@@ -2,5 +2,6 @@
     "aws.telemetry": false,
     "files.associations": {
         "rune16_private.h": "c"
-    }
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

@@ -156,7 +156,6 @@ static ptstate_t protothread3(struct pt * self)
     print_line("PT_BEGIN() protothread3");
 
     e = random(0, 5);
-
     if (e > 0)
     {
       e = PT_ERROR + e;
@@ -174,6 +173,11 @@ static ptstate_t protothread3(struct pt * self)
   {
     print_error("PT_CATCH(PT_ERROR + 2) AND THROW protothread3", PT_ERROR_STATE);
     PT_THROW(self, PT_ERROR + 2);
+  }
+  PT_CATCH(self, PT_ERROR + 3)
+  {
+    print_error("PT_CATCH(PT_ERROR + 3) AND THROW protothread3", PT_ERROR_STATE);
+    PT_THROW(self, PT_ERROR_STATE);
   }
   PT_CATCHANY(self)
   {
@@ -283,10 +287,10 @@ void loop()
   {
     //test_run(&pt1, protothread1);
     //test_run(&pt1, protothread2);
-    //test_run(&pt1, protothread3);
+    test_run(&pt1, protothread3);
     //test_run(&pt1, iterator1);
     //test_run(&pt1, protothread4);
-    test_run(&pt1, protothread5);
+    //test_run(&pt1, protothread5);
 
   }
 
