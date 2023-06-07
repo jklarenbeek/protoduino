@@ -20,13 +20,17 @@ Protothreads v2 is an enhanced version of the protothreads library, designed to 
 
 Protothreads v2 wraps the returned state of a protothread into an enum called `ptstate_t`. Depending on the state of the protothread, it returns `PT_WAITING`, `PT_YIELDING`, `PT_EXITED`, `PT_ENDED`, which are also present in protothreads v1.4. In addition, protothreads v2 extends the state enumeration with `PT_ERROR` and `PT_FINALIZING`. This allows protothreads in v2 to support lightweight exception handling natively.
 
+#### - **Usage of PT_SCHEDULE Macro**
+
+The `PT_SCHEDULE` macro in protothreads v2 must be used within a protothread. If used outside a protothread, the `PT_ISRUNNING` macro should be used to test if the protothread is still running.
+
 #### - **Reinitialization Requirement**
 
 Protothreads v2 breaks from the state machine behavior of protothreads v1.4. In v2, the protothread's state is not automatically reinitialized to the beginning of the protothread when it exits, ends or throws. Instead, the caller is responsible for reinitializing the protothread state to restart it. This however is done automatically for a child protothread when using the `PT_SPAWN` or `PT_FOREACH` macros.
 
-#### - **Usage of PT_SCHEDULE Macro**
+#### - **Iterator Protothreads**
 
-The `PT_SCHEDULE` macro in protothreads v2 must only be used within a protothread. If used outside a protothread, the `PT_ISRUNNING` macro should be used to test if the protothread is still running.
+Protothreads v2 includes additional macros `PT_FOREACH` and `PT_ENDEACH`, which allow for easy handling of iterator protothreads. These macros can be used in combination with the `PT_YIELD` or `PT_YIELD_UNTIL` macros. See the `07-pt-yield-foreach.ino` example for its usage.
 
 #### - **Exception Handling**
 
@@ -36,19 +40,15 @@ Protothreads v2 introduces native exception handling capabilities. The `PT_ERROR
 
 #### - **Error Handling**
 
-When a spawned protothread using the `PT_SPAWN` or `PT_FOREACH` macros throw an error, the parent thread handles the error using the `PT_ONERROR` macro and raises an error automatically. The only macro that not handles a error automatically is the `PT_WAIT_THREAD`, and errors should be handled by the caller for this macro. The `PT_ONERROR` macro requires the returned state of a protothread to decide whether or not an error occured, which is by design stored in the local variable `PT_ERROR_STATE` and should be used in the majority of cases when using the `PT_ONERROR` macro. The `PT_ERROR_STATE` local variable replaces the `PT_YIELD_FLAG` variable used in protothreads v1.4 and therefor doesn't add any overhead using error handling. Error and exception handling does not add any more overhead with v2 then v1.4 does. See the `08-pt-try-catch.ini` example for its usage.
-
-#### - **Iterator Protothreads**
-
-Protothreads v2 includes additional macros `PT_FOREACH` and `PT_ENDEACH`, which allow for easy handling of iterator protothreads. These macros can be used in combination with the `PT_YIELD` or `PT_YIELD_UNTIL` macros. See the `07-pt-yield-foreach.ino` example for its usage.
-
-#### - **Code Restrictions**
-
-Within the protothread, normal code can be used, with a few restrictions. These restrictions are similar with protothreads v1.4, i.e. watch out with local variables, but also warns you for example, with the use of a `PT_YIELD` statement which should preferably not be placed in a `PT_CATCHANY`, `PT_CATCH`, or `PT_FINALLY` block.
+When a spawned protothread using the `PT_SPAWN` or `PT_FOREACH` macros throw an error, the parent thread handles the error using the `PT_ONERROR` macro and raises an exception automatically. The only macro that not handles an error automatically is the `PT_WAIT_THREAD` macro. With this macro, the errors should be handled by the caller. The `PT_ONERROR` macro requires the returned state of a protothread to decide whether or not an error occured, which is by design stored in the local variable `PT_ERROR_STATE` and should be used in the majority of cases when using the `PT_ONERROR` macro. The `PT_ERROR_STATE` local variable replaces the `PT_YIELD_FLAG` variable used in protothreads v1.4 and therefor doesn't add any overhead using error handling. Error and exception handling does not add any more overhead with v2 then v1.4 does. See the `08-pt-try-catch.ini` example for its usage.
 
 #### - **PT_FINALLY Clause**
 
 Protothreads v2 introduces the `PT_FINALLY` clause, which can be called by the parent thread using the `PT_FINAL` macro. This provides a way to gracefully handle the shutdown of a protothread, serving as a substitute for the `PROCESS_EXITHANDLER` macro in Contiki-OS.
+
+#### - **Code Restrictions**
+
+Within the protothread, normal code can be used, with a few restrictions. These restrictions are similar with protothreads v1.4, i.e. watch out with local variables, but also warns you for example, with the use of a `PT_YIELD` statement which should preferably not be placed in a `PT_CATCHANY`, `PT_CATCH`, or `PT_FINALLY` block.
 
 ### **Compatibility**
 
