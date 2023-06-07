@@ -70,19 +70,6 @@ enum ptstate_t : uint8_t
   PT_FINALIZING = 255
 };
 
-#define PT_ERROR_GENERAL              (4)
-#define PT_ERROR_INVALID_FUNCTION     (PT_ERROR_GENERAL + 1)
-#define PT_ERROR_FILE_NOT_FOUND       (PT_ERROR_GENERAL + 2)
-#define PT_ERROR_INVALID_HANDLE       (PT_ERROR_GENERAL + 6)
-#define PT_ERROR_NOT_READY            (PT_ERROR_GENERAL + 21)
-#define PT_ERROR_BAD_LENGTH           (PT_ERROR_GENERAL + 24)
-#define PT_ERROR_NOT_SUPPORTED        (PT_ERROR_GENERAL + 50)
-#define PT_ERROR_BUFFER_OVERFLOW      (PT_ERROR_GENERAL + 111)
-#define PT_ERROR_NOT_IMPLEMENTED      (PT_ERROR_GENERAL + 119)
-#define PT_ERROR_CALL_NOT_IMPLEMENTED (PT_ERROR_GENERAL + 120)
-#define PT_ERROR_BAD_ARGUMENTS        (PT_ERROR_GENERAL + 160)
-
-
 /**
  * \name Initialization
  * @{
@@ -190,8 +177,8 @@ enum ptstate_t : uint8_t
 #define PT_RAISE(pt, err) \
   do { \
     LC_RAISE((pt)->lc, err); \
-    return PT_WAITING ; \
-  } while(0);
+    return PT_WAITING; \
+  } while(0)
 
 /**
  * Test if error occured after spawning a thread

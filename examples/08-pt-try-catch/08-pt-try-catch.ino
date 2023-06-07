@@ -54,49 +54,6 @@ static void print_line(const char * str)
 #endif
 
 /**
- * This iterator is used by the 4th and 5th example.
- * It just randomly waits, yields, or throws a direct
- * error without raising it to keep it simple.
- */
-static ptstate_t iterator1(struct pt * self)
-{
-  static uint8_t v;
-  PT_BEGIN(self);
-
-  print_line("PT_BEGIN() iterator1");
-
-  while(1)
-  {
-    v = random(0,8);
-    if (v < 2)
-    {
-      print_line("PT_WAIT_ONE() iterator1");
-      PT_WAIT_ONE(self);
-    }
-    else if (v < 4)
-    {
-      print_line("PT_YIELD() iterator1");
-      PT_YIELD(self);
-    }
-    else if (v < 6)
-    {
-      print_line("PT_EXIT() iterator1");
-      PT_EXIT(self);
-    }
-    else
-    {
-      v = random(0,4);
-      print_error("PT_THROW() iterator1", PT_ERROR + v);
-      PT_THROW(self, PT_ERROR + v);
-    }
-  }
-
-  print_line("PT_END() iterator1");
-
-  PT_END(self);
-}
-
-/**
  * This example illustrates the control flow within a protothread,
  * that contains a PT_CATCHANY clause.
  * Since no error is raised the PT_CATCHANY clause is never called.
@@ -185,7 +142,50 @@ static ptstate_t protothread3(struct pt * self)
     PT_RETHROW(self);
   }
 
-  print_line("PT_END() !!UNREACHABLE!! protothread3");
+  print_line("PT_END() !!UNREACHABLE CODE!! protothread3");
+
+  PT_END(self);
+}
+
+/**
+ * This iterator is used by the 4th, 5th and 6th example.
+ * It just randomly waits, yields, or throws a direct
+ * error without raising it to keep it simple.
+ */
+static ptstate_t iterator1(struct pt * self)
+{
+  static uint8_t v;
+  PT_BEGIN(self);
+
+  print_line("PT_BEGIN() iterator1");
+
+  while(1)
+  {
+    v = random(0,8);
+    if (v < 2)
+    {
+      print_line("PT_WAIT_ONE() iterator1");
+      PT_WAIT_ONE(self);
+    }
+    else if (v < 4)
+    {
+      print_line("PT_YIELD() iterator1");
+      PT_YIELD(self);
+    }
+    else if (v < 6)
+    {
+      print_line("PT_EXIT() iterator1");
+      PT_EXIT(self);
+    }
+    else
+    {
+      v = random(0,4);
+      print_error("PT_THROW() iterator1", PT_ERROR + v);
+      PT_THROW(self, PT_ERROR + v);
+    }
+  }
+
+  print_line("PT_END() iterator1");
 
   PT_END(self);
 }
@@ -202,12 +202,11 @@ static ptstate_t protothread4(struct pt * self)
 
   print_line("PT_BEGIN() protothread4");
 
-  PT_SPAWN(self, &it1, iterator1(&it1));
+  PT_INIT(&it1);
+  PT_WAIT_THREAD(self, iterator1(&it1));
   PT_ONERROR(PT_ERROR_STATE)
-  {
-    PT_RAISE(self, PT_ERROR_STATE);
-  }
-
+  	PT_RAISE(self, PT_ERROR_STATE);
+  
   print_line("PT_ENDED protothread4");
 
   PT_CATCHANY(self)
@@ -217,7 +216,10 @@ static ptstate_t protothread4(struct pt * self)
   PT_END(self);
 }
 
-
+/***
+ * An example how to spawn a protothread and raise an exception if one is thrown by it.
+ * 
+*/
 static ptstate_t protothread5(struct pt * self)
 {
   static struct pt it1;
@@ -226,17 +228,36 @@ static ptstate_t protothread5(struct pt * self)
 
   print_line("PT_BEGIN() protothread5");
 
-  PT_FOREACH(self, &it1, iterator1(&it1))
-  {
-    print_line("PT_FOREACH() PT_YIELDED protothread 5");
-  }
-  PT_ENDEACH(self);
+  PT_SPAWN(self, &it1, iterator1(&it1));
 
   print_line("PT_ENDED protothread5");
 
   PT_CATCHANY(self)
   {
     print_error("PT_CATCHANY() protothread5", PT_ERROR_STATE);
+  }
+  PT_END(self);
+}
+
+static ptstate_t protothread6(struct pt * self)
+{
+  static struct pt it1;
+
+  PT_BEGIN(self);
+
+  print_line("PT_BEGIN() protothread6");
+
+  PT_FOREACH(self, &it1, iterator1(&it1))
+  {
+    print_line("PT_FOREACH() PT_YIELDED protothread 6");
+  }
+  PT_ENDEACH(self);
+
+  print_line("PT_ENDED protothread6");
+
+  PT_CATCHANY(self)
+  {
+    print_error("PT_CATCHANY() protothread6", PT_ERROR_STATE);
   }
   PT_END(self);
 }
@@ -267,13 +288,13 @@ void test_run(struct pt * p, ptstate_t (*protothread)(struct pt * pt))
   PT_INIT(p);
   while(PT_ISRUNNING(state = protothread(p)))
   {
-    delay(mydelay);
-    print_state(state, "void test_run()");
+    print_state(state, "foreach in test_run()");
     count++;
+    delay(mydelay);
   }
-  delay(mydelay);
-  print_state(state, "void test_run()");
+  print_state(state, "done test_run()");
   count++;
+  delay(mydelay);
 }
 
 void loop()
@@ -285,12 +306,15 @@ void loop()
 
   for(int i = 0; i < 8; i++)
   {
-    //test_run(&pt1, protothread1);
+    // comment any of these lines out to omit running the test
+    // all tests should run!
+    //test_run(&pt1, protothread1); 
     //test_run(&pt1, protothread2);
-    test_run(&pt1, protothread3);
+    //test_run(&pt1, protothread3);
     //test_run(&pt1, iterator1);
     //test_run(&pt1, protothread4);
     //test_run(&pt1, protothread5);
+    test_run(&pt1, protothread6);
 
   }
 
