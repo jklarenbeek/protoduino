@@ -400,7 +400,7 @@ enum ptstate_t : uint8_t
  *
  * \hideinitializer
  */
-#define PT_WAIT_THREAD(pt, thread) PT_WAIT_WHILE((pt), PT_SCHEDULE(thread));
+#define PT_WAIT_THREAD(pt, thread) PT_WAIT_WHILE((pt), PT_SCHEDULE(thread))
 
 /**
  * Spawn a child protothread and wait until it exits.
@@ -412,17 +412,6 @@ enum ptstate_t : uint8_t
  * \param pt A pointer to the protothread control structure.
  * \param child A pointer to the child protothread's control structure.
  * \param thread The child protothread with arguments
- *
- * \example
- * 
- * static ptstate_t childerr = PT_ERROR;
- * PT_SPAWN(pt, child, thread(child));
- * PT_ONERROR(PT_ERROR_STATE) {
- *  PT_FINAL(child); // call the PT_FINALIZING block
- *  childerr = PT_ERROR_STATE; // save error state
- *  PT_WAIT_THREAD(pt, thread(child));
- *  PT_RAISE(pt, childerr); // raise it in the current protothread
- * }
  * 
  * \hideinitializer
  */
@@ -430,6 +419,8 @@ enum ptstate_t : uint8_t
   do {						\
     PT_INIT((child));				\
     PT_WAIT_THREAD((pt), (thread));		\
+    PT_ONERROR(PT_ERROR_STATE) \
+      PT_RAISE(pt, PT_ERROR_STATE); \
   } while(0)
 
 /** @} */
