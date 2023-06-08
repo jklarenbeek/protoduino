@@ -68,7 +68,7 @@ static ptstate_t protothread1(struct pt * self)
 
   PT_WAIT_ONE(self);
 
-  print_line("continues protothread1");
+  print_line("PT_ENDED protothread1");
 
   PT_CATCHANY(self)
   {
@@ -93,12 +93,13 @@ static ptstate_t protothread2(struct pt * self)
 
   PT_RAISE(self, PT_ERROR_STATE);
 
-  print_line("!!UNREACHABLE!! protothread2");
+  print_line("PT_ENDED !!UNREACHABLE!! protothread2");
 
   PT_CATCHANY(self)
   {
     print_error("PT_CATCHANY() protothread2", PT_ERROR_STATE);
   }
+
   // overflows from PT_CATCHANY
   print_line("PT_END() protothread2");
 
@@ -120,7 +121,7 @@ static ptstate_t protothread3(struct pt * self)
       PT_RAISE(self, e);
     }
 
-    print_error("NOT RAISED protothread3", e);
+    print_error("PT_ENDED protothread3", e);
   }
   PT_CATCH(self, PT_ERROR + 1)
   {
@@ -159,7 +160,7 @@ static ptstate_t iterator1(struct pt * self)
 
   print_line("PT_BEGIN() iterator1");
 
-  while(1)
+  forever: while(1)
   {
     v = random(0,8);
     if (v < 2)
@@ -213,6 +214,10 @@ static ptstate_t protothread4(struct pt * self)
   {
     print_error("PT_CATCHANY() protothread4", PT_ERROR_STATE);
   }
+
+  // overflows from PT_CATCHANY
+  print_line("PT_END() protothread4");
+
   PT_END(self);
 }
 
@@ -236,6 +241,10 @@ static ptstate_t protothread5(struct pt * self)
   {
     print_error("PT_CATCHANY() protothread5", PT_ERROR_STATE);
   }
+
+  // overflows from PT_CATCHANY
+  print_line("PT_END() protothread5");
+
   PT_END(self);
 }
 
@@ -249,7 +258,7 @@ static ptstate_t protothread6(struct pt * self)
 
   PT_FOREACH(self, &it1, iterator1(&it1))
   {
-    print_line("PT_FOREACH() PT_YIELDED protothread 6");
+    print_line("PT_FOREACH() PT_YIELDED protothread6");
   }
   PT_ENDEACH(self);
 
@@ -259,6 +268,10 @@ static ptstate_t protothread6(struct pt * self)
   {
     print_error("PT_CATCHANY() protothread6", PT_ERROR_STATE);
   }
+
+  // overflows from PT_CATCHANY
+  print_line("PT_END() protothread6");
+
   PT_END(self);
 }
 
@@ -281,43 +294,44 @@ void setup()
 void test_run(struct pt * p, ptstate_t (*protothread)(struct pt * pt))
 {
   static ptstate_t state;
-  Serial.print("starting test_run():");
+  Serial.print("PT_ISRUNNING() test_run() START:");
   Serial.println(count);
   delay(mydelay);
 
   PT_INIT(p);
   while(PT_ISRUNNING(state = protothread(p)))
   {
-    print_state(state, "foreach in test_run()");
+    print_state(state, "PT_ISRUNNING() test_run() LOOP");
     count++;
     delay(mydelay);
   }
-  print_state(state, "done test_run()");
+  print_state(state, "PT_ISRUNNING() test_run() DONE");
   count++;
   delay(mydelay);
 }
 
 void loop()
 {
+  // since test_run() executes as a normal function and drives the different tests
+  // we only need to allocate one protothread variable for each test.
   static struct pt pt1;
 
-  Serial.print("void loop(): ");
+  Serial.print("void loop():");
   Serial.println(count);
 
   for(int i = 0; i < 8; i++)
   {
     // comment any of these lines out to omit running the test
     // all tests should run!
-    //test_run(&pt1, protothread1); 
-    //test_run(&pt1, protothread2);
-    //test_run(&pt1, protothread3);
+    test_run(&pt1, protothread1); 
+    test_run(&pt1, protothread2);
+    test_run(&pt1, protothread3);
     //test_run(&pt1, iterator1);
-    //test_run(&pt1, protothread4);
-    //test_run(&pt1, protothread5);
+    test_run(&pt1, protothread4);
+    test_run(&pt1, protothread5);
     test_run(&pt1, protothread6);
-
   }
 
- // while(Serial.available() <= 0) 
- //   delay(100);
+  delay(1000);
+
 }
