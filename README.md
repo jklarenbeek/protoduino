@@ -123,13 +123,13 @@ void loop()
 Protothreads v2 breaks from the state machine behavior of protothreads v1.4. In v2, the protothread's state is not automatically reinitialized to the beginning of the protothread when it exits, ends or throws. Instead, the caller is responsible for reinitializing the protothread state to restart it. This however is done automatically for a child protothread when using the `PT_SPAWN` or `PT_FOREACH` macros.
 
 ```cpp
-static ptstate_t protothread1(struct pt *pt)
+static ptstate_t protothread1(struct pt *self)
 {
-  PT_BEGIN(pt);
+  PT_BEGIN(self);
 
-  PT_WAIT_ONE(pt);
+  PT_WAIT_ONE(self);
 
-  PT_END(pt);
+  PT_END(self);
 }
 
 static struct pt * pt1;
@@ -178,7 +178,7 @@ static ptstate_t iterator2(struct ptyield *self, uint8_t max)
 
 #### - **Exception Handling**
 
-Protothreads v2 introduces native exception handling capabilities. The `PT_ERROR` state enables a protothread to support lightweight exception handling, by encoding an error code into the state directly and without the need of the explicit declaration of a `PT_TRY` macro; The `PT_BEGIN` macro is enough. A protothread in v2 can raise an exception using `PT_RAISE` and catch the exception using `PT_CATCHANY` or `PT_CATCH`. When an exception is handled within the protothread, the thread can gracefully exit, restart, or throw an error to the parent thread using the `PT_THROW` or `PT_RETHROW` macros. Unless you know the what and the why, it is advised, that the latter macros should only be used within a `PT_CATCHANY` or `PT_CATCH` control block.  
+Protothreads v2 introduces native exception handling capabilities. The `PT_ERROR` state enables a protothread to support lightweight exception handling, by encoding an error code into the state directly and without the need of the explicit declaration of a `PT_TRY` macro; The `PT_BEGIN` macro is enough. A protothread in v2 can raise an exception using `PT_RAISE` and catch the exception using `PT_CATCHANY` or `PT_CATCH`. When an exception is handled within the protothread, the thread can gracefully exit, restart, or throw an error to the parent thread using the `PT_THROW` or `PT_RETHROW` macros. Unless you know the what and the why, it is advised, that the latter macros should only be used within a `PT_CATCHANY` or `PT_CATCH` control block.  Some generic errors are already defined in `<sys/pt-errors.h>`, which need to be extended on the short term.
 
 @todo reminder to add documentation about not raising an exception or throwing an error below PT_ERROR (i.e. < (uint8_t)4) or above PT_FINALIZING (i.e. >= (uint8_t)255). This is up to the developer todo this and no compile time checking will be done!
 
