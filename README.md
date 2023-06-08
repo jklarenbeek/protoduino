@@ -83,20 +83,20 @@ static ptstate_t protothread1(struct pt *self)
 
 static ptstate_t main_driver(struct pt *self)
 {
-  static struct pt *pt1, struct pt *pt2;
+  static struct pt *pt1;
 
   PT_BEGIN(self);
   
   PT_INIT(&pt1);
-  PT_INIT(&pt2);
-
   while(PT_SCHEDULE(&pt1, protothread1(&pt1)));
   PT_ONERROR(PT_ERROR_STATE)
   {
     PT_RESTART(self);
   }
 
-  while(PT_SCHEDULE(&pt2, protothread2(&pt2)));
+  PT_INIT(&pt1);
+  while(PT_SCHEDULE(&pt1, protothread1(&pt1)));
+  PT_ONERROR(PT_ERROR_STATE)
   {
     PT_EXIT(self);
   }
