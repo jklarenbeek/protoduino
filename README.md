@@ -155,7 +155,13 @@ Protothreads v2 makes a more distinct use of the `PT_WAITING` and `PT_YIELDING` 
 See the `07-pt-yield-foreach.ino` example for its usage:
 
 ```cpp
-static ptstate_t iterator2(struct ptyield *self, uint8_t max)
+static struct ptyield
+{
+    lc_t lc;
+    uint8_t value;
+}
+
+static ptstate_t iterator1(struct ptyield *self, uint8_t max)
 {  
   PT_BEGIN(self);
 
@@ -173,6 +179,21 @@ static ptstate_t iterator2(struct ptyield *self, uint8_t max)
   }
 
   PT_END(self);
+}
+
+static ptstate_t main_driver(struct pt *self)
+{
+  static struct ptyield it1;
+
+  PT_BEGIN(pt);
+
+  PT_FOREACH(pt, &it1, iterator1(&it1, 16))
+  {
+    Serial.println(it1.value)
+  }
+  PT_ENDEACH(pt);
+
+  PT_END(pt);
 }
 ```
 
