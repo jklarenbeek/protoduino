@@ -55,7 +55,7 @@ void loop()
     static struct pt * it1;
     PT_INIT(&it1);
 
-    Serial.println(iterator1(&it));
+    Serial.println(iterator1(&it1));
 }
 ```
 
@@ -176,7 +176,7 @@ static ptstate_t iterator2(struct ptyield *self, uint8_t max)
 }
 ```
 
-64#### - **Exception Handling**
+#### - **Exception Handling**
 
 Protothreads v2 introduces native exception handling capabilities. The `PT_ERROR` state enables a protothread to support lightweight exception handling, by encoding an error code into the state directly and without the need of the explicit declaration of a `PT_TRY` macro; The `PT_BEGIN` macro is enough. A protothread in v2 can raise an exception using `PT_RAISE` and catch the exception using `PT_CATCHANY` or `PT_CATCH`. When an exception is handled within the protothread, the thread can gracefully exit, restart, or throw an error to the parent thread using the `PT_THROW` or `PT_RETHROW` macros. Unless you know the what and the why, it is advised, that the latter macros should only be used within a `PT_CATCHANY` or `PT_CATCH` control block.  
 
@@ -222,7 +222,7 @@ static ptstate_t protothread4(struct pt * self)
   PT_INIT(&it1);
   PT_WAIT_THREAD(self, iterator1(&it1));
   PT_ONERROR(PT_ERROR_STATE)
-  	PT_RAISE(self, PT_ERROR_STATE);
+    PT_RAISE(self, PT_ERROR_STATE);
   
   PT_CATCHANY(self)
   {
