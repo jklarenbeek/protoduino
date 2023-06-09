@@ -106,7 +106,7 @@ typedef uint16_t lc_t;
  * @param s The local continuation variable
  * @param r The expression to be executed
  */
-#define LC_END(s,r) LC_SET(s); r; }
+#define LC_END(s,r) LC_SET(s) r; }
 
 /**
  * @def LC_ERRENC(err)
@@ -141,7 +141,7 @@ typedef uint16_t lc_t;
  * @brief Set the local continuation to the finalize state
  * @param s The local continuation variable
  */
-#define LC_FINAL(s) s = LC_ERRENC(255);
+#define LC_FINAL(s) s = LC_ERRENC(255)
 
 /**
  * @def LC_CATCH(s, r, err)

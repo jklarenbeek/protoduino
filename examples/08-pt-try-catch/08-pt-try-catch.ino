@@ -6,52 +6,7 @@
  */
 #include <protoduino.h>
 #include <sys/pt.h>
-
-#ifndef region_helper_functions 
-
-static int count = 0;
-
-static void print_state(const ptstate_t s, const char * msg)
-{
-  Serial.print(count);
-
-  if (s == PT_WAITING)
-    Serial.print(" - PT_WAITING ");
-  if (s == PT_YIELDED)
-    Serial.print(" - PT_YIELDED ");
-  if (s == PT_EXITED)
-    Serial.print(" - PT_EXITED ");
-  if (s == PT_ENDED)
-    Serial.print(" - PT_ENDED ");
-  if (s == PT_FINALIZING)
-    Serial.print(" - PT_FINALIZING ");
-  else if (s >= PT_ERROR)
-  {
-    Serial.print(" - PT_ERROR (");
-    Serial.print(s);
-    Serial.print(") ");
-  }
-  Serial.println(msg);
-}
-static void print_error(const char * str, uint8_t err)
-{
-  Serial.print(count);
-  Serial.print(" - ");
-  Serial.print(str);
-  Serial.print(" (");
-  Serial.print(err);
-  Serial.println(")");
-
-}
-static void print_line(const char * str)
-{
-  Serial.print(count);
-  Serial.print(" - ");
-  Serial.println(str);
-
-}
-
-#endif
+#include <sys/debug-print.h>
 
 /**
  * This example illustrates the control flow within a protothread,
@@ -277,17 +232,7 @@ static ptstate_t protothread6(struct pt * self)
 
 void setup()
 {
-  Serial.begin(9600);
-  
-  // if analog input pin 0 is unconnected, random analog
-  // noise will cause the call to randomSeed() to generate
-  // different seed numbers each time the sketch runs.
-  // randomSeed() will then shuffle the random function.
-  randomSeed(analogRead(0));
-
-  Serial.println("Done setup, waiting 1 sec.");
-  
-  delay(1000);
+  print_setup();
 }
 
 #define mydelay 1000
@@ -295,18 +240,18 @@ void test_run(struct pt * p, ptstate_t (*protothread)(struct pt * pt))
 {
   static ptstate_t state;
   Serial.print("PT_ISRUNNING() test_run() START:");
-  Serial.println(count);
+  Serial.println(print_count);
   delay(mydelay);
 
   PT_INIT(p);
   while(PT_ISRUNNING(state = protothread(p)))
   {
     print_state(state, "PT_ISRUNNING() test_run() LOOP");
-    count++;
+    print_count++;
     delay(mydelay);
   }
   print_state(state, "PT_ISRUNNING() test_run() DONE");
-  count++;
+  print_count++;
   delay(mydelay);
 }
 
@@ -317,7 +262,7 @@ void loop()
   static struct pt pt1;
 
   Serial.print("void loop():");
-  Serial.println(count);
+  Serial.println(print_count);
 
   for(int i = 0; i < 8; i++)
   {

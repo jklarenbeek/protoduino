@@ -67,7 +67,7 @@ enum ptstate_t : uint8_t
   PT_EXITED = 2,
   PT_ENDED = 3,
   PT_ERROR = 4, // or anything higher.
-  PT_FINALIZING = 255
+  PT_FINALIZED = 255
 };
 
 /**
@@ -90,13 +90,13 @@ enum ptstate_t : uint8_t
 #define PT_INIT(pt)   LC_INIT((pt)->lc)
 
 /**
- * Set the protothread to the exit state.
+ * Set the protothread to the finalize state.
  * 
  * A protothread should NEVER call PT_FINAL(). Setting the protothread
  * to an exit state must be done by the caller when a protothread exits
  * with PT_EXITED, PT_ENDED or any PT_ERROR state.
  */
-#define PT_FINAL(pt)  LC_FINAL((pt)->lc)
+#define PT_FINAL(child) LC_FINAL((child)->lc);
 
 /** @} */
 
@@ -142,14 +142,14 @@ enum ptstate_t : uint8_t
  * always be used together with a matching PT_BEGIN() macro. When
  * the protothread structure is not breaked out off in any other arbitrary
  * way then using the protothread library, the protothread will stay in
- * the PT_ENDED state.
+ * the PT_FINALIZED state.
  *
  * \param pt A pointer to the protothread control structure.
  *
  * \hideinitializer
  */
 #define PT_END(pt) \
-  LC_END((pt)->lc, return PT_ENDED); \
+  LC_END((pt)->lc, return PT_FINALIZED); \
   }
 
 /** @} */
@@ -191,7 +191,7 @@ enum ptstate_t : uint8_t
  * 
  */
 #define PT_ONERROR(state) \
-    if (state >= PT_ERROR && state != PT_FINALIZING)
+    if (state >= PT_ERROR && state != PT_FINALIZED)
 
 
 /**
@@ -238,7 +238,7 @@ enum ptstate_t : uint8_t
  * 
  * \param pt A pointer to the protothread control structure.
 */
-#define PT_FINALLY(pt) LC_FINALLY((pt)->lc, return PT_ENDED);
+#define PT_FINALLY(pt) LC_FINALLY((pt)->lc, return PT_ENDED)
 
 /**
  * Throws an error within a protothread PT_CATCH() block.
@@ -409,6 +409,7 @@ enum ptstate_t : uint8_t
     PT_ONERROR(PT_ERROR_STATE) \
       PT_RAISE(pt, PT_ERROR_STATE); \
   } while(0)
+
 
 /** @} */
 
