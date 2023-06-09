@@ -239,18 +239,17 @@ void setup()
 void test_run(struct pt * p, ptstate_t (*protothread)(struct pt * pt))
 {
   static ptstate_t state;
-  Serial.print("PT_ISRUNNING() test_run() START:");
-  Serial.println(print_count);
+  print_line("void test_run():START");
   delay(mydelay);
 
   PT_INIT(p);
   while(PT_ISRUNNING(state = protothread(p)))
   {
-    print_state(state, "PT_ISRUNNING() test_run() LOOP");
+    print_state(state, "void test_run():LOOP");
     print_count++;
     delay(mydelay);
   }
-  print_state(state, "PT_ISRUNNING() test_run() DONE");
+  print_state(state, "void test_run():DONE");
   print_count++;
   delay(mydelay);
 }
@@ -261,8 +260,7 @@ void loop()
   // we only need to allocate one protothread variable for each test.
   static struct pt pt1;
 
-  Serial.print("void loop():");
-  Serial.println(print_count);
+  print_line("void loop()");
 
   for(int i = 0; i < 8; i++)
   {
