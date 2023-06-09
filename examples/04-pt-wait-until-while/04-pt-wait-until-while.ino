@@ -7,8 +7,7 @@
 
 #include <protoduino.h>
 #include <sys/pt.h>
-
-static int count = 0;
+#include <sys/debug-print.h>
 
 /**
  * The first protothread function. A protothread function must always
@@ -25,14 +24,12 @@ static ptstate_t protothread1(struct pt *pt)
   PT_BEGIN(pt);
 
   /* We loop forever here. */
-  while(1) {
+  forever: while(1) {
 
-    Serial.print(++count);
-    Serial.println(" - Protothread 1 running; wait one");
+    print_count++;
+    print_line("Protothread 1 running; wait one");
 
     PT_WAIT_ONE(pt);
-
-    /* And we loop. */
   }
 
   /* All protothread functions must end with PT_END() which takes a
@@ -48,14 +45,12 @@ static ptstate_t protothread2(struct pt *pt)
 {
   PT_BEGIN(pt);
 
-  while(1) {
+  forever: while(1)
+  {
+    print_count++;
+    print_line("Protothread 2 running; wait until (count % 2) == 0");
 
-    Serial.print(++count);
-    Serial.println(" - Protothread 2 running; wait until (count % 2) == 0");
-
-    PT_WAIT_UNTIL(pt, ((count % 2) == 0));
-
-    /* And we loop. */
+    PT_WAIT_UNTIL(pt, ((print_count % 2) == 0));
   }
   
   PT_END(pt);
@@ -69,14 +64,12 @@ static ptstate_t protothread3(struct pt *pt)
 {
   PT_BEGIN(pt);
 
-  while(1) {
+  forever: while(1)
+  {
+    print_count++;
+    print_line("Protothread 3 running; wait while (count % 3) != 0");
 
-    Serial.print(++count);
-    Serial.println(" - Protothread 3 running; wait while (count % 3) != 0");
-
-    PT_WAIT_WHILE(pt, ((count % 3) != 0));
-    
-    /* And we loop. */
+    PT_WAIT_WHILE(pt, ((print_count % 3) != 0));    
   }
 
   PT_END(pt);
@@ -93,26 +86,21 @@ static struct pt pt1, pt2, pt3;
 
 void setup()
 {
-  Serial.begin(9600); 
+  print_setup();
 
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&pt1);
   PT_INIT(&pt2);
   PT_INIT(&pt3);
-
-  Serial.println("Done setup, waiting 5 sec.");
-  
-  delay(5000);
 }
 
 void loop()
 {
-  Serial.print("void loop(): ");
-  Serial.println(count);
+  print_line("void loop()");
 
-  protothread1(&pt1);
-  protothread2(&pt2);
-  protothread3(&pt3);
+  print_state(protothread1(&pt1), "void loop():protothread1");
+  print_state(protothread2(&pt2), "void loop():protothread2");
+  print_state(protothread3(&pt3), "void loop():protothread3");
   
   delay(2000);
 }
