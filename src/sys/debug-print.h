@@ -4,7 +4,9 @@
 
 #include <protoduino.h>
 
-int print_count;
+#include "pt.h"
+
+extern int print_count;
 
 void print_setup();
 void print_info(const char * msg);
