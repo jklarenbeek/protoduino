@@ -48,7 +48,7 @@ static ptstate_t iterator1(struct pt * self)
   PT_END(self);
 }
 
-static struct pt * it1;
+static struct pt it1;
 
 void setup()
 {
@@ -82,7 +82,7 @@ static ptstate_t protothread1(struct pt *self)
   PT_END(self); // returns PT_FINALIZED
 }
 
-static struct pt * pt1;
+static struct pt pt1;
 
 void setup()
 {
@@ -133,68 +133,13 @@ void loop()
   print_count++;
 
   if (state != PT_FINALIZED && !IS_RUNNING(state))
-    PT_FINAL(&pt);
+    PT_FINAL(&pt1);
 
   delay(1000)
 }
 ```
 
 When a spawned protothread using the `PT_SPAWN()` or `PT_FOREACH()` macro end, exit or throws an error, protothreads v2 will automatically call the `PT_FINALLY()` control block of the child thread. which can be set by the parent thread using the `PT_FINAL()` macro. This provides a way to gracefully handle the shutdown of a protothread. This behaviour was invented for the sake of having a substitute for the `PROCESS_EXITHANDLER()` macro in Contiki-OS.
-
-#### - **Usage of PT_SCHEDULE Macro**
-
-The `PT_SCHEDULE` macro in protothreads v2, sets the local `PT_ERROR_STATE` variable and must be used within a protothread only. If used outside a protothread, the `PT_ISRUNNING` macro should be used to schedule and test if the protothread is still running.
-
-```cpp
-static struct pt * pt1;
-
-static ptstate_t protothread1(struct pt *self)
-{
-  PT_BEGIN(self);
-
-  forever: while(1)
-  {
-    if (random(0, 1))
-      PT_WAIT_ONE(self);
-    else
-      PT_THROW(self, PT_ERROR);
-  }
-
-  PT_END(self);
-}
-
-static ptstate_t main_driver(struct pt *self)
-{
-  static struct pt *pt1;
-
-  PT_BEGIN(self);
-  
-  PT_INIT(&pt1);
-  while(PT_SCHEDULE(&pt1, protothread1(&pt1)));
-  PT_ONERROR(PT_ERROR_STATE)
-    PT_RESTART(self);
-
-  PT_INIT(&pt1);
-  while(PT_SCHEDULE(&pt1, protothread1(&pt1)));
-  PT_ONERROR(PT_ERROR_STATE)
-    PT_EXIT(self);
-
-  PT_END(self);
-}
-
-void loop()
-{
-  static struct pt *pt1;
-
-  PT_INIT(&pt1);
-
-  while(PT_ISRUNNING(main_driver(&pt1)))
-  {
-    delay(1000); // arduino delay a second
-  }
-  
-}
-```
 
 #### - **Reinitialization Requirement**
 
@@ -226,54 +171,6 @@ void loop()
 }
 ```
 
-#### - **Iterators and Protothreads**
-
-Protothreads v2 makes a more distinct use of the `PT_WAITING` and `PT_YIELDED` states and includes the additional macros `PT_FOREACH` and `PT_ENDEACH`, which allow for easy handling of iterator protothreads. These macros can be used in combination with the `PT_YIELD` or `PT_YIELD_UNTIL` macros.
-
-See the `07-pt-yield-foreach.ino` example for its usage:
-
-```cpp
-static struct ptyield
-{
-    lc_t lc;
-    uint8_t value;
-}
-
-static ptstate_t iterator1(struct ptyield *self, uint8_t max)
-{  
-  PT_BEGIN(self);
-
-  forever: while(1) {
-
-    PT_WAIT_ONE(self);
-
-    self->value = random(0, 255);
-
-    PT_YIELD(self);
-
-    if (self->value >= max)
-      PT_EXIT(self);
-    
-  }
-
-  PT_END(self);
-}
-
-static ptstate_t main_driver(struct pt *self)
-{
-  static struct ptyield it1;
-
-  PT_BEGIN(pt);
-
-  PT_FOREACH(pt, &it1, iterator1(&it1, 16))
-  {
-    Serial.println(it1.value)
-  }
-  PT_ENDEACH(pt);
-
-  PT_END(pt);
-}
-```
 
 #### - **Exception Handling**
 
@@ -329,6 +226,110 @@ static ptstate_t protothread4(struct pt * self)
   }
 
   PT_END(self);
+}
+```
+
+#### - **Iterators and Protothreads**
+
+Protothreads v2 makes a more distinct use of the `PT_WAITING` and `PT_YIELDED` states and includes the additional macros `PT_FOREACH` and `PT_ENDEACH`, which allow for easy handling of iterator protothreads. These macros can be used in combination with the `PT_YIELD` or `PT_YIELD_UNTIL` macros.
+
+See the `07-pt-yield-foreach.ino` example for its usage:
+
+```cpp
+static struct ptyield
+{
+    lc_t lc;
+    uint8_t value;
+}
+
+static ptstate_t iterator1(struct ptyield *self, uint8_t max)
+{  
+  PT_BEGIN(self);
+
+  forever: while(1) {
+
+    PT_WAIT_ONE(self);
+
+    self->value = random(0, 255);
+
+    PT_YIELD(self);
+
+    if (self->value >= max)
+      PT_EXIT(self);
+    
+  }
+
+  PT_END(self);
+}
+
+static ptstate_t main_driver(struct pt *self)
+{
+  static struct ptyield it1;
+
+  PT_BEGIN(pt);
+
+  PT_FOREACH(pt, &it1, iterator1(&it1, 16))
+  {
+    Serial.println(it1.value)
+  }
+  PT_ENDEACH(pt);
+
+  PT_END(pt);
+}
+```
+
+#### - **Scheduling Protothreads**
+
+The `PT_SCHEDULE` macro in protothreads v2, sets the local `PT_ERROR_STATE` variable and must be used within a protothread only. If used outside a protothread, the `PT_ISRUNNING` macro should be used to schedule and test if the protothread is still running.
+
+```cpp
+static struct pt * pt1;
+
+static ptstate_t protothread1(struct pt *self)
+{
+  PT_BEGIN(self);
+
+  forever: while(1)
+  {
+    if (random(0, 1))
+      PT_WAIT_ONE(self);
+    else
+      PT_THROW(self, PT_ERROR);
+  }
+
+  PT_END(self);
+}
+
+static ptstate_t main_driver(struct pt *self)
+{
+  static struct pt pt1;
+
+  PT_BEGIN(self);
+  
+  PT_INIT(&pt1);
+  while(PT_SCHEDULE(&pt1, protothread1(&pt1)));
+  PT_ONERROR(PT_ERROR_STATE)
+    PT_RESTART(self);
+
+  PT_INIT(&pt1);
+  while(PT_SCHEDULE(&pt1, protothread1(&pt1)));
+  PT_ONERROR(PT_ERROR_STATE)
+    PT_EXIT(self);
+
+  PT_END(self);
+}
+
+void loop()
+{
+  static struct pt pt1;
+
+  PT_INIT(&pt1);
+
+  while(PT_ISRUNNING(main_driver(&pt1)))
+  {
+    delay(1000); // arduino delay a second
+  }
+  
 }
 ```
 
