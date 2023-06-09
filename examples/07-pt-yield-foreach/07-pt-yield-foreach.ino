@@ -16,14 +16,7 @@
 
 #include <protoduino.h>
 #include <sys/pt.h>
-
-/**
- * This counter is incremented each time the scheduler is called in
- * the arduino void loop() function. When you comment out the 
- * PT_WAIT_ONE(pt) instructions it will show that the yield function
- * is non-blocking.
- */
-static int count = 0;
+#include <sys/debug-print.h>
 
 /**
  * Although an iterator doesn't need to return a value, this example
@@ -40,13 +33,13 @@ struct ptyield {
 
 static void print_iterator(struct ptyield *it)
 {
-    Serial.print(count);
-    Serial.print(F(" - iterator "));
+    Serial.print(print_count);
+    Serial.print(" - iterator ");
     Serial.print(it->node);
-    Serial.print(F(" ("));
+    Serial.print(" (");
     Serial.print(it->lc);
-    Serial.print(F(") "));
-    Serial.print(F(" yielded value: "));
+    Serial.print(") ");
+    Serial.print(" yielded value: ");
     Serial.println((it->value));
 }
 
@@ -152,7 +145,7 @@ static ptstate_t main_driver(struct pt *pt)
 
   PT_BEGIN(pt);
 
-  Serial.println(F("PT_THREAD(main-driver)"));
+  print_line("PT_THREAD(main-driver)");
 
   it1.node = 1;
   it2.node = 2;
@@ -180,23 +173,12 @@ static struct pt pt1;
 
 void setup()
 {
-  Serial.begin(9600);
-  
-  // if analog input pin 0 is unconnected, random analog
-  // noise will cause the call to randomSeed() to generate
-  // different seed numbers each time the sketch runs.
-  // randomSeed() will then shuffle the random function.
-  randomSeed(analogRead(0));
-
-  Serial.println(("Done setup, waiting 5 sec."));
-  
-  delay(5000);
+  print_setup();
 }
 
 void loop()
 {
-  Serial.print(F("void loop(): "));
-  Serial.println(count);
+  print_line("void loop()");
 
   /* Initialize the protothread state variables. */
   PT_INIT(&pt1);
@@ -207,8 +189,11 @@ void loop()
    */
   while(PT_ISRUNNING(main_driver(&pt1)))
   {
-    ++count;
+    print_count++;
     delay(2000);
   }
-  
+
+  print_count++;
+  delay(2000);
+
 }
