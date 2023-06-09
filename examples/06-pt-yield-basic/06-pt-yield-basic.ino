@@ -14,8 +14,7 @@
 
 #include <protoduino.h>
 #include <sys/pt.h>
-
-static int count = 0;
+#include <sys/debug-print.h>
 
 /**
  * the protothread state structure is extended to hold
@@ -33,7 +32,7 @@ struct ptyield {
 
 static void print_waitone(const struct ptyield *p)
 {
-  Serial.print(count);
+  Serial.print(print_count);
   Serial.print(" - instance ");
   Serial.print(p->node);
   Serial.print(" wait one @");
@@ -42,7 +41,7 @@ static void print_waitone(const struct ptyield *p)
 
 static void print_yield(const struct ptyield *p)
 {
-    Serial.print(count);
+    Serial.print(print_count);
     Serial.print(" - instance ");
     Serial.print(p->node);
     Serial.print(" yield random(0, 255) = ");
@@ -52,17 +51,19 @@ static void print_yield(const struct ptyield *p)
 
 static void print_thread(const ptstate_t s, const struct ptyield *p)
 {
-  Serial.print(count);
+  Serial.print(print_count);
 
   if (s == PT_WAITING)
     Serial.print(" - PT_WAITING ");
-  if (s == PT_YIELDED)
+  else if (s == PT_YIELDED)
     Serial.print(" - PT_YIELDED ");
-  if (s == PT_EXITED)
+  else if (s == PT_EXITED)
     Serial.print(" - PT_EXITED ");
-  if (s == PT_ENDED)
+  else if (s == PT_ENDED)
     Serial.print(" - PT_ENDED ");
-  if (s >= PT_ERROR)
+  else if (s == PT_FINALIZED)
+    Serial.print(" - PT_FINALIZED");
+  else if (s >= PT_ERROR)
   {
     Serial.print(" - PT_ERROR (");
     Serial.print(s);
@@ -90,7 +91,7 @@ static ptstate_t protothread(struct ptyield *self)
   for(self->idx = 0; self->idx < 5; self->idx++) 
   {
     // increase to global counter so we can see some interesting behaviour.
-    ++count;
+    print_count++;
 
     print_waitone(self);
 
@@ -126,17 +127,7 @@ static ptstate_t st1, st2;
 
 void setup()
 {
-  Serial.begin(9600);
-  
-  // if analog input pin 0 is unconnected, random analog
-  // noise will cause the call to randomSeed() to generate
-  // different seed numbers each time the sketch runs.
-  // randomSeed() will then shuffle the random function.
-  randomSeed(analogRead(0));
-
-  Serial.println("Done setup, waiting 1 sec.");
-  
-  delay(1000);
+  print_setup();
 }
 
 /**
@@ -164,8 +155,7 @@ void init_pt(struct ptyield * p, uint8_t node)
  */
 bool run_once() 
 {
-  Serial.print(count);
-  Serial.println(" - protopump is_running()");
+  print_line(" - protopump is_running()");
 
   bool running = false;
   if (PT_ISRUNNING(st1 = protothread(&pt1)))
@@ -175,8 +165,7 @@ bool run_once()
 
   if (running == false)
   {
-    Serial.print(count);
-    Serial.println(" - end of protopump");
+    print_line(" - end of protopump");
   }
   
   return running;
@@ -184,8 +173,7 @@ bool run_once()
 
 void loop()
 {
-  Serial.print("void loop(): ");
-  Serial.println(count);
+  print_line("void loop()");
 
   /* Initialize the protothread state variables. */
   init_pt(&pt1,1);
@@ -198,13 +186,13 @@ void loop()
     print_thread(st1, &pt1);
     print_thread(st2, &pt2);
 
-    delay(3000);
+    delay(2000);
 
   }
 
   print_thread(st1, &pt1);
   print_thread(st2, &pt2);
 
-  delay(7000);
+  delay(2000);
 
 }
