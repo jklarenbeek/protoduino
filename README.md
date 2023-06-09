@@ -64,6 +64,36 @@ void loop()
 }
 ```
 
+#### - **Reinitialization Requirement**
+
+Protothreads v2 breaks from the state machine behavior of protothreads v1.4. In v2, the protothread's state is not automatically reinitialized to the beginning of the protothread when it exits, ends or throws. Instead, the caller is responsible for reinitializing the protothread state to restart it. This however is done automatically for a child protothread when using the `PT_SPAWN` or `PT_FOREACH` macros.
+
+```cpp
+static ptstate_t protothread1(struct pt *self)
+{
+  PT_BEGIN(self);
+
+  PT_WAIT_ONE(self);
+
+  PT_END(self);
+}
+
+static struct pt * pt1;
+
+void setup()
+{
+    PT_INIT(&pt1);
+}
+
+void loop()
+{
+    while(IS_RUNNING(&pt1))
+    {
+        Serial.println("still running");
+    }
+}
+```
+
 #### - **Finalizing Protothreads**
 
 Protothreads v2 introduces the `PT_FINALIZED` protothread state. This new state is member of the `ptstate_t` enum as an integral part of how v2 introduces new behaviour into the FSM of protothreads. When in v1.4 the end of a protothread is reached, using the `PT_END()` macro, a `PT_ENDED` state is returned to the caller. This is not the case with protothreads v2. Protothreads v2 returns at the `PT_END()` of a protothread, a `PT_FINALIZED` state.
@@ -140,37 +170,6 @@ void loop()
 ```
 
 When a spawned protothread using the `PT_SPAWN()` or `PT_FOREACH()` macro end, exit or throws an error, protothreads v2 will automatically call the `PT_FINALLY()` control block of the child thread. which can be set by the parent thread using the `PT_FINAL()` macro. This provides a way to gracefully handle the shutdown of a protothread. This behaviour was invented for the sake of having a substitute for the `PROCESS_EXITHANDLER()` macro in Contiki-OS.
-
-#### - **Reinitialization Requirement**
-
-Protothreads v2 breaks from the state machine behavior of protothreads v1.4. In v2, the protothread's state is not automatically reinitialized to the beginning of the protothread when it exits, ends or throws. Instead, the caller is responsible for reinitializing the protothread state to restart it. This however is done automatically for a child protothread when using the `PT_SPAWN` or `PT_FOREACH` macros.
-
-```cpp
-static ptstate_t protothread1(struct pt *self)
-{
-  PT_BEGIN(self);
-
-  PT_WAIT_ONE(self);
-
-  PT_END(self);
-}
-
-static struct pt * pt1;
-
-void setup()
-{
-    PT_INIT(&pt1);
-}
-
-void loop()
-{
-    while(IS_RUNNING(&pt1))
-    {
-        Serial.println("still running");
-    }
-}
-```
-
 
 #### - **Exception Handling**
 
