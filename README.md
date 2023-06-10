@@ -18,20 +18,33 @@ Protothreads v2 is an enhanced version of the protothreads library, designed to 
 
 #### - **Enum-based State**
 
-Protothreads v2 wraps the returned state of a protothread into an enum called `ptstate_t`. Depending on the state of the protothread, it returns `PT_WAITING`, `PT_YIELDED`, `PT_EXITED`, `PT_ENDED`, which are also present in protothreads v1.4. In addition, protothreads v2 extends the state enumeration with `PT_ERROR` and `PT_FINALIZED`. By encoding the error code in the state, protothreads in v2 to support lightweight exception handling natively, without adding memory overhead compared to protothreads v1.4.
+Protothreads v2 wraps the returned state of a protothread into an enum called `ptstate_t`. Depending on the state of the protothread, it returns `PT_WAITING`, `PT_YIELDED`, `PT_EXITED`, `PT_ENDED`, which are also present in protothreads v1.4. In addition, protothreads v2 extends the state enumeration with `PT_ERROR` and `PT_FINALIZED`. 
+
+```cpp
+enum ptstate_t : uint8_t
+{
+  PT_WAITING = 0,
+  PT_YIELDED = 1,
+  PT_EXITED = 2,
+  PT_ENDED = 3,
+  PT_ERROR = 4, // or anything higher.
+  PT_FINALIZED = 255
+};
+```
+
+Because of the state extensions in protothreads v2, we now have the capability to add some new and exciting constructs. An example is the finally control block and the error encoding into the state that allows exception handling. This comes without adding any memory overhead in comparison to protothreads v1.4. But before we get into this, lets consider the following macros in the `iterator1()` function below. If they seem familiar, its because that most of the macros returned from the protothread, are coming from protothreads v1.4. But one of them has a distinct different use than within `Contiki-OS` for example.
 
 ```cpp
 #include <protoduino.h>
-#include <sys/pt.h>
-#include <sys/debug_print.h>
+#include <sys/debug-print.h>
 
-static ptstate_t iterator1(struct pt * self)
+static ptstate_t iterator(struct pt * self)
 {
-  PT_BEGIN(self);
+  static uint8_t v;
 
+  PT_BEGIN(self);
   forever: while(1)
   {
-    uint8_t v;
     v = random(0,6);
     if (v <= 1)
       PT_WAIT_ONE(self); // returns PT_WAITING
@@ -44,7 +57,6 @@ static ptstate_t iterator1(struct pt * self)
     else
       PT_THROW(self, PT_ERROR + v);
   }
-
   PT_END(self);
 }
 
@@ -58,18 +70,23 @@ void setup()
 
 void loop()
 {
-  print_state(iterator1(&it1), "void loop()");
+  print_state(iterator(&it1), "void loop()");
   print_count++;
-  delay(1000)
+  delay(1000);
 }
 ```
 
 #### - **Reinitialization Requirement**
 
-Protothreads v2 breaks from the state machine behavior of protothreads v1.4. In v2, the protothread's state is not automatically reinitialized to the beginning of the protothread when it exits, ends or throws. Instead, the caller is responsible for reinitializing the protothread state to restart it. This however is done automatically for a child protothread when using the `PT_SPAWN` or `PT_FOREACH` macros.
+Protothreads v2 breaks from the state machine control flow that made protothreads v1.4. When a protothread in v2 has exited, ended or throws an error, the protothread is blocked until it is explicitly finalized. Protothreads v2 introduces the ultimate final state `PT_FINALIZED` of a protothread, after which nothing else can occur as a side effect of the state of a protothread.
+
+The next example show's what that means for the state of a protothread:
 
 ```cpp
-static ptstate_t protothread1(struct pt *self)
+#include <protoduino.h>
+#include <sys/debug-print.h>
+
+static ptstate_t protothread(struct pt *self)
 {
   PT_BEGIN(self);
 
@@ -78,37 +95,42 @@ static ptstate_t protothread1(struct pt *self)
   PT_END(self);
 }
 
-static struct pt * pt1;
+static struct pt pt1;
 
 void setup()
 {
-    PT_INIT(&pt1);
+  print_setup();
+  PT_INIT(&pt1);
 }
 
 void loop()
 {
-    while(IS_RUNNING(&pt1))
-    {
-        Serial.println("still running");
-    }
+    print_state(protothread(&pt1), "< protothread");
+    delay(2000);
 }
 ```
 
 #### - **Finalizing Protothreads**
 
-Protothreads v2 introduces the `PT_FINALIZED` protothread state. This new state is member of the `ptstate_t` enum as an integral part of how v2 introduces new behaviour into the FSM of protothreads. When in v1.4 the end of a protothread is reached, using the `PT_END()` macro, a `PT_ENDED` state is returned to the caller. This is not the case with protothreads v2. Protothreads v2 returns at the `PT_END()` of a protothread, a `PT_FINALIZED` state.
+Protothreads v2 introduces the `PT_FINALIZED` protothread state. This new state is member of the `ptstate_t` enum as an integral part of how v2 introduces new behaviour into the FSM of protothreads; when in v1.4 the end of a protothread is reached, using the `PT_END()` macro, a `PT_ENDED` state is returned to the caller. This is not the case with protothreads v2. Protothreads v2 returns at the `PT_END()` of a protothread, a `PT_FINALIZED` state. Although not tested, going through the source code of `Contiki-OS` this doesn't seem to be a blocking change. If you have evidence of blocking changes within Contiki-OS please take up the issue in the issue's page of github.
+
+To intercept the control flow and its behaviour of a protothread and return a `PT_ENDED` state, protothreads v2 introduces the `PT_FINALLY()` control block.
 
 ```cpp
 #include <protoduino.h>
-#include <sys/pt.h>
-#include <sys/debug_print.h>
+#include <sys/debug-print.h>
 
-static ptstate_t protothread1(struct pt *self)
+static ptstate_t protothread(struct pt *self)
 {
+  //static uint8_t v;
   PT_BEGIN(self);
 
   PT_WAIT_ONE(self); // returns PT_WAITING
 
+  PT_FINALLY(self) // returns PT_ENDED
+  {
+    print_line("PT_FINALLY() protothread");
+  }
   PT_END(self); // returns PT_FINALIZED
 }
 
@@ -122,33 +144,50 @@ void setup()
 
 void loop()
 {
-  print_state(protothread1(&pt1), "void loop()");
   print_count++;
-  delay(1000)
+  delay(1000);
+
+  ptstate_t state = protothread(&pt1);
+  print_state(state, pt1.lc, "< protothread");
+  if (state == PT_FINALIZED || PT_ISRUNNING(state))
+    return;
+  
+  PT_FINAL(&pt1);
 }
 ```
 
-To intercept the control flow of a protothread and return a `PT_ENDED` state, protothreads v2 introduces the `PT_FINALLY()` control block. @todo  
+In this simple example we execute a protothread and wait for its state to return, in order to determine whether or not we should finalize it by calling the `PT_FINAL(macro).
+Working with different compiler I came to conclude that whenever you want to define a local variable in order to hold some value, it is better for protothread v2 to declare a static variable above all; I have seen stuff done by compilers or the like that can realy create unpredictable behaviour.
+
+
+#### - **Exception Handling**
+
+Protothreads v2 introduces native exception handling capabilities. It's a little bit different from the exception handling that we acquire in languages like `C++`, `C#` or `JAVA` for example. It is the nature of the `PT_ERROR` state, which enables a protothread to support lightweight exception handling. By encoding an error code into the state when raising an exception, protothread v2 includes some new constructs that allow for easy and natural implementation of otherwise complex structures like this. A protothread in v2 raises the exception using the `PT_RAISE()` macro and handles the exception using the `PT_CATCHANY` or `PT_CATCH` macros. When an exception is handled within the protothread, the thread can gracefully exit, restart, or throw an error. Some generic errors are already defined in `<sys/pt-errors.h>`, but they offer an alternative idea to an abstraction of all that programming in C has to offer. Therefor this document needs an overhaul, to more accuratelly explain the situation in C, pretty soon.
+
 
 ```cpp
 #include <protoduino.h>
-#include <sys/pt.h>
-#include <sys/debug_print.h>
+#include <sys/debug-print.h>
 
-static ptstate_t protothread1(struct pt *self)
+static ptstate_t protothread(struct pt *self)
 {
+  //static uint8_t v;
   PT_BEGIN(self);
 
   PT_WAIT_ONE(self); // returns PT_WAITING
 
-  PT_FINALLY(self) // returns PT_ENDED
+  PT_RAISE(self, (PT_ERROR + random(0, 63));
+
+  print_line("UNREACHABLE protothread");
+
+  PT_CATCHANY(self)
   {
-    print_line("PT_FINALLY() protothread1");
+    print_line("PT_CATCHANY() protothread");
   }
   PT_END(self); // returns PT_FINALIZED
 }
 
-static struct pt * pt1;
+static struct pt pt1;
 
 void setup()
 {
@@ -158,46 +197,20 @@ void setup()
 
 void loop()
 {
-  ptstate_t state;
-  print_state(state = protothread1(&pt1), "void loop()");
   print_count++;
+  delay(1000);
 
-  if (state != PT_FINALIZED && !IS_RUNNING(state))
-    PT_FINAL(&pt1);
-
-  delay(1000)
-}
-```
-
-When a spawned protothread using the `PT_SPAWN()` or `PT_FOREACH()` macro end, exit or throws an error, protothreads v2 will automatically call the `PT_FINALLY()` control block of the child thread. which can be set by the parent thread using the `PT_FINAL()` macro. This provides a way to gracefully handle the shutdown of a protothread. This behaviour was invented for the sake of having a substitute for the `PROCESS_EXITHANDLER()` macro in Contiki-OS.
-
-#### - **Exception Handling**
-
-Protothreads v2 introduces native exception handling capabilities. The `PT_ERROR` state enables a protothread to support lightweight exception handling, by encoding an error code into the state directly and without the need of the explicit declaration of a `PT_TRY` macro; The `PT_BEGIN` macro is enough. A protothread in v2 can raise an exception using `PT_RAISE` and catch the exception using `PT_CATCHANY` or `PT_CATCH`. When an exception is handled within the protothread, the thread can gracefully exit, restart, or throw an error to the parent thread using the `PT_THROW` or `PT_RETHROW` macros. Unless you know the what and the why, it is advised, that the latter macros should only be used within a `PT_CATCHANY` or `PT_CATCH` control block.  Some generic errors are already defined in `<sys/pt-errors.h>`, which need to be extended on the short term.
-
-@todo reminder to add documentation about not raising an exception or throwing an error below PT_ERROR (i.e. < (uint8_t)4) or above PT_FINALIZED (i.e. >= (uint8_t)255). This is up to the developer todo this and no compile time checking will be done!
-
-See the `08-pt-try-catch.ini` example for its usage:
-
-```cpp
-static ptstate_t protothread2(struct pt * self)
-{
-  PT_BEGIN(self);
+  ptstate_t state = protothread(&pt1);
+  print_state(state, pt1.lc, "< protothread");
+  if (state == PT_FINALIZED || PT_ISRUNNING(state))
+    return;
   
-  PT_WAIT_ONE(self);
-
-  PT_RAISE(self, (PT_ERROR + random(0, 63));
-
-  Serial.printlln("UNREACHABLE");
-
-  PT_CATCHANY(self)
-  {
-    Serial.println("PT_CATCHANY()");
-  }
-
-  PT_END(self);
+  PT_FINAL(&pt1);
 }
 ```
+
+In contrary to the finalizing control block in the previous chapter, we now have a protothread that is capable of handing errors by using the `PT_RAISE()` and `PT_CATCHANY` macros without the parent thread intervening to do so.
+
 
 For a more advanced example, see the `20-pt-basic-term.ino` sketch in the `examples/` directory.
 

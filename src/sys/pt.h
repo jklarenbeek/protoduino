@@ -238,7 +238,11 @@ enum ptstate_t : uint8_t
  * 
  * \param pt A pointer to the protothread control structure.
 */
-#define PT_FINALLY(pt) LC_FINALLY((pt)->lc, return PT_ENDED)
+#define PT_FINALLY(pt) \
+  do { \
+    LC_SET((pt)->lc) \
+    LC_FINALLY((pt)->lc, return PT_ENDED); \
+  } while(0);
 
 /**
  * Throws an error within a protothread PT_CATCH() block.
@@ -254,8 +258,7 @@ enum ptstate_t : uint8_t
  */
 #define PT_THROW(pt, err) \
   do { \
-    LC_SET((pt)->lc); \
-    return ((((ptstate_t)(err)) < PT_ERROR) ? PT_ERROR : (ptstate_t)(err)); \
+    LC_SET((pt)->lc) return (((err) < PT_ERROR || (err) >= PT_FINALIZED) ? PT_ERROR : (err)); \
   } while(0)
 
 /**
@@ -447,8 +450,7 @@ enum ptstate_t : uint8_t
  */
 #define PT_EXIT(pt) \
   do { \
-    LC_RET((pt)->lc, return PT_EXITED); \
-    return PT_EXITED; \
+    LC_SET((pt)->lc) return PT_EXITED; \
   } while(0)
 
 /** @} */
@@ -527,14 +529,18 @@ enum ptstate_t : uint8_t
  * It must always be used together with a matching PT_FOREACH()
  * macro.
  *
+ * \todo this is a nonsensical way to finalize it. rewrite.
+ * 
  * \param pt A pointer to the protothread control structure.
  *
  * \hideinitializer
  */
 #define PT_ENDEACH(pt) \
     } \
-    PT_ONERROR(PT_ERROR_STATE) \
-      PT_RAISE(pt, PT_ERROR_STATE); \
+    if (PT_ERROR_STATE != PT_FINALIZED) { \
+      if (PT_ERROR_STATE >= PT_ERROR) \
+        PT_RAISE(pt, PT_ERROR_STATE); \
+    } \
   } while(0)
 
 /** @} */
