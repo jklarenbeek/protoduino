@@ -179,13 +179,13 @@ static ptstate_t protothread(struct pt *self)
 
   PT_WAIT_ONE(self); // returns PT_WAITING
 
-  PT_RAISE(self, (PT_ERROR + random(0, 63));
+  PT_RAISE(self, (PT_ERROR + random(0, 63)));
 
   print_line("UNREACHABLE protothread");
 
   PT_CATCHANY(self)
   {
-    print_line("PT_CATCHANY() protothread");
+    print_error("PT_CATCHANY() protothread", PT_ERROR_STATE);
   }
   PT_END(self); // returns PT_FINALIZED
 }
@@ -212,7 +212,7 @@ void loop()
 }
 ```
 
-In contrary to the finalizing control block in the previous chapter, we now have a protothread that is capable of handing errors by using the `PT_RAISE()` and `PT_CATCHANY` macros without the parent thread intervening to do so.
+In contrary to the finalizing control block in the previous chapter, we now have a protothread that is capable of handing errors by using the `PT_RAISE()` and `PT_CATCHANY()` macros without the parent thread intervening to do so. Try removing the `PT_RAISE()` macro and notice that the `PT_CATCHANY()` control block is called as a finalizer with the error code `255`.
 
 For a more advanced example, see the `20-pt-basic-term.ino` sketch in the `examples/` directory.
 

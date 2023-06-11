@@ -207,8 +207,11 @@ enum ptstate_t : uint8_t
  * 
 */
 #define PT_CATCH(pt, err) \
-  LC_CATCH((pt)->lc, return PT_ENDED, err); \
-  PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR);
+  do { \
+    LC_SET((pt)->lc) \
+    LC_CATCH((pt)->lc, return PT_ENDED, err); \
+    PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR); \
+  } while(0);
 
 /**
  * Declare the start of a catch any block.
@@ -224,8 +227,11 @@ enum ptstate_t : uint8_t
  * \param pt A pointer to the protothread control structure.
 */
 #define PT_CATCHANY(pt) \
-  LC_CATCHANY((pt)->lc, return PT_ENDED); \
-  PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR);
+  do { \
+    LC_SET((pt)->lc) \
+    LC_CATCHANY((pt)->lc, return PT_ENDED); \
+    PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR); \
+  } while(0);
 
 /**
  * Declare the start of an exit handler

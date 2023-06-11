@@ -1,44 +1,41 @@
 #include <protoduino.h>
 #include <sys/debug-print.h>
 
-static ptstate_t iterator(struct pt * self)
+static ptstate_t protothread(struct pt *self)
 {
-  static uint8_t v;
-
+  //static uint8_t v;
   PT_BEGIN(self);
-  forever: while(1)
+
+  PT_WAIT_ONE(self); // returns PT_WAITING
+
+  PT_RAISE(self, (PT_ERROR + random(0, 63)));
+
+  print_line("UNREACHABLE protothread");
+
+  PT_CATCHANY(self)
   {
-    v = random(0,8);
-    if (v == 0)
-      PT_WAIT_ONE(self); // returns PT_WAITING
-    else if (v == 1)
-      PT_YIELD(self); // returns PT_YIELDED
-    else if (v == 2)
-      PT_RESTART(self); // returns PT_WAITING
-    else if (v == 3)
-      PT_EXIT(self); // returns PT_EXITED
-    else if (v == 4)
-      PT_RAISE(self, PT_ERROR + v); // returns PT_WAITING
-    else if (v == 5)
-      break;
-    else
-      PT_THROW(self, PT_ERROR + v);
+    print_error("PT_CATCHANY() protothread", PT_ERROR_STATE);
   }
-  PT_END(self);
+  PT_END(self); // returns PT_FINALIZED
 }
 
-static struct pt it1;
+static struct pt pt1;
 
 void setup()
 {
   print_setup();
-  PT_INIT(&it1);
+  PT_INIT(&pt1);
 }
 
 void loop()
 {
-  ptstate_t state = iterator(&it1);
-  print_state(state, it1.lc, "void loop()");
   print_count++;
   delay(1000);
+
+  ptstate_t state = protothread(&pt1);
+  print_state(state, pt1.lc, "< protothread");
+  if (state == PT_FINALIZED || PT_ISRUNNING(state))
+    return;
+  
+  PT_FINAL(&pt1);
 }
