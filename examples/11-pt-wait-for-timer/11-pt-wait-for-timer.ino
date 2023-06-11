@@ -1,7 +1,7 @@
 
 #include <protoduino.h>
 #include <sys/pt-timer.h>
-#include <sys/debug-print.h>
+#include <sys/examples.h>
 
 static ptstate_t protothread1(struct pt *pt)
 {

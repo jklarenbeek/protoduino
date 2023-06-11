@@ -7,7 +7,7 @@
 
 #include <protoduino.h>
 #include <sys/pt.h>
-#include <sys/debug-print.h>
+#include <sys/examples.h>
 
 /**
  * The first protothread function. A protothread function must always

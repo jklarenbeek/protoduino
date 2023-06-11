@@ -36,7 +36,7 @@ Because of the state extensions in protothreads v2, we now have the capability t
 
 ```cpp
 #include <protoduino.h>
-#include <sys/debug-print.h>
+#include <sys/examples.h>
 
 static ptstate_t iterator(struct pt * self)
 {
@@ -86,7 +86,7 @@ The next example show's what that means for the state of a protothread:
 
 ```cpp
 #include <protoduino.h>
-#include <sys/debug-print.h>
+#include <sys/examples.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -121,7 +121,7 @@ To intercept the control flow and its behaviour of a protothread and return a `P
 
 ```cpp
 #include <protoduino.h>
-#include <sys/debug-print.h>
+#include <sys/examples.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -170,7 +170,7 @@ Protothreads v2 introduces native exception handling capabilities. It's a little
 
 ```cpp
 #include <protoduino.h>
-#include <sys/debug-print.h>
+#include <sys/examples.h>
 
 static ptstate_t protothread(struct pt *self)
 {

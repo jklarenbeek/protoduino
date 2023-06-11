@@ -14,7 +14,7 @@
 
 #include <protoduino.h>
 #include <sys/pt.h>
-#include <sys/debug-print.h>
+#include <sys/examples.h>
 
 /**
  * the protothread state structure is extended to hold

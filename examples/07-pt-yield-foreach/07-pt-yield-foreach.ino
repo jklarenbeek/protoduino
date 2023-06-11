@@ -16,7 +16,7 @@
 
 #include <protoduino.h>
 #include <sys/pt.h>
-#include <sys/debug-print.h>
+#include <sys/examples.h>
 
 /**
  * Although an iterator doesn't need to return a value, this example
