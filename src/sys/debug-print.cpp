@@ -59,6 +59,19 @@ void print_state(const ptstate_t s, const char * msg)
   Serial.println(msg);
 }
 
+void print_state(const ptstate_t s, const char * msg, const uint8_t value)
+{
+  print_state(s, 0, msg, value);
+}
+
+void print_state(const ptstate_t s, const lc_t lc, const char * msg)
+{
+  print_state_ex(s, lc);
+  Serial.print(" ");
+  Serial.print(msg);
+  Serial.println();
+}
+
 void print_state(const ptstate_t s, const lc_t lc, const char * msg, const uint8_t value)
 {
   print_state_ex(s, lc);
@@ -66,11 +79,6 @@ void print_state(const ptstate_t s, const lc_t lc, const char * msg, const uint8
   Serial.print(msg);
   Serial.print(":");
   Serial.println(value);
-}
-
-void print_state(const ptstate_t s, const char * msg, const uint8_t value)
-{
-  print_state(s, 0, msg, value);
 }
 
 static void print_error_ex(const char * str, uint8_t err)

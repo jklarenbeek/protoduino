@@ -32,7 +32,7 @@ enum ptstate_t : uint8_t
 };
 ```
 
-Because of the state extensions in protothreads v2, we now have the capability to add some new and exciting constructs. An example is the finally control block and the error encoding into the state that allows exception handling. This comes without adding any memory overhead in comparison to protothreads v1.4. But before we get into this, lets consider the following macros in the `iterator1()` function below. If they seem familiar, its because that most of the macros returned from the protothread, are coming from protothreads v1.4. But one of them has a distinct different use than within `Contiki-OS` for example.
+Because of the state extensions in protothreads v2, we now have the capability to add some new and exciting constructs. An example is the finally control block and the error encoding into the state that allows exception handling. This comes without adding any memory overhead in comparison to protothreads v1.4. But before we get into this, lets consider the following macros in the `iterator1()` function below. If they seem familiar, its because that most of the state's returned from the protothread are coming from protothreads v1.4. But two of them have a distinct different use than within `Contiki-OS` for example.
 
 ```cpp
 #include <protoduino.h>
@@ -45,8 +45,8 @@ static ptstate_t iterator(struct pt * self)
   PT_BEGIN(self);
   forever: while(1)
   {
-    v = random(0,6);
-    if (v <= 1)
+    v = random(0,8);
+    if (v == 1)
       PT_WAIT_ONE(self); // returns PT_WAITING
     else if (v == 2)
       PT_YIELD(self); // returns PT_YIELDED
@@ -54,6 +54,8 @@ static ptstate_t iterator(struct pt * self)
       PT_RESTART(self); // returns PT_WAITING
     else if (v == 4)
       PT_EXIT(self); // returns PT_EXITED
+    else if (v == 5)
+      PT_RAISE(self, PT_ERROR + v); // returns PT_WAITING
     else
       PT_THROW(self, PT_ERROR + v);
   }
@@ -106,6 +108,7 @@ void setup()
 void loop()
 {
     print_state(protothread(&pt1), "< protothread");
+    print_count++;
     delay(2000);
 }
 ```
@@ -156,13 +159,13 @@ void loop()
 }
 ```
 
-In this simple example we execute a protothread and wait for its state to return, in order to determine whether or not we should finalize it by calling the `PT_FINAL(macro).
-Working with different compiler I came to conclude that whenever you want to define a local variable in order to hold some value, it is better for protothread v2 to declare a static variable above all; I have seen stuff done by compilers or the like that can realy create unpredictable behaviour.
+In this simple example we execute a protothread and wait for its state to return, in order to determine whether or not we should finalize it by calling the `PT_FINAL()` macro.
+Working with different compilers I came to conclude that whenever you want to define a local variable in order to hold some value, it is better for protothreads v2 to declare a static variable above all; I have seen stuff done by compilers or the like that can realy create unpredictable behaviour.
 
 
 #### - **Exception Handling**
 
-Protothreads v2 introduces native exception handling capabilities. It's a little bit different from the exception handling that we acquire in languages like `C++`, `C#` or `JAVA` for example. It is the nature of the `PT_ERROR` state, which enables a protothread to support lightweight exception handling. By encoding an error code into the state when raising an exception, protothread v2 includes some new constructs that allow for easy and natural implementation of otherwise complex structures like this. A protothread in v2 raises the exception using the `PT_RAISE()` macro and handles the exception using the `PT_CATCHANY` or `PT_CATCH` macros. When an exception is handled within the protothread, the thread can gracefully exit, restart, or throw an error. Some generic errors are already defined in `<sys/pt-errors.h>`, but they offer an alternative idea to an abstraction of all that programming in C has to offer. Therefor this document needs an overhaul, to more accuratelly explain the situation in C, pretty soon.
+Protothreads v2 introduces native exception handling capabilities. It's a little bit different from the exception handling that we acquire in languages like `C++`, `C#` or `JAVA` for example. This is because of the nature of the `PT_ERROR` state, which enables a protothread to support lightweight exception handling. By encoding an error code into the state when raising an exception, protothread v2 includes some new constructs that allow for easy and natural implementation of otherwise complex structures like this. A protothread in v2 raises the exception using the `PT_RAISE()` macro and handles the exception using the `PT_CATCHANY` or `PT_CATCH` macros. When raising an exception the protothread MUST implement at least a `PT_CATCHANY()` control block. When an exception is handled within the protothread, the thread can gracefully exit, restart, or throw an error. Some generic errors are already defined in `<sys/pt-errors.h>`, but they offer an alternative idea to an abstraction of all that programming in C has to offer. Therefor this document needs an overhaul, to more accuratelly explain the situation in C, pretty soon.
 
 
 ```cpp
@@ -210,7 +213,6 @@ void loop()
 ```
 
 In contrary to the finalizing control block in the previous chapter, we now have a protothread that is capable of handing errors by using the `PT_RAISE()` and `PT_CATCHANY` macros without the parent thread intervening to do so.
-
 
 For a more advanced example, see the `20-pt-basic-term.ino` sketch in the `examples/` directory.
 

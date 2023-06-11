@@ -1,86 +1,44 @@
-/***
- * 
-*/
-
 #include <protoduino.h>
-#include <sys/pt.h>
 #include <sys/debug-print.h>
 
-static ptstate_t protothread1(struct pt *self)
+static ptstate_t iterator(struct pt * self)
 {
+  static uint8_t v;
+
   PT_BEGIN(self);
-
-  print_line("PT_BEGIN() protothread1");
-
   forever: while(1)
   {
-    print_line("PT_WAIT_ONE() protothread1");
-
-    PT_WAIT_ONE(self);
-
-    uint8_t v = random(0, 6);
-    if (v == 2)
-      PT_EXIT(self);
+    v = random(0,8);
+    if (v == 0)
+      PT_WAIT_ONE(self); // returns PT_WAITING
+    else if (v == 1)
+      PT_YIELD(self); // returns PT_YIELDED
+    else if (v == 2)
+      PT_RESTART(self); // returns PT_WAITING
     else if (v == 3)
-      PT_RAISE(self, PT_ERROR + v);
+      PT_EXIT(self); // returns PT_EXITED
     else if (v == 4)
+      PT_RAISE(self, PT_ERROR + v); // returns PT_WAITING
+    else if (v == 5)
       break;
+    else
+      PT_THROW(self, PT_ERROR + v);
   }
-
-  print_line("PT_ENDED protothread1");
-
-  PT_CATCHANY(self)
-  {
-    print_error("PT_CATCHANY() protothread1", PT_ERROR_STATE);
-    PT_RETHROW(self);
-  }
-
-  PT_FINALLY(self)
-  
-  print_line("PT_FINALLY() protothread1");
-
   PT_END(self);
 }
+
+static struct pt it1;
 
 void setup()
 {
   print_setup();
-}
-
-void test1_run()
-{
-  print_line("void test1_run() START");
-
-  static struct pt pt1;
-
-  static ptstate_t state;
-
-  // set the protothread control structure to the beginning of the protothread
-  PT_INIT(&pt1);
-  while(PT_ISRUNNING(state = protothread1(&pt1)))
-  {
-    print_state(state, "void test1_run()");
-    delay(1000);
-  }
-  print_state(state, "void test1_run()");
-  delay(1000);
-
-  // set the protothread control structure to the finally control block
-  PT_FINAL(&pt1);
-  while(PT_ISRUNNING(state = protothread1(&pt1)))
-  {
-    print_state(state, "void test1_run()");
-    delay(1000);  
-  }
-  print_state(state, "void test1_run()");
-  delay(1000);
-
+  PT_INIT(&it1);
 }
 
 void loop()
 {
-  test1_run();
+  ptstate_t state = iterator(&it1);
+  print_state(state, it1.lc, "void loop()");
   print_count++;
-
-  delay(2000);
+  delay(1000);
 }
