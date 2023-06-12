@@ -155,138 +155,6 @@ enum ptstate_t : uint8_t
 /** @} */
 
 /**
- * \name Try Catch
- * @{
- */
-
-/**
- * Raise an error within the protothread.
- * 
- * This macro will block and cause the running protothread to be set
- * in an error state. The error can be catched with the PT_CATCH()
- * and PT_CATCHANY() macro declarations the next time the protothread
- * is scheduled.
- * 
- * \warning err must not be greater then max value ptstate_t -1 and not less the PT_ERROR!
- * 
- * \param pt A pointer to the protothread control structure
- * \param err An integer between 4 and 254 representing the error code
- * 
- * \hideinitializer
- */
-#define PT_RAISE(pt, err) \
-  do { \
-    LC_RAISE((pt)->lc, err); \
-    return PT_WAITING; \
-  } while(0)
-
-/**
- * Test if error occured after spawning a thread
- * 
- * If a child thread is spawn in a protothread, one can
- * test for the error with this macro. Child threads are typically
- * run by PT_WAIT_THREAD, PT_SPAWN or PT_FOREACH.
- * 
- * \param pt A pointer to the protothread
- * 
- */
-#define PT_ONERROR(state) \
-    if (state >= PT_ERROR && state != PT_FINALIZED)
-
-
-/**
- * Declare the start of catch block.
- * 
- * This macro is used for declaring a protothread with an error
- * handling structure and can occur multiple times within a
- * protothread. The error code MUST be unique within the protothread
- * declaration and catches only one error. When a protothread runs
- * without producing any errors, it will never flow into this macro.
- * A PT_CATCH() declaration will ALWAYS end gracefully with PT_ENDED
- * if the error is not thrown with PT_THROW() or PT_RETHROW().
- * 
-*/
-#define PT_CATCH(pt, err) \
-  do { \
-    LC_SET((pt)->lc) \
-    LC_CATCH((pt)->lc, return PT_ENDED, err); \
-    PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR); \
-  } while(0);
-
-/**
- * Declare the start of a catch any block.
- * 
- * This macro is used for declaring a protothread with an error
- * handling structure and can only occur one time within a
- * protothread. It catches all errors not handled by PT_CATCH().
- * When a protothread runs without producing any errors, it will
- * never flow into this macro. A PT_CATCHANY() declaration will
- * ALWAYS end gracefully with PT_ENDED if the error is not thrown
- * with PT_THROW() or PT_RETHROW().
- * 
- * \param pt A pointer to the protothread control structure.
-*/
-#define PT_CATCHANY(pt) \
-  do { \
-    LC_SET((pt)->lc) \
-    LC_CATCHANY((pt)->lc, return PT_ENDED); \
-    PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR); \
-  } while(0);
-
-/**
- * Declare the start of an exit handler
- * 
- * This macro is trigger when a protothread exits with
- * PT_EXITED, PT_ENDED or PT_ERROR. It must be set by the caller
- * in order to execute. If not manually started, a protothread
- * will never just flow into a finally block. It does not recover
- * any error code that was raised, catched or throwed.
- * 
- * \param pt A pointer to the protothread control structure.
-*/
-#define PT_FINALLY(pt) \
-  do { \
-    LC_SET((pt)->lc) \
-    LC_FINALLY((pt)->lc, return PT_ENDED); \
-  } while(0);
-
-/**
- * Throws an error within a protothread PT_CATCH() block.
- * 
- * This macro causes the protothread to exit with an error.
- * It MUST only be used inside a PT_CATCH() or PT_CACHANY()
- * block. It behaves the same as PT_EXITED or PT_ENDED but 
- * with an additional error code encoded.
- * 
- * \param pt A pointer to the protothread control structure.
- * \param err An error code within the range of 4 - 254
- * 
- */
-#define PT_THROW(pt, err) \
-  do { \
-    LC_SET((pt)->lc) return (((err) < PT_ERROR || (err) >= PT_FINALIZED) ? PT_ERROR : (err)); \
-  } while(0)
-
-/**
- * ReThrows an error within a protothread PT_CATCHANY() block.
- * 
- * This macro causes the protothread to exit with an error.
- * It must always be used inside a PT_CATCH() or PT_CACHANY()
- * block. It behaves the same as PT_EXITED or PT_ENDED but 
- * with an additional error code encoded.
- * 
- * \param pt A pointer to the protothread control structure.
- * 
- */
-#define PT_RETHROW(pt) \
-  do { \
-    LC_RET((pt)->lc, return PT_ERROR_STATE); \
-    return PT_ERROR; \
-  } while(0)
-
-/** @} */
-
-/**
  * \name Blocked wait
  * @{
  */
@@ -336,6 +204,256 @@ enum ptstate_t : uint8_t
  * \hideinitializer
  */
 #define PT_WAIT_WHILE(pt, cond) PT_WAIT_UNTIL((pt), !(cond))
+
+/** @} */
+
+/**
+ * \name Protothread iterators
+ * @{
+ */
+
+/**
+ * Yield from the current protothread.
+ *
+ * This function will yield the protothread, thereby allowing other
+ * processing to take place in the system.
+ *
+ * \param pt A pointer to the protothread control structure.
+ *
+ * \hideinitializer
+ */
+#define PT_YIELD(pt) \
+  do { \
+    LC_RET((pt)->lc, return PT_YIELDED); \
+  } while(0)
+
+/**
+ * \brief      Yield from the protothread until a condition occurs.
+ * 
+ * \param pt   A pointer to the protothread control structure.
+ * \param cond The condition.
+ *
+ *             This function will yield the protothread, until the
+ *             specified condition evaluates to true.
+ *
+ * \warning I have worked with this macro many times, and want to
+ *          caution you of using it. In this case the yield will
+ *          remain until the condition is met. But instead, logically
+ *          it should return PT_WAITING
+ * 
+ * \hideinitializer
+ */
+#define PT_YIELD_UNTIL(pt, cond) \
+  do { \
+    LC_RET((pt)->lc, return PT_YIELDED); \
+    if(!(cond)) {	\
+      return PT_YIELDED; \
+    } \
+  } while(0)
+
+/** @} */
+
+
+/**
+ * \name Exiting and restarting
+ * @{
+ */
+
+/**
+ * Restart the protothread.
+ *
+ * This macro will block and cause the running protothread to restart
+ * its execution at the place of the PT_BEGIN() call.
+ *
+ * \param pt A pointer to the protothread control structure.
+ *
+ * \hideinitializer
+ */
+#define PT_RESTART(pt)				\
+  do {						\
+    PT_INIT(pt);				\
+    return PT_WAITING;			\
+  } while(0)
+
+/**
+ * Exit the protothread.
+ *
+ * This macro causes the protothread to exit. If the protothread was
+ * spawned by another protothread, the parent protothread will become
+ * unblocked and can continue to run.
+ *
+ * \param pt A pointer to the protothread control structure.
+ *
+ * \hideinitializer
+ */
+#define PT_EXIT(pt) \
+  do { \
+    LC_SET((pt)->lc) return PT_EXITED; \
+  } while(0)
+
+/** @} */
+
+/**
+ * \name Finalizing Protothreads
+ * @{
+ */
+
+/**
+ * Declare the start of an exit handler
+ * 
+ * This macro is trigger when a protothread exits with
+ * PT_EXITED, PT_ENDED or PT_ERROR. It must be set by the caller
+ * in order to execute. If not manually started, a protothread
+ * will never just flow into a finally block. It does not recover
+ * any error code that was raised, catched or throwed.
+ * 
+ * \param pt A pointer to the protothread control structure.
+*/
+#define PT_FINALLY(pt) \
+  do { \
+    LC_SET((pt)->lc) return PT_ENDED; \
+    LC_FINALLY((pt)->lc); \
+  } while(0);
+
+/** @} */
+
+/**
+ * \name Exception Handling
+ * @{
+ */
+
+/**
+ * Raise an exception within the protothread.
+ * 
+ * This macro will block and cause the running protothread to be set
+ * in an error state, which is the exception. The exception can be catched with the PT_CATCH()
+ * and PT_CATCHANY() macro declarations the next time the protothread
+ * is scheduled.
+ * 
+ * \warning err must not be greater then max value ptstate_t -1 and not less the PT_ERROR!
+ * 
+ * \param pt A pointer to the protothread control structure
+ * \param err An integer between 4 and 254 representing the error code
+ * 
+ * \hideinitializer
+ */
+#define PT_RAISE(pt, err) \
+  do { \
+    LC_RAISE((pt)->lc, err); \
+    return PT_WAITING; \
+  } while(0)
+
+/**
+ * Declare the start of catch block.
+ * 
+ * This macro is used for declaring a protothread with an error
+ * handling structure and can occur multiple times within a
+ * protothread. The error code MUST be unique within the protothread
+ * declaration and catches only one error. When a protothread runs
+ * without producing any errors, it will never flow into this macro.
+ * A PT_CATCH() declaration will ALWAYS end gracefully with PT_ENDED
+ * if the error is not thrown with PT_THROW() or PT_RETHROW().
+ * 
+*/
+#define PT_CATCH(pt, err) \
+  do { \
+    LC_SET((pt)->lc) return PT_ENDED \
+    LC_CATCH((pt)->lc, err); \
+    PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR); \
+  } while(0);
+
+/**
+ * Declare the start of a catch any block.
+ * 
+ * This macro is used for declaring a protothread with an error
+ * handling structure and can only occur one time within a
+ * protothread. It catches all errors not handled by PT_CATCH().
+ * When a protothread runs without producing any errors, it will
+ * never flow into this macro. A PT_CATCHANY() declaration will
+ * ALWAYS end gracefully with PT_ENDED if the error is not thrown
+ * with PT_THROW() or PT_RETHROW().
+ * 
+ * \param pt A pointer to the protothread control structure.
+*/
+#define PT_CATCHANY(pt) \
+  do { \
+    LC_SET((pt)->lc) return PT_ENDED; \
+    LC_CATCHANY((pt)->lc); \
+    PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR); \
+  } while(0);
+
+/**
+ * Declare the start of an exit handler
+ * 
+ * This macro is trigger when a protothread exits with
+ * PT_EXITED, PT_ENDED or PT_ERROR. It must be set by the caller
+ * in order to execute. If not manually started, a protothread
+ * will never just flow into a finally block. It does not recover
+ * any error code that was raised, catched or throwed.
+ * 
+ * \param pt A pointer to the protothread control structure.
+*/
+#define PT_FINALLY(pt) \
+  do { \
+    LC_SET((pt)->lc) return PT_ENDED; \
+    LC_FINALLY((pt)->lc); \
+  } while(0);
+
+/** @} */
+
+
+/**
+ * \name Error Handling
+ * @{
+ */
+
+/**
+ * Test if error occured after spawning a thread
+ * 
+ * If a child thread is spawn in a protothread, one can
+ * test for the error with this macro. Child threads are typically
+ * run by PT_WAIT_THREAD, PT_SPAWN or PT_FOREACH.
+ * 
+ * \param pt A pointer to the protothread
+ * 
+ */
+#define PT_ONERROR(state) \
+    if (state >= PT_ERROR && state != PT_FINALIZED)
+
+
+/**
+ * Throws an error within a protothread PT_CATCH() block.
+ * 
+ * This macro causes the protothread to exit with an error.
+ * It MUST only be used inside a PT_CATCH() or PT_CACHANY()
+ * block. It behaves the same as PT_EXITED or PT_ENDED but 
+ * with an additional error code encoded.
+ * 
+ * \param pt A pointer to the protothread control structure.
+ * \param err An error code within the range of 4 - 254
+ * 
+ */
+#define PT_THROW(pt, err) \
+  do { \
+    LC_SET((pt)->lc) return (((err) < PT_ERROR || (err) >= PT_FINALIZED) ? PT_ERROR : (err)); \
+  } while(0)
+
+/**
+ * ReThrows an error within a protothread PT_CATCHANY() block.
+ * 
+ * This macro causes the protothread to exit with an error.
+ * It must always be used inside a PT_CATCH() or PT_CACHANY()
+ * block. It behaves the same as PT_EXITED or PT_ENDED but 
+ * with an additional error code encoded.
+ * 
+ * \param pt A pointer to the protothread control structure.
+ * 
+ */
+#define PT_RETHROW(pt) \
+  do { \
+    LC_RET((pt)->lc, return PT_ERROR_STATE); \
+    return PT_ERROR; \
+  } while(0)
 
 /** @} */
 
@@ -413,98 +531,11 @@ enum ptstate_t : uint8_t
  */
 #define PT_SPAWN(pt, child, thread)		\
   do {						\
-    PT_INIT((child));				\
-    PT_WAIT_THREAD((pt), (thread));		\
+    PT_INIT(child);				\
+    PT_WAIT_THREAD(pt, thread);		\
     PT_ONERROR(PT_ERROR_STATE) \
       PT_RAISE(pt, PT_ERROR_STATE); \
   } while(0)
-
-
-/** @} */
-
-/**
- * \name Exiting and restarting
- * @{
- */
-
-/**
- * Restart the protothread.
- *
- * This macro will block and cause the running protothread to restart
- * its execution at the place of the PT_BEGIN() call.
- *
- * \param pt A pointer to the protothread control structure.
- *
- * \hideinitializer
- */
-#define PT_RESTART(pt)				\
-  do {						\
-    PT_INIT(pt);				\
-    return PT_WAITING;			\
-  } while(0)
-
-/**
- * Exit the protothread.
- *
- * This macro causes the protothread to exit. If the protothread was
- * spawned by another protothread, the parent protothread will become
- * unblocked and can continue to run.
- *
- * \param pt A pointer to the protothread control structure.
- *
- * \hideinitializer
- */
-#define PT_EXIT(pt) \
-  do { \
-    LC_SET((pt)->lc) return PT_EXITED; \
-  } while(0)
-
-/** @} */
-
-/**
- * \name Protothread iterators
- * @{
- */
-
-/**
- * Yield from the current protothread.
- *
- * This function will yield the protothread, thereby allowing other
- * processing to take place in the system.
- *
- * \param pt A pointer to the protothread control structure.
- *
- * \hideinitializer
- */
-#define PT_YIELD(pt) \
-  do { \
-    LC_RET((pt)->lc, return PT_YIELDED); \
-  } while(0)
-
-/**
- * \brief      Yield from the protothread until a condition occurs.
- * 
- * \param pt   A pointer to the protothread control structure.
- * \param cond The condition.
- *
- *             This function will yield the protothread, until the
- *             specified condition evaluates to true.
- *
- * \warning I have worked with this macro many times, and want to
- *          caution you of using it. In this case the yield will
- *          remain until the condition is met. But instead, logically
- *          it should return PT_WAITING
- * 
- * \hideinitializer
- */
-#define PT_YIELD_UNTIL(pt, cond) \
-  do { \
-    LC_RET((pt)->lc, return PT_YIELDED); \
-    if(!(cond)) {	\
-      return PT_YIELDED; \
-    } \
-  } while(0)
-
 
 /**
  * Spawn a protothread and wait until it yields.

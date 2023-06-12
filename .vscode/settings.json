@@ -3,5 +3,8 @@
     "files.associations": {
         "rune16_private.h": "c"
     },
-    "C_Cpp.errorSquiggles": "disabled"
+    "C_Cpp.errorSquiggles": "disabled",
+    "markdown.styles": [
+        "./.vscode/github-markdown.css"
+    ]
 }

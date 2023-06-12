@@ -150,7 +150,7 @@ typedef uint16_t lc_t;
  * @param r The expression to be executed
  * @param err The error code to catch
  */
-#define LC_CATCH(s, r, err) r; case LC_ERRENC(err):
+#define LC_CATCH(s, err) case LC_ERRENC(err):
 
 /**
  * @def LC_CATCHANY(s, r)
@@ -158,7 +158,7 @@ typedef uint16_t lc_t;
  * @param s The local continuation variable
  * @param r The expression to be executed
  */
-#define LC_CATCHANY(s, r) r; default:
+#define LC_CATCHANY(s) default:
 
 /**
  * @def LC_FINALLY(s, r)
@@ -166,7 +166,7 @@ typedef uint16_t lc_t;
  * @param s The local continuation variable
  * @param r The expression to be executed
  */
-#define LC_FINALLY(s, r) LC_CATCH(s, r, 255)
+#define LC_FINALLY(s) LC_CATCH(s, 255)
 
 #endif /* __LC_SWITCH_H__ */
 
