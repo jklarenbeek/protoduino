@@ -90,6 +90,11 @@ typedef uint32_t rune32_t;
  */
 #define UTF8_RET_INCOMPLETE -3
 
+#if defined(__cplusplus)
+extern "C"
+{
+#endif
+
 /**
  * \fn char* utf8_ecpy(char *to, char *e, char *from)
  * \brief Safely copy a null-terminated UTF-8 string with size checking.
@@ -178,5 +183,9 @@ uint8_t utf8_rune16len(const rune16_t rune);
  * \return The encoded length of the sequence in number of bytes.
  */
 int utf8_rune16nlen(rune16_t * rune, int nlen);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif

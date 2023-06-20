@@ -108,15 +108,14 @@ int8_t utf8_getr(Stream *st, rune16_t *rune)
 int8_t utf8_putr(Stream *st, const rune16_t rune)
 {
   int size = st->availableForWrite();
+  if (size < 1)
+    return 0;
 	
   /*
 	 * one character sequence
 	 *	00000-0007F => 00-7F
 	 */
 	if (rune < 0x80) {
-    if (size < 1)
-      return 0;
-
 		st->write((uint8_t)rune);
 		return 1;
 	}

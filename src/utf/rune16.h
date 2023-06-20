@@ -10,6 +10,12 @@
 #include <protoduino.h>
 #include "utf8.h"
 
+#if defined(__cplusplus)
+extern "C"
+{
+#endif
+
+
 /**
  * @brief Copies a rune16_t string up to a specified end pointer, from a source string.
  *
@@ -194,4 +200,8 @@ bool rune16_istitle(const rune16_t c);
  */
 bool rune16_isspace(const rune16_t c);
 
-#endif /* RUNE16_H */
+#if defined(__cplusplus)
+}
+#endif
+
+#endif /* __RUNE16_H__ */

@@ -128,12 +128,6 @@
 #define VT_ERR_BUFFER_OVERFLOW -2
 #define VT_ERR_KEY_NOT_FOUND -3
 
-int8_t vt_escape_add(char * buffer, uint8_t * idx, const rune16_t ch);
-
-rune16_t vt_escape_match(const char * buffer, const uint8_t len);
-
-rune16_t vt_escape_symbol(rune16_t rune);
-
 // VT400 output sequence codes.
 // CC_EXPORT_CONST_PSTR(VT_SEQ_CSI);
 // CC_EXPORT_CONST_PSTR(VT_SEQ_CLEAR);
@@ -158,5 +152,20 @@ rune16_t vt_escape_symbol(rune16_t rune);
 // CC_EXPORT_CONST_PSTR(VT_SEQ_CURSOR_VIS);
 
 #define VT_SEQ_END_ATTRSET 'm'
+
+#if defined(__cplusplus)
+extern "C"
+{
+#endif
+
+int8_t vt_escape_add(char * buffer, uint8_t * idx, const rune16_t ch);
+
+rune16_t vt_escape_match(const char * buffer, const uint8_t len);
+
+rune16_t vt_escape_symbol(rune16_t rune);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif

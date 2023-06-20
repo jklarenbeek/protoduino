@@ -357,7 +357,7 @@ enum ptstate_t : uint8_t
 */
 #define PT_CATCH(pt, err) \
   do { \
-    LC_SET((pt)->lc) return PT_ENDED \
+    LC_SET((pt)->lc) return PT_ENDED; \
     LC_CATCH((pt)->lc, err); \
     PT_ERROR_STATE = (ptstate_t)LC_ERRDEC((pt)->lc, PT_ERROR); \
   } while(0);
