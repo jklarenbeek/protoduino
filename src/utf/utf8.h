@@ -90,11 +90,6 @@ typedef uint32_t rune32_t;
  */
 #define UTF8_RET_INCOMPLETE -3
 
-#if defined(__cplusplus)
-extern "C"
-{
-#endif
-
 /**
  * \fn char* utf8_ecpy(char *to, char *e, char *from)
  * \brief Safely copy a null-terminated UTF-8 string with size checking.
@@ -110,7 +105,7 @@ extern "C"
  * \param from Pointer to the null-terminated UTF-8 string to be copied.
  * \return Pointer to the end of the copied string in the destination buffer.
  */
-char * utf8_ecpy(char *to, char *e, char *from);
+CC_EXTERN char * utf8_ecpy(char *to, char *e, char *from);
 
 /**
  * \fn uint8_t utf8_torune16(rune16_t *rune, const char *str)
@@ -125,7 +120,7 @@ char * utf8_ecpy(char *to, char *e, char *from);
  * \param str  The UTF-8 encoded string to convert.
  * \return The number of bytes consumed from the UTF-8 string.
  */
-uint8_t utf8_torune16(rune16_t *rune, const char *str);
+CC_EXTERN uint8_t utf8_torune16(rune16_t *rune, const char *str);
 
 /**
  * \fn uint8_t utf8_fromrune16(char *str, const rune16_t rune)
@@ -140,7 +135,7 @@ uint8_t utf8_torune16(rune16_t *rune, const char *str);
  * \param rune The 16-bit Unicode rune to convert to UTF-8 encoding.
  * \return The number of bytes written to the `str` buffer.
  */
-uint8_t utf8_fromrune16(char *str, const rune16_t rune);
+CC_EXTERN uint8_t utf8_fromrune16(char *str, const rune16_t rune);
 
 /**
  * \fn int utf8_len(char *s)
@@ -155,7 +150,7 @@ uint8_t utf8_fromrune16(char *str, const rune16_t rune);
  * \param s The UTF-8 encoded string to calculate the length for.
  * \return The length of the string in number of Unicode characters.
  */
-int utf8_len(char *s);
+CC_EXTERN int utf8_len(char *s);
 
 /**
  * \fn uint8_t utf8_rune16len(const rune16_t rune)
@@ -168,7 +163,7 @@ int utf8_len(char *s);
  * \param rune The 16-bit Unicode character to calculate the encoded length for.
  * \return The encoded length of the Unicode character in number of bytes.
  */
-uint8_t utf8_rune16len(const rune16_t rune);
+CC_EXTERN uint8_t utf8_rune16len(const rune16_t rune);
 
 /**
  * \fn int utf8_rune16nlen(rune16_t *rune, int nlen)
@@ -182,10 +177,6 @@ uint8_t utf8_rune16len(const rune16_t rune);
  * \param nlen Number of characters in the sequence.
  * \return The encoded length of the sequence in number of bytes.
  */
-int utf8_rune16nlen(rune16_t * rune, int nlen);
-
-#if defined(__cplusplus)
-}
-#endif
+CC_EXTERN int utf8_rune16nlen(rune16_t * rune, int nlen);
 
 #endif

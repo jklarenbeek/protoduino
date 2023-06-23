@@ -10,12 +10,6 @@
 #include <protoduino.h>
 #include "utf8.h"
 
-#if defined(__cplusplus)
-extern "C"
-{
-#endif
-
-
 /**
  * @brief Copies a rune16_t string up to a specified end pointer, from a source string.
  *
@@ -31,7 +25,7 @@ extern "C"
  *         - If `s1` is greater than or equal to `es1`, `s1` is returned without any modifications.
  *         - Otherwise, `s1` is returned after the copying is complete, with a null-terminating character added if necessary.
  */
-rune16_t *rune16_strecpy(rune16_t *s1, rune16_t *es1, rune16_t *s2);
+CC_EXTERN rune16_t *rune16_strecpy(rune16_t *s1, rune16_t *es1, rune16_t *s2);
 
 /**
  * @brief Unsigned 16-bit integer type representing a Unicode character (rune).
@@ -45,7 +39,7 @@ typedef uint16_t rune16_t;
  * @param s2 The source string that will be appended to s1.
  * @return The resulting string after concatenation.
  */
-rune16_t *rune16_strcat(rune16_t *s1, rune16_t *s2);
+CC_EXTERN rune16_t *rune16_strcat(rune16_t *s1, rune16_t *s2);
 
 /**
  * @brief Locates the first occurrence of a rune16_t character in a string.
@@ -54,7 +48,7 @@ rune16_t *rune16_strcat(rune16_t *s1, rune16_t *s2);
  * @param c The character to be located.
  * @return A pointer to the first occurrence of the character in the string, or NULL if the character is not found.
  */
-rune16_t *rune16_strchr(rune16_t *s, rune16_t c);
+CC_EXTERN rune16_t *rune16_strchr(rune16_t *s, rune16_t c);
 
 /**
  * @brief Compares two rune16_t strings.
@@ -66,7 +60,7 @@ rune16_t *rune16_strchr(rune16_t *s, rune16_t c);
  *         - A positive value if s1 is greater than s2.
  *         - A negative value if s1 is less than s2.
  */
-int rune16_strcmp(rune16_t *s1, rune16_t *s2);
+CC_EXTERN int rune16_strcmp(rune16_t *s1, rune16_t *s2);
 
 /**
  * @brief Copies a rune16_t string.
@@ -75,7 +69,7 @@ int rune16_strcmp(rune16_t *s1, rune16_t *s2);
  * @param s2 The source string to be copied.
  * @return A pointer to the destination string.
  */
-rune16_t *rune16_strcpy(rune16_t *s1, rune16_t *s2);
+CC_EXTERN rune16_t *rune16_strcpy(rune16_t *s1, rune16_t *s2);
 
 /**
  * @brief Locates the last occurrence of a rune16_t character in a string.
@@ -84,7 +78,7 @@ rune16_t *rune16_strcpy(rune16_t *s1, rune16_t *s2);
  * @param c The character to be located.
  * @return A pointer to the last occurrence of the character in the string, or NULL if the character is not found.
  */
-rune16_t *rune16_strrchr(rune16_t *s, rune16_t c);
+CC_EXTERN rune16_t *rune16_strrchr(rune16_t *s, rune16_t c);
 
 /**
  * @brief Locates the first occurrence of a rune16_t substring in a string.
@@ -93,7 +87,7 @@ rune16_t *rune16_strrchr(rune16_t *s, rune16_t c);
  * @param s2 The substring to be located.
  * @return A pointer to the first occurrence of the substring in the string, or NULL if the substring is not found.
  */
-rune16_t *rune16_strstr(rune16_t *s1, rune16_t *s2);
+CC_EXTERN rune16_t *rune16_strstr(rune16_t *s1, rune16_t *s2);
 
 /**
  * @brief Returns the length of a rune16_t string.
@@ -101,7 +95,7 @@ rune16_t *rune16_strstr(rune16_t *s1, rune16_t *s2);
  * @param s The string to be measured.
  * @return The number of characters in the string, excluding the terminating null character.
  */
-long rune16_strlen(rune16_t *s);
+CC_EXTERN long rune16_strlen(rune16_t *s);
 
 /**
  * @brief Appends a specified number of characters from one rune16_t string to another.
@@ -111,7 +105,7 @@ long rune16_strlen(rune16_t *s);
  * @param n  The maximum number of characters to be copied.
  * @return The resulting string after concatenation.
  */
-rune16_t *rune16_strncat(rune16_t *s1, rune16_t *s2, long n);
+CC_EXTERN rune16_t *rune16_strncat(rune16_t *s1, rune16_t *s2, long n);
 
 /**
  * @brief Compares a specified number of characters from two rune16_t strings.
@@ -124,7 +118,7 @@ rune16_t *rune16_strncat(rune16_t *s1, rune16_t *s2, long n);
  *         - A positive value if s1 is greater than s2.
  *         - A negative value if s1 is less than s2.
  */
-int rune16_strncmp(rune16_t *s1, rune16_t *s2, long n);
+CC_EXTERN int rune16_strncmp(rune16_t *s1, rune16_t *s2, long n);
 
 /**
  * @brief Copies a specified number of characters from one rune16_t string to another.
@@ -134,7 +128,7 @@ int rune16_strncmp(rune16_t *s1, rune16_t *s2, long n);
  * @param n  The maximum number of characters to be copied.
  * @return A pointer to the destination string.
  */
-rune16_t *rune16_strncpy(rune16_t *s1, rune16_t *s2, long n);
+CC_EXTERN rune16_t *rune16_strncpy(rune16_t *s1, rune16_t *s2, long n);
 
 /**
  * @brief Returns the lowercase equivalent of a rune16_t character.
@@ -142,7 +136,7 @@ rune16_t *rune16_strncpy(rune16_t *s1, rune16_t *s2, long n);
  * @param c The character to be converted.
  * @return The lowercase equivalent of the character if it exists, otherwise the character itself.
  */
-rune16_t rune16_tolower(const rune16_t c);
+CC_EXTERN rune16_t rune16_tolower(const rune16_t c);
 
 /**
  * @brief Returns the uppercase equivalent of a rune16_t character.
@@ -150,7 +144,7 @@ rune16_t rune16_tolower(const rune16_t c);
  * @param c The character to be converted.
  * @return The uppercase equivalent of the character if it exists, otherwise the character itself.
  */
-rune16_t rune16_toupper(const rune16_t c);
+CC_EXTERN rune16_t rune16_toupper(const rune16_t c);
 
 /**
  * @brief Returns the titlecase equivalent of a rune16_t character.
@@ -158,7 +152,7 @@ rune16_t rune16_toupper(const rune16_t c);
  * @param c The character to be converted.
  * @return The titlecase equivalent of the character if it exists, otherwise the character itself.
  */
-rune16_t rune16_totitle(const rune16_t c);
+CC_EXTERN rune16_t rune16_totitle(const rune16_t c);
 
 /**
  * @brief Checks if a rune16_t character is lowercase.
@@ -166,7 +160,7 @@ rune16_t rune16_totitle(const rune16_t c);
  * @param c The character to be checked.
  * @return true if the character is lowercase, false otherwise.
  */
-bool rune16_islower(const rune16_t c);
+CC_EXTERN bool rune16_islower(const rune16_t c);
 
 /**
  * @brief Checks if a rune16_t character is uppercase.
@@ -174,7 +168,7 @@ bool rune16_islower(const rune16_t c);
  * @param c The character to be checked.
  * @return true if the character is uppercase, false otherwise.
  */
-bool rune16_isupper(const rune16_t c);
+CC_EXTERN bool rune16_isupper(const rune16_t c);
 
 /**
  * @brief Checks if a rune16_t character is alphabetic.
@@ -182,7 +176,7 @@ bool rune16_isupper(const rune16_t c);
  * @param c The character to be checked.
  * @return true if the character is alphabetic, false otherwise.
  */
-bool rune16_isalpha(const rune16_t c);
+CC_EXTERN bool rune16_isalpha(const rune16_t c);
 
 /**
  * @brief Checks if a rune16_t character is a titlecase character.
@@ -190,7 +184,7 @@ bool rune16_isalpha(const rune16_t c);
  * @param c The character to be checked.
  * @return true if the character is a titlecase character, false otherwise.
  */
-bool rune16_istitle(const rune16_t c);
+CC_EXTERN bool rune16_istitle(const rune16_t c);
 
 /**
  * @brief Checks if a rune16_t character is a whitespace character.
@@ -198,10 +192,6 @@ bool rune16_istitle(const rune16_t c);
  * @param c The character to be checked.
  * @return true if the character is a whitespace character, false otherwise.
  */
-bool rune16_isspace(const rune16_t c);
-
-#if defined(__cplusplus)
-}
-#endif
+CC_EXTERN bool rune16_isspace(const rune16_t c);
 
 #endif /* __RUNE16_H__ */

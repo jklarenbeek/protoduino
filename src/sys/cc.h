@@ -34,6 +34,16 @@
 #define CC_INLINEFN(f) inline f  __attribute__((always_inline))
 
 /**
+ * @def CC_EXTERN
+ * @brief Macro to define an extern c function
+*/
+#ifdef __cplusplus
+#define CC_EXTERN extern "C"
+#else
+#define CC_EXTERN
+#endif
+
+/**
  * @def CC_WEAKFN(f)
  * @brief Macro to define a weak function
  * @param f The function definition
@@ -104,5 +114,17 @@
  * @return The number of elements in the array
  */
 #define CC_NELEM(x) (sizeof (x)/sizeof (x)[0])
+
+/**
+ * @def CC_MAIN_CONSTRUCTOR(name)
+ * @brief function called before the void main() entry point
+*/
+#define CC_MAIN_CONSTRUCTOR(name) void __attribute__((constructor)) name();
+
+/**
+ * @def CC_MAIN_DESTRUCTOR(name)
+ * @brief function called after the void main() entry point
+*/
+#define CC_MAIN_DESTRUCTOR(name) void __attribute__((destructor)) name();
 
 #endif

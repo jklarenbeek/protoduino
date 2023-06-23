@@ -1,7 +1,8 @@
 #ifndef __VT100_H__
 #define __VT100_H__
 
-#include <protoduino.h>
+#include <stdint.h>
+#include <sys/cc.h>
 #include "utf8.h"
 
 // key codes for rune16_t between 0x80-0x9F (size == 32)
@@ -153,19 +154,10 @@
 
 #define VT_SEQ_END_ATTRSET 'm'
 
-#if defined(__cplusplus)
-extern "C"
-{
-#endif
+CC_EXTERN int8_t vt_escape_add(char * buffer, uint8_t * idx, const rune16_t ch);
 
-int8_t vt_escape_add(char * buffer, uint8_t * idx, const rune16_t ch);
+CC_EXTERN rune16_t vt_escape_match(const char * buffer, const uint8_t len);
 
-rune16_t vt_escape_match(const char * buffer, const uint8_t len);
-
-rune16_t vt_escape_symbol(rune16_t rune);
-
-#if defined(__cplusplus)
-}
-#endif
+CC_EXTERN rune16_t vt_escape_symbol(rune16_t rune);
 
 #endif

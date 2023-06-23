@@ -8,13 +8,11 @@ int8_t utf8_getr(Stream *st, rune16_t *rune)
   rune16_t r;
   int size;
 
-  *rune = 0;
+  *rune = UTF8_DECODE_ERROR;
 
   size = st->available();
   if (size == 0)
     return 0;
-
-  *rune = UTF8_DECODE_ERROR;
 
   /*
 	 * one character sequence

@@ -21,8 +21,8 @@ struct ptterm {
 };
 
 
-#define PT_GETR(term_pt, refvalue) \
-  PT_WAIT_UNTIL(term_pt, (utf8_getr(term_pt->stream, refvalue) > 0))
+#define PT_GETR(term_pt) \
+  PT_WAIT_UNTIL(term_pt, (utf8_getr(term_pt->stream, &term_pt->value) > 0))
 
 static ptstate_t getch(struct ptterm *self)
 {
@@ -30,7 +30,7 @@ static ptstate_t getch(struct ptterm *self)
 
   forever: while(1)
   {
-    PT_GETR(self, &self->value);
+    PT_GETR(self);
     if (self->value != KEY_ESCAPE)
     {
       PT_YIELD(self);
@@ -45,7 +45,7 @@ static ptstate_t getch(struct ptterm *self)
       // until we reach an escape terminator code.
       do
       {
-        PT_GETR(self, &self->value);
+        PT_GETR(self);
         ret = vt_escape_add(self->vt_buf, &self->vt_idx, self->value);
       }
       while(ret > 0);
@@ -78,51 +78,8 @@ static ptstate_t getch(struct ptterm *self)
   PT_END(self);
 }
 
-int8_t putr(Stream *st, const rune16_t rune)
-{
-  int size = st->availableForWrite();
-	
-  /*
-	 * one character sequence
-	 *	00000-0007F => 00-7F
-	 */
-	if (rune < 0x80) {
-    if (size < 1)
-      return 0;
-
-		st->write((uint8_t)rune);
-		return 1;
-	}
-
-	/*
-	 * two character sequence
-	 *	00080-007FF => T2 Tx
-	 */
-	if(rune < 0x800) {
-    if (size < 2)
-      return 0;
-
-		st->write(0b11000000 | (uint8_t)(rune >> 6));
-		st->write(0b10000000 | (uint8_t)(rune & 0b00111111));
-		return 2;
-	}
-
-	/*
-	 * three character sequence
-	 *	00800-0FFFF => T3 Tx Tx
-	 */
-	if(rune <= 0xFFFF) { // should always be true at this point
-    if (size < 3)
-      return 0;
-
-		st->write(0b11100000 | (uint8_t)(rune >> 12));
-		st->write(0b10000000 | (uint8_t)((rune >> 6) & 0b00111111));
-		st->write(0b10000000 | (uint8_t)(rune & 0b00111111));
-		return 3;
-	}
-
-  return 0;
-}
+#define PT_PUTR(pt, term_pt) \
+  PT_WAIT_UNTIL(pt, (utf8_putr(term_pt.stream, term_pt.value) > 0))
 
 static ptstate_t main_driver(struct pt *self, Stream *stream)
 {
@@ -134,9 +91,13 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
 
   PT_FOREACH(self, &pt1, getch(&pt1))
   {
+    pt1.value = vt_escape_symbol(pt1.value);
+
     stream->print("echo '");
     stream->flush();
-    putr(stream, vt_escape_symbol(pt1.value));
+    
+    PT_PUTR(self, pt1);
+
     stream->flush();
     stream->print("' (");
     stream->print(pt1.value);
