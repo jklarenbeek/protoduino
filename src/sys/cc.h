@@ -27,11 +27,29 @@
 #define CC_INLINE inline
 
 /**
- * @def CC_INLINEFN(f)
+ * @def CC_ALWAYS_INLINE
  * @brief Macro to define an inline function with the given attribute
  * @param f The function definition
  */
-#define CC_INLINEFN(f) inline f  __attribute__((always_inline))
+#ifndef CC_ALWAYS_INLINE
+#if defined(__GNUC__) && !defined(__MINGW32__)
+#define CC_ALWAYS_INLINE __attribute__((__always_inline__)) inline
+#elif defined(_MSC_VER)
+#define CC_ALWAYS_INLINE __forceinline
+#else
+#define CC_ALWAYS_INLINE inline
+#endif
+#endif
+
+/**
+ * 
+*/
+#define CC_FLATTEN __attribute__((flatten)) 
+
+/**
+ * 
+*/
+#define CC_NO_INLINE __attribute__((noinline))
 
 /**
  * @def CC_EXTERN
@@ -114,6 +132,8 @@
  * @return The number of elements in the array
  */
 #define CC_NELEM(x) (sizeof (x)/sizeof (x)[0])
+
+#define CC_ALIGN(n) __attribute__((__aligned__(n)))
 
 /**
  * @def CC_MAIN_CONSTRUCTOR(name)
