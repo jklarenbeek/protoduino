@@ -1,7 +1,5 @@
 
 #include <protoduino.h>
-#include <sys/pt.h>
-#include <sys/pt-errors.h>
 #include <utf/vt100.h>
 #include <utf/utf8-stream.h>
 

@@ -130,7 +130,7 @@ int8_t vt_escape_add(char * buffer, uint8_t * idx, const rune16_t ch)
 
 rune16_t vt_escape_match(const char * buffer, const uint8_t len)
 {
-    uint8_t size = min(len, VT_ESCAPE_BUFLEN);
+    uint8_t size = (len < VT_ESCAPE_BUFLEN) ? len : VT_ESCAPE_BUFLEN;
     for(int idx = 0; idx < vt_key_mappings_size; ++idx)
     {
         if (strncmp_P(buffer, vt_key_mappings[idx].vt_seq, size))

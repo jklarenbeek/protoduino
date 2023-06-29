@@ -71,7 +71,6 @@
 #ifndef __PT_TIMER_H__
 #define __PT_TIMER_H__
 
-#include <protoduino.h>
 #include "pt.h"
 #include "timer.h"
 

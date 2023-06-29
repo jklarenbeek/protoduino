@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "examples.h"
 
 int print_count = 0;

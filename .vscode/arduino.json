@@ -1,5 +1,5 @@
 {
-    "sketch": "examples\\01-pt-wait-one-basic\\01-pt-wait-one-basic.ino",
+    "sketch": "examples\\11-pt-wait-for-timer\\11-pt-wait-for-timer.ino",
     "board": "arduino:avr:uno",
     "output": "..\\..\\build"
 }

@@ -2,7 +2,8 @@
 #define __VT100_H__
 
 #include <stdint.h>
-#include <sys/cc.h>
+#include "../sys/cc.h"
+
 #include "utf8.h"
 
 // key codes for rune16_t between 0x80-0x9F (size == 32)

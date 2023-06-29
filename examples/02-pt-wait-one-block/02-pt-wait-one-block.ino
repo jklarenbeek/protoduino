@@ -6,7 +6,6 @@
  */
 
 #include <protoduino.h>
-#include <sys/pt.h>
 #include <dbg/examples.h>
 
 /**

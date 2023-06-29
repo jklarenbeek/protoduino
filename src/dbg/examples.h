@@ -4,8 +4,6 @@
 
 #include <protoduino.h>
 
-#include "pt.h"
-
 extern int print_count;
 
 void print_setup();

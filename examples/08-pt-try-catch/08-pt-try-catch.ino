@@ -5,7 +5,6 @@
  * by: https://github.com/jklarenbeek
  */
 #include <protoduino.h>
-#include <sys/pt.h>
 #include <dbg/examples.h>
 
 /**

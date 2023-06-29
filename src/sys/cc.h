@@ -14,6 +14,8 @@
 #ifndef __CC_H__
 #define __CC_H__
 
+#include <avr/pgmspace.h>
+
 /**
  * @def CC_UNUSED
  * @brief Macro to mark a variable as unused

@@ -7,8 +7,20 @@
 #ifndef __RUNE16_H__
 #define __RUNE16_H__
 
-#include <protoduino.h>
-#include "utf8.h"
+#include "../sys/cc.h"
+//#include <stdint.h>
+#include <stdbool.h>
+//#include <stdio.h>
+
+/**
+ * \typedef rune16_t
+ * \brief 16-bit Unicode character representation.
+ *
+ * This typedef defines the type "rune16_t" as a 16-bit Unicode character representation.
+ * It is used for storing Unicode characters with a maximum value of 0xFFFF (65535).
+ * 
+ */
+typedef uint16_t rune16_t;
 
 /**
  * @brief Copies a rune16_t string up to a specified end pointer, from a source string.

@@ -18,22 +18,16 @@
 #ifndef __UTF8_H__
 #define __UTF8_H__
 
-#include <protoduino.h>
+#include "../sys/cc.h"
+//#include <stdint.h>
+#include <stdbool.h>
+//#include <stdio.h>
+#include "rune16.h"
 
 // https://www.ssec.wisc.edu/~tomw/java/unicode.html
 // https://gist.github.com/jpassaro/bf400b0410810a071a7fb3509ef6c2c3
 // https://www.asciitable.com/
 
-
-/**
- * \typedef rune16_t
- * \brief 16-bit Unicode character representation.
- *
- * This typedef defines the type "rune16_t" as a 16-bit Unicode character representation.
- * It is used for storing Unicode characters with a maximum value of 0xFFFF (65535).
- * 
- */
-typedef uint16_t rune16_t;
 
 /**
  * \typedef rune32_t
