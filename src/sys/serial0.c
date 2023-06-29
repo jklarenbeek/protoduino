@@ -26,6 +26,25 @@ void serial0_register(void (*callback)(uint_fast8_t))
   serial0_callback = callback;
 }
 
+#if defined(USE_PROTODUINO_SERIAL) || defined(USE_PROTODUINO_SERIAL0)
+#if defined(USART_RX_vect)
+  ISR(USART_RX_vect)
+#elif defined(USART0_RX_vect)
+  ISR(USART0_RX_vect)
+#elif defined(USART_RXC_vect)
+  ISR(USART_RXC_vect) // ATmega8
+#else
+  #error "Don't know what the Data Received vector is called for Serial"
+#endif
+{
+  uint_fast8_t ch =__UDR__; // must read, to clear the interrupt flag
+  if(serial0_callback != 0) 
+  {
+    serial0_callback(ch);
+  }
+}
+#endif
+
 uint32_t serial0_begin(uint32_t baud, uint8_t config)
 {
   // Try u2x mode first
@@ -59,7 +78,7 @@ uint32_t serial0_begin(uint32_t baud, uint8_t config)
   sbi(__UCSRB__, RXCIE0);
   cbi(__UCSRB__, UDRIE0);
 
-  return F_CPU/(8*(baud_setting+1));
+  return F_CPU / (8 * (baud_setting + 1));
 }
 
 void serial0_close()
@@ -68,26 +87,6 @@ void serial0_close()
 
   // TODO: disable interupts?
 }
-
-// TODO: MAKE THIS ISR NOT BREAK COMPILATION OF INO
-#if 0
-#if defined(USART_RX_vect)
-  ISR(USART_RX_vect)
-#elif defined(USART0_RX_vect)
-  ISR(USART0_RX_vect)
-#elif defined(USART_RXC_vect)
-  ISR(USART_RXC_vect) // ATmega8
-#else
-  #error "Don't know what the Data Received vector is called for Serial"
-#endif
-{
-  uint_fast8_t ch =__UDR__; // must read, to clear the interrupt flag
-  if(serial0_callback != 0) 
-  {
-    serial0_callback(ch);
-  }
-}
-#endif
 
 #if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__)
 #define __UDRE__ UDRE0
@@ -99,11 +98,17 @@ void serial0_close()
 #define __RXC__ RXC0
 #define __TXC__ TXC0
 #define __U2X__ U2X0
+#define __MPCM__ MPCM0
 #else
 #define __UDRE__ UDRE
 #define __RXC__ RXC
 #define __TXC__ TXC
 #define __U2X__ U2X
+#define __MPCM__ MPCM
+#endif
+
+#if defined(MPCM0)
+#define __MPCM__ MPCM0
 #endif
 
 bool serial0_read_available()
@@ -137,8 +142,8 @@ void serial0_write_unchecked(uint8_t data)
   // location". This makes sure flush() won't return until the bytes
   // actually got written. Other r/w bits are preserved, and zeroes
   // written to the rest.
-#ifdef MPCM0
-  __UCSRA__ = ((__UCSRA__) & ((1 << __U2X__) | (1 << MPCM0))) | (1 << __TXC__);
+#ifdef __MPCM__
+  __UCSRA__ = ((__UCSRA__) & ((1 << __U2X__) | (1 << __MPCM__))) | (1 << __TXC__);
 #else
   __UCSRA__ = ((__UCSRA__) & ((1 << __U2X__) | (1 << __TXC__)));
 #endif
