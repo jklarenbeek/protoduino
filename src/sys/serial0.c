@@ -20,6 +20,7 @@
 #endif
 
 static volatile void (*serial0_callback)(uint_fast8_t)=0;
+static uint32_t serial0_baudrate = 0;
 
 void serial0_register(void (*callback)(uint_fast8_t))
 {
@@ -38,14 +39,14 @@ void serial0_register(void (*callback)(uint_fast8_t))
 #endif
 {
   uint_fast8_t ch =__UDR__; // must read, to clear the interrupt flag
-  if(serial0_callback != 0) 
+  if(serial0_baudrate != 0 && serial0_callback != 0) 
   {
     serial0_callback(ch);
   }
 }
 #endif
 
-uint32_t serial0_begin(uint32_t baud, uint8_t config)
+void serial0_open(uint32_t baud, uint8_t config)
 {
   // Try u2x mode first
   uint16_t baud_setting = (F_CPU / 4 / baud - 1) / 2;
@@ -72,33 +73,32 @@ uint32_t serial0_begin(uint32_t baud, uint8_t config)
   config |= 0x80; // select UCSRC register (shared with UBRRH)
 #endif
   __UCSRC__ = config;
-  
+
+  serial0_baudrate = F_CPU / (8 * (baud_setting + 1));
+
   sbi(__UCSRB__, RXEN0);
   sbi(__UCSRB__, TXEN0);
   sbi(__UCSRB__, RXCIE0);
   cbi(__UCSRB__, UDRIE0);
 
-  return F_CPU / (8 * (baud_setting + 1));
 }
 
 void serial0_close()
 {
-  serial0_callback = 0;
-
-  // TODO: disable interupts?
+  serial0_baudrate = 0;
+  // TODO: disable interupt?
 }
 
-#if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__)
+uint32_t serial0_get_baudrate()
+{
+  return serial0_baudrate;
+}
+
+#if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
 #define __UDRE__ UDRE0
 #define __RXC__ RXC0
 #define __TXC__ TXC0
 #define __U2X__ U2X0
-#elif defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
-#define __UDRE__ UDRE0
-#define __RXC__ RXC0
-#define __TXC__ TXC0
-#define __U2X__ U2X0
-#define __MPCM__ MPCM0
 #else
 #define __UDRE__ UDRE
 #define __RXC__ RXC
