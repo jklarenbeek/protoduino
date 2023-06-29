@@ -36,7 +36,7 @@ Because of the state extensions in protothreads v2, we now have the capability t
 
 ```cpp
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 static ptstate_t iterator(struct pt * self)
 {
@@ -88,7 +88,7 @@ The next example show's what that means for the state of a protothread:
 
 ```cpp
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -123,7 +123,7 @@ To intercept the control flow and its behaviour of a protothread and return a `P
 
 ```cpp
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -172,7 +172,7 @@ Protothreads v2 introduces native exception handling capabilities. It's a little
 
 ```cpp
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -226,7 +226,7 @@ See the `08-pt-try-catch.ini` example for its usage:
 
 ```cpp
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 static ptstate_t child(struct pt *self)
 {
@@ -289,7 +289,7 @@ This example shows the propper use of the PT_CATCHANY() and PT_FINALLY() control
 
 ```cpp
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 static ptstate_t child(struct pt *self)
 {
@@ -353,7 +353,7 @@ See the `07-pt-yield-foreach.ino` example for its usage:
 
 ```cpp
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 struct ptyield
 {
@@ -426,7 +426,7 @@ The `PT_SCHEDULE` macro in protothreads v2, sets the local `PT_ERROR_STATE` vari
 
 ```cpp
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 static ptstate_t protothread(struct pt *self)
 {

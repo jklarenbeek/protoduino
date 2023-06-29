@@ -6,7 +6,7 @@
  */
 #include <protoduino.h>
 #include <sys/pt.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 /**
  * This example illustrates the control flow within a protothread,

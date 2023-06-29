@@ -3,7 +3,7 @@
 */
 
 #include <protoduino.h>
-#include <sys/examples.h>
+#include <dbg/examples.h>
 
 static ptstate_t protothread1(struct pt *self)
 {
