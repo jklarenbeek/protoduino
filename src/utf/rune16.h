@@ -8,8 +8,8 @@
 #define __RUNE16_H__
 
 #include "../sys/cc.h"
-//#include <stdint.h>
 #include <stdbool.h>
+
 //#include <stdio.h>
 
 /**
@@ -20,7 +20,7 @@
  * It is used for storing Unicode characters with a maximum value of 0xFFFF (65535).
  * 
  */
-typedef uint16_t rune16_t;
+typedef int_least16_t rune16_t;
 
 /**
  * @brief Copies a rune16_t string up to a specified end pointer, from a source string.
@@ -38,11 +38,6 @@ typedef uint16_t rune16_t;
  *         - Otherwise, `s1` is returned after the copying is complete, with a null-terminating character added if necessary.
  */
 CC_EXTERN rune16_t *rune16_strecpy(rune16_t *s1, rune16_t *es1, rune16_t *s2);
-
-/**
- * @brief Unsigned 16-bit integer type representing a Unicode character (rune).
- */
-typedef uint16_t rune16_t;
 
 /**
  * @brief Concatenates two rune16_t strings.
