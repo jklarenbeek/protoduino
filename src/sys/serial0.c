@@ -26,6 +26,23 @@
 #define __UDR__ UDR0
 #endif
 
+#if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
+#define __UDRE__ UDRE0
+#define __RXC__ RXC0
+#define __TXC__ TXC0
+#define __U2X__ U2X0
+#else
+#define __UDRE__ UDRE
+#define __RXC__ RXC
+#define __TXC__ TXC
+#define __U2X__ U2X
+#define __MPCM__ MPCM
+#endif
+
+#if defined(MPCM0)
+#define __MPCM__ MPCM0
+#endif
+
 static volatile void (*serial0_callback)(uint_fast8_t)=0;
 static uint32_t serial0_baudrate = 0;
 
@@ -36,11 +53,11 @@ void serial0_register(void (*callback)(uint_fast8_t))
 
 #if defined(USE_PROTODUINO_SERIAL) || defined(USE_PROTODUINO_SERIAL0)
 #if defined(USART_RX_vect)
-  ISR(USART_RX_vect)
+ISR(USART_RX_vect)
 #elif defined(USART0_RX_vect)
-  ISR(USART0_RX_vect)
+ISR(USART0_RX_vect)
 #elif defined(USART_RXC_vect)
-  ISR(USART_RXC_vect) // ATmega8
+ISR(USART_RXC_vect) // ATmega8
 #else
   #error "Don't know what the Data Received vector is called for Serial"
 #endif
@@ -101,47 +118,30 @@ uint32_t serial0_get_baudrate()
   return serial0_baudrate;
 }
 
-#if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
-#define __UDRE__ UDRE0
-#define __RXC__ RXC0
-#define __TXC__ TXC0
-#define __U2X__ U2X0
-#else
-#define __UDRE__ UDRE
-#define __RXC__ RXC
-#define __TXC__ TXC
-#define __U2X__ U2X
-#define __MPCM__ MPCM
-#endif
-
-#if defined(MPCM0)
-#define __MPCM__ MPCM0
-#endif
-
-bool serial0_read_available()
+uint_fast8_t serial0_read_available()
 {
-  return (__UCSRA__ & _BV(__RXC__)) ? true : false;
+  return (__UCSRA__ & _BV(__RXC__)) ? 1 : 0;
 }
 
-uint8_t serial0_read_unchecked()
+uint_fast8_t serial0_read8_unchecked()
 {
   return __UDR__;
 }
 
-CC_FLATTEN int16_t serial0_read()
+CC_FLATTEN int_fast16_t serial0_read8()
 {
   if (serial0_read_available()) {
-    return serial0_read_unchecked();
+    return serial0_read8_unchecked();
   }
   return -1;
 }
 
-bool serial0_write_available()
+uint_fast8_t serial0_write_available()
 {
-  return (__UCSRA__ & _BV(__UDRE__)) ? true : false;
+  return (__UCSRA__ & _BV(__UDRE__)) ? 1 : 0;
 }
 
-void serial0_write_unchecked(uint8_t data)
+void serial0_write8_unchecked(uint_fast8_t data)
 {
   __UDR__ = data;
 
@@ -156,12 +156,11 @@ void serial0_write_unchecked(uint8_t data)
 #endif
 }
 
-CC_FLATTEN bool serial0_write(uint8_t data)
+CC_FLATTEN uint_fast8_t serial0_write8(uint_fast8_t data)
 {
   if (serial0_write_available())
   {
-    serial0_write_unchecked(data);
-    return true;
+    return serial0_write8_unchecked(data);
   }
-  return false;
+  return 0;
 }
