@@ -10,28 +10,93 @@
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 
-#if defined(UBRRH) && defined(UBRRL)
+#if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
+
+// USART baud rate register high 
+#define __UBRRH__ UBRR0H
+// USART baud rate register low
+#define __UBRRL__ UBRR0L
+// UCSRnA – USART Control and Status Register n A
+#define __UCSRA__ UCSR0A
+// UCSRnB – USART Control and Status Register n B
+#define __UCSRB__ UCSR0B
+// UCSRnC – USART Control and Status Register n C
+#define __UCSRC__ UCSR0C
+// USART I/O data register
+#define __UDR__ UDR0
+
+
+//
+// Flags for the UCSR0A register
+//
+// set recieve complete flag (RXC0 = 1)
+#define __RXC__ RXC0
+// set transmit complete flag (TXC0 = 1)
+#define __TXC__ TXC0
+// Data Register Empty tells you when the transmit buffer is able to accept another byte (at which time the actual shift register is still shifting out the previous byte.)
+#define __UDRE__ UDRE0
+// clear Frame Error flag (FE0 = 0)
+#define __FE__ FE0
+// clear Data overrun flag (DOR0 = 0)
+#define __DOR__ DOR0
+// clear Parity overrun flag (UPE0 = 0)
+#define __UPE__ UPE0
+// disable doubling of USART transmission speed (U2X0 = 0)
+#define __U2X__ U2X0
+#if defined(MPCM0)
+// Disable Multi-Processor Communication Mode (MCPM0 = 0)
+#define __MPCM__ MPCM0
+#endif
+
+//
+// Flags for the UCSR0B register
+//
+// Enable Receive Interrupt (RXCIE0 = 1)
+#define __RXCIE__ RXCIE0
+// Disable Tranmission Interrupt (TXCIE = 0)
+#define __TXCIE__ TXCIE0
+// Disable Data Register Empty interrupt (UDRIE0 = 0)
+#define __UDRIE__ UDRIE0
+// Enable reception (RXEN0 = 1)
+#define __RXEN__ RXEN0
+// Enable transmission (TXEN0 = 1)
+#define __TXEN__ TXEN0
+// Set 8-bit character mode (UCSZ00, UCSZ01, and UCSZ02 together control this, But UCSZ00, UCSZ01 are in Register UCSR0C)
+#define __UCSZ2__ UCSZ02
+// TODO
+#define __RXB8__ RXB80
+// TODO
+#define __TXB8__ TXB80
+
+//
+// Flags for the UCSR0C register
+//
+// USART Mode select -- UMSEL00 = 0 and UMSEL01 = 0 for asynchronous mode
+#define __UMSEL0__ UMSEL00
+#define __UMSEL1__ UMSEL01
+// disable parity mode -- UPM00 = 0 and UPM01 = 0
+#define __UPM0__ UPM00
+#define __UPM1__ UPM01
+// Disabilitato: Set USBS = 1 to configure to 2 stop bits per DMX standard.  The USART receiver ignores this 
+// setting anyway, and will only set a frame error flag if the first stop bit is 0.  
+#define __USBS__ USBS0
+// Finish configuring for 8 data bits by setting UCSZ00 and UCSZ01 to 1
+#define __UCSZ0__ UCSZ00
+#define __UCSZ1__ UCSZ01
+// Set clock parity to 0 for asynchronous mode (UCPOL0 = 0). */
+#define __UCPOL__ UCPOL0
+
+#else
+
 #define __UBRRH__ UBRRH
 #define __UBRRL__ UBRRL
+
 #define __UCSRA__ UCSRA
 #define __UCSRB__ UCSRB
 #define __UCSRC__ UCSRC
-#define __UDR__ UDR
-#else
-#define __UBRRH__ UBRR0H
-#define __UBRRL__ UBRR0L
-#define __UCSRA__ UCSR0A
-#define __UCSRB__ UCSR0B
-#define __UCSRC__ UCSR0C
-#define __UDR__ UDR0
-#endif
 
-#if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
-#define __UDRE__ UDRE0
-#define __RXC__ RXC0
-#define __TXC__ TXC0
-#define __U2X__ U2X0
-#else
+#define __UDR__ UDR
+
 #define __UDRE__ UDRE
 #define __RXC__ RXC
 #define __TXC__ TXC
@@ -39,16 +104,20 @@
 #define __MPCM__ MPCM
 #endif
 
-#if defined(MPCM0)
-#define __MPCM__ MPCM0
-#endif
 
-static volatile void (*serial0_callback)(uint_fast8_t)=0;
+static volatile void (*serial0_on_recieve_complete)(uint_fast8_t)=0;
+static volatile void (*serial0_on_transmit_complete)(void)=0;
+
 static uint32_t serial0_baudrate = 0;
 
-void serial0_register(void (*callback)(uint_fast8_t))
+void serial0_on_recieved(void (*callback)(uint_fast8_t))
 {
-  serial0_callback = callback;
+  serial0_on_recieve_complete = callback;
+}
+
+void serial0_on_transmitted(void (*callback)(void))
+{
+  serial0_on_transmit_complete = callback;
 }
 
 #if defined(USE_PROTODUINO_SERIAL) || defined(USE_PROTODUINO_SERIAL0)
@@ -63,18 +132,69 @@ ISR(USART_RXC_vect) // ATmega8
 #endif
 {
   uint_fast8_t ch =__UDR__; // must read, to clear the interrupt flag
-  if(serial0_baudrate != 0 && serial0_callback != 0) 
+  if(serial0_baudrate != 0 && serial0_on_recieve_complete != 0) 
   {
-    serial0_callback(ch);
+    serial0_on_recieve_complete(ch);
   }
 }
+
+#if defined(UART0_UDRE_vect)
+ISR(UART0_UDRE_vect)
+#elif defined(UART_UDRE_vect)
+ISR(UART_UDRE_vect)
+#elif defined(USART0_UDRE_vect)
+ISR(USART0_UDRE_vect)
+#elif defined(USART_UDRE_vect)
+ISR(USART_UDRE_vect)
+#else
+  #error "Don't know what the Data Register Empty vector is called for Serial"
+#endif
+{
+  if(serial0_baudrate != 0 && serial0_on_recieve_complete != 0) 
+  {
+    serial0_on_transmit_complete();
+  }
+}
+
 #endif
 
+/**
+ * SerialPort::begin(uint32_t baud, uint8_t options = SP_8_BIT_CHAR)
+
+Sets the data rate in bits per second (baud) for serial data transmission.
+
+Parameters:
+[in] baud rate in bits per second (baud)
+[in] options constructed by a bitwise-inclusive OR of values from the following list.
+
+Choose one value for stop bit, parity, and character size.
+
+The default is SP_8_BIT_CHAR which results in one stop bit, no parity, and 8-bit characters.
+
+SP_1_STOP_BIT - use one stop bit (default if stop bit not specified)
+
+SP_2_STOP_BIT - use two stop bits
+
+SP_NO_PARITY - no parity bit (default if parity not specified)
+
+SP_EVEN_PARITY - add even parity bit
+
+SP_ODD_PARITY - add odd parity bit
+
+SP_5_BIT_CHAR - use 5-bit characters (default if size not specified)
+
+SP_6_BIT_CHAR - use 6-bit characters
+
+SP_7_BIT_CHAR - use 7-bit characters
+
+SP_8_BIT_CHAR - use 8-bit characters
+
+*/
 void serial0_open(uint32_t baud, uint8_t config)
 {
   // Try u2x mode first
   uint16_t baud_setting = (F_CPU / 4 / baud - 1) / 2;
-  __UCSRA__ = 1 << U2X0;
+  __UCSRA__ = 1 << __U2X__;
 
   // hardcoded exception for 57600 for compatibility with the bootloader
   // shipped with the Duemilanove and previous boards and the firmware
@@ -144,7 +264,10 @@ uint_fast8_t serial0_write_available()
 void serial0_write8_unchecked(uint_fast8_t data)
 {
   __UDR__ = data;
+}
 
+void serial0_clear_txc()
+{
   // clear the TXC bit -- "can be cleared by writing a one to its bit
   // location". This makes sure flush() won't return until the bytes
   // actually got written. Other r/w bits are preserved, and zeroes
@@ -154,13 +277,17 @@ void serial0_write8_unchecked(uint_fast8_t data)
 #else
   __UCSRA__ = ((__UCSRA__) & ((1 << __U2X__) | (1 << __TXC__)));
 #endif
+
 }
 
 CC_FLATTEN uint_fast8_t serial0_write8(uint_fast8_t data)
 {
   if (serial0_write_available())
   {
-    return serial0_write8_unchecked(data);
+    serial0_write8_unchecked(data);
+    serial0_clear_txc();
+    return 1;
   }
   return 0;
 }
+
