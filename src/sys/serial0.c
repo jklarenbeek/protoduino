@@ -1,6 +1,7 @@
 
 #include <avr/interrupt.h>
 
+#include "ringb8.h"
 #include "serial0.h"
 
 #ifndef cbi
@@ -190,7 +191,7 @@ SP_7_BIT_CHAR - use 7-bit characters
 SP_8_BIT_CHAR - use 8-bit characters
 
 */
-void serial0_open(uint32_t baud, uint8_t config = 0)
+void serial0_open(uint32_t baud, uint8_t config)
 {
   // Try u2x mode first
   uint16_t baud_setting = (F_CPU / 4 / baud - 1) / 2;

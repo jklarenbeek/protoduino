@@ -1,15 +1,15 @@
 #include "ringb8.h"
 
-void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast8_t size = 1)
+void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast16_t size)
 {
-    self->mask = size - 1;
+    self->mask = (uint8_t)(size - 1);
     self->tail = 0;
     self->head = 0;
-    self->data = buffer
+    self->data = buffer;
 }
 
 // the total size of the buffer
-size_t ringb8_size(struct ringb8 *self)
+uint_fast16_t ringb8_size(struct ringb8 *self)
 {
     return self->mask + 1;
 }
@@ -20,9 +20,9 @@ uint_fast8_t ringb8_count(struct ringb8 *self)
     return (self->head - self->tail) & self->mask;
 }
 
-uint8_fast8_t ringb8_available(struct ringb8 *self)
+uint_fast8_t ringb8_available(struct ringb8 *self)
 {
-    return (ringb8_size(self) - ringb8_count(self));
+    return (uint_fast8_t)(ringb8_size(self) - ringb8_count(self));
 }
 
 // read next byte in buffer without increasing tail ptr

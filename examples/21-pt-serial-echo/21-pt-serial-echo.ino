@@ -9,7 +9,7 @@
 
 void setup()
 {
-  serial0_begin(9600, 0);
+  serial0_open(SERIAL_BAUD_9600, 0);
 }
 
 void loop()

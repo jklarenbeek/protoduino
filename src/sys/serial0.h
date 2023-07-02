@@ -2,9 +2,10 @@
 #define __SERIAL0_H__
 
 #include "cc.h"
-//#include <stdint.h>
-#include <stdbool.h>
-//#include <stdio.h>
+#include <stdint.h>
+
+#define SERIAL_BUFFER_RX_SIZE 4
+#define SERIAL_BUFFER_TX_SIZE 4
 
 #define SERIAL_BAUD_1200 1200
 #define SERIAL_BAUD_2400 2400
@@ -15,7 +16,9 @@
 #define SERIAL_BAUD_57600 57600
 #define SERIAL_BAUD_115200 115200 
 
-CC_EXTERN void serial0_register(void (*callback)(uint_fast8_t));
+CC_EXTERN void serial0_on_recieved(void (*callback)(uint_fast8_t));
+CC_EXTERN void serial0_on_transmitted(void (*callback)(void));
+
 CC_EXTERN void serial0_open(uint32_t baud, uint8_t config);
 CC_EXTERN void serial0_close();
 CC_EXTERN uint32_t serial0_get_baudrate();
@@ -24,8 +27,8 @@ CC_EXTERN uint_fast8_t serial0_read_available();
 CC_EXTERN uint_fast8_t serial0_read8_unchecked();
 CC_EXTERN int_fast16_t serial0_read8();
 
-CC_EXTERN bool serial0_write_available();
+CC_EXTERN uint_fast8_t serial0_write_available();
 CC_EXTERN void serial0_write8_unchecked(uint_fast8_t data);
-CC_EXTERN bool serial0_write8(uint_fast8_t data);
+CC_EXTERN uint_fast8_t serial0_write8(uint_fast8_t data);
 
 #endif

@@ -1,5 +1,5 @@
 {
-    "sketch": "examples\\99-pt-serial-term\\21-pt-serial-term.ino",
+    "sketch": "examples\\21-pt-serial-echo\\21-pt-serial-echo.ino",
     "board": "arduino:avr:uno",
     "output": "..\\..\\build"
 }
