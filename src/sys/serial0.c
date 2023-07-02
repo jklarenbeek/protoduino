@@ -190,7 +190,7 @@ SP_7_BIT_CHAR - use 7-bit characters
 SP_8_BIT_CHAR - use 8-bit characters
 
 */
-void serial0_open(uint32_t baud, uint8_t config)
+void serial0_open(uint32_t baud, uint8_t config = 0)
 {
   // Try u2x mode first
   uint16_t baud_setting = (F_CPU / 4 / baud - 1) / 2;
@@ -201,10 +201,10 @@ void serial0_open(uint32_t baud, uint8_t config)
   // on the 8U2 on the Uno and Mega 2560. Also, The baud_setting cannot
   // be > 4095, so switch back to non-u2x mode if the baud rate is too
   // low.
-  if (((F_CPU == 16000000UL) && (baud == 57600)) || (baud_setting >4095))
+  if (((F_CPU == 16000000UL) && (baud == 57600)) || (baud_setting > 4095))
   {
-    __UCSRA__ = 0;
     baud_setting = (F_CPU / 8 / baud - 1) / 2;
+    __UCSRA__ = 0;
   }
  
 
@@ -220,10 +220,10 @@ void serial0_open(uint32_t baud, uint8_t config)
 
   serial0_baudrate = F_CPU / (8 * (baud_setting + 1));
 
-  sbi(__UCSRB__, RXEN0);
-  sbi(__UCSRB__, TXEN0);
-  sbi(__UCSRB__, RXCIE0);
-  cbi(__UCSRB__, UDRIE0);
+  sbi(__UCSRB__, __RXEN__);
+  sbi(__UCSRB__, __TXEN__);
+  sbi(__UCSRB__, __RXCIE__);
+  cbi(__UCSRB__, __UDRIE__);
 
 }
 
@@ -240,6 +240,7 @@ uint32_t serial0_get_baudrate()
 
 uint_fast8_t serial0_read_available()
 {
+  // is the recieved package complete?
   return (__UCSRA__ & _BV(__RXC__)) ? 1 : 0;
 }
 
@@ -258,6 +259,7 @@ CC_FLATTEN int_fast16_t serial0_read8()
 
 uint_fast8_t serial0_write_available()
 {
+  // is transmit buffer ready to accept another byte?
   return (__UCSRA__ & _BV(__UDRE__)) ? 1 : 0;
 }
 
@@ -273,9 +275,11 @@ void serial0_clear_txc()
   // actually got written. Other r/w bits are preserved, and zeroes
   // written to the rest.
 #ifdef __MPCM__
-  __UCSRA__ = ((__UCSRA__) & ((1 << __U2X__) | (1 << __MPCM__))) | (1 << __TXC__);
+  //__UCSRA__ = ((__UCSRA__) & ((1 << __U2X__) | (1 << __MPCM__))) | (1 << __TXC__);
+  sbi(__UCSRA__, __TXC__);
 #else
-  __UCSRA__ = ((__UCSRA__) & ((1 << __U2X__) | (1 << __TXC__)));
+  sbi(__UCSRA__, __TXC__);
+  //__UCSRA__ = ((__UCSRA__) & ((1 << __U2X__) | (1 << __TXC__)));
 #endif
 
 }
