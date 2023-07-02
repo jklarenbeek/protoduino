@@ -19,11 +19,11 @@ static struct ringb8 VAR_RINGB8(name) = { \
     &VAR_RINGB8_DATA(name), \
     }
 
-CC_EXTERN void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast8_t size);
-CC_EXTERN void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast8_t size);
+CC_EXTERN void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast8_t size = 1);
+CC_EXTERN size_t ringb8_size(struct ringb8 *self);
 CC_EXTERN uint_fast8_t ringb8_count(struct ringb8 *self)
 CC_EXTERN uint_fast8_t ringb8_available(struct ringb8 *self);
 CC_EXTERN uint_fast8_t ringb8_peek(struct ringb8 *self);
 CC_EXTERN uint_fast8_t ringb8_get(struct ringb8 *self);
-CC_EXTERN uint_fast8_t ringb8_ahead(struct ringb8 *self);
+CC_EXTERN uint_fast8_t ringb8_last(struct ringb8 *self);
 CC_EXTERN uint_fast8_t ringb8_put(struct ringb8 *self, uint_fast8_t value);

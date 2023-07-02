@@ -1,6 +1,6 @@
 #include "ringb8.h"
 
-void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast8_t size)
+void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast8_t size = 1)
 {
     self->mask = size - 1;
     self->tail = 0;
@@ -9,7 +9,7 @@ void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast8_t size)
 }
 
 // the total size of the buffer
-uint_fast8_t ringb8_size(struct ringb8 *self)
+size_t ringb8_size(struct ringb8 *self)
 {
     return self->mask + 1;
 }
@@ -39,7 +39,7 @@ uint_fast8_t ringb8_get(struct ringb8 *self)
     return value;
 }
 
-uint_fast8_t ringb8_ahead(struct ringb8 *self)
+uint_fast8_t ringb8_last(struct ringb8 *self)
 {
     return self->data[(self->head - 1) & self->mask];
 }
