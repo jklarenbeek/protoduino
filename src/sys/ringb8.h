@@ -13,14 +13,10 @@
 #include <stdint.h>
 
 /**
- 
-*/
-
-/**
- * @struct ringb8
+ * @struct ringb8_t
  * @brief Structure representing the ring buffer.
  */
-struct ringb8
+struct ringb8_t
 {
     uint8_t mask;
     uint8_t tail;
@@ -36,7 +32,7 @@ struct ringb8
  *
  * @param name The base name for the ring buffer variable.
  */
-#define VAR_RINGB8(name) CONCAT2(name,_ringb8)
+#define VAR_RINGB8(name) CC_CONCAT2EXT(name, _ringb8)
 /**
  * @def VAR_RINGB8_DATA(name)
  * @brief Macro for generating a variable name for the ring buffer data array.
@@ -45,7 +41,7 @@ struct ringb8
  *
  * @param name The base name for the ring buffer data array variable.
  */
-#define VAR_RINGB8_DATA(name) CONCAT2(name,_ringb8_data)
+#define VAR_RINGB8_DATA(name) CC_CONCAT2EXT(name, _ringb8_data)
 
 /**
  * @def RINGB8(name, size)
@@ -59,7 +55,7 @@ struct ringb8
  */
 #define RINGB8(name, size) \
 static uint8_t VAR_RINGB8_DATA(name)[size]; \
-static struct ringb8 VAR_RINGB8(name) = { \
+static struct ringb8_t VAR_RINGB8(name) = { \
     (size - 1), 0, 0, \
     &VAR_RINGB8_DATA(name) }
 
@@ -72,7 +68,7 @@ static struct ringb8 VAR_RINGB8(name) = { \
  * 
  * @warning The size parameter of the buffer can not exceed 256 and MUST be an exponent of 2.
  */
-CC_EXTERN void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast16_t size);
+CC_EXTERN void ringb8_init(struct ringb8_t *self, uint_fast8_t *buffer, uint_fast16_t size);
 
 /**
  * @brief Get the total size of the buffer.
@@ -80,7 +76,7 @@ CC_EXTERN void ringb8_init(struct ringb8 *self, uint_fast8_t *buffer, uint_fast1
  * @param self Pointer to the ring buffer structure.
  * @return The total size of the buffer.
  */
-CC_EXTERN uint_fast16_t ringb8_size(struct ringb8 *self);
+CC_EXTERN uint_fast16_t ringb8_size(struct ringb8_t *self);
 
 /**
  * @brief Get the number of bytes in the buffer.
@@ -88,7 +84,7 @@ CC_EXTERN uint_fast16_t ringb8_size(struct ringb8 *self);
  * @param self Pointer to the ring buffer structure.
  * @return The number of bytes in the buffer.
  */
-CC_EXTERN uint_fast8_t ringb8_count(struct ringb8 *self);
+CC_EXTERN uint_fast8_t ringb8_count(struct ringb8_t *self);
 
 /**
  * @brief Get the number of available bytes in the buffer.
@@ -96,7 +92,7 @@ CC_EXTERN uint_fast8_t ringb8_count(struct ringb8 *self);
  * @param self Pointer to the ring buffer structure.
  * @return The number of available bytes in the buffer.
  */
-CC_EXTERN uint_fast8_t ringb8_available(struct ringb8 *self);
+CC_EXTERN uint_fast8_t ringb8_available(struct ringb8_t *self);
 
 /**
  * @brief Read the next byte in the buffer without increasing the tail pointer.
@@ -104,7 +100,7 @@ CC_EXTERN uint_fast8_t ringb8_available(struct ringb8 *self);
  * @param self Pointer to the ring buffer structure.
  * @return The next byte in the buffer.
  */
-CC_EXTERN uint_fast8_t ringb8_peek(struct ringb8 *self);
+CC_EXTERN uint_fast8_t ringb8_peek(struct ringb8_t *self);
 
 /**
  * @brief Read the next byte in the buffer and increase the tail pointer.
@@ -112,7 +108,7 @@ CC_EXTERN uint_fast8_t ringb8_peek(struct ringb8 *self);
  * @param self Pointer to the ring buffer structure.
  * @return The next byte in the buffer.
  */
-CC_EXTERN uint_fast8_t ringb8_get(struct ringb8 *self);
+CC_EXTERN uint_fast8_t ringb8_get(struct ringb8_t *self);
 
 /**
  * @brief Get the last byte written to the buffer.
@@ -120,7 +116,7 @@ CC_EXTERN uint_fast8_t ringb8_get(struct ringb8 *self);
  * @param self Pointer to the ring buffer structure.
  * @return The last byte written to the buffer.
  */
-CC_EXTERN uint_fast8_t ringb8_last(struct ringb8 *self);
+CC_EXTERN uint_fast8_t ringb8_last(struct ringb8_t *self);
 
 /**
  * @brief Write a byte to the buffer.
@@ -128,6 +124,6 @@ CC_EXTERN uint_fast8_t ringb8_last(struct ringb8 *self);
  * @param self Pointer to the ring buffer structure.
  * @param value The byte to write.
  */
-CC_EXTERN uint_fast8_t ringb8_put(struct ringb8 *self, uint_fast8_t value);
+CC_EXTERN uint_fast8_t ringb8_put(struct ringb8_t *self, uint_fast8_t value);
 
 #endif /* RINGB8_H */

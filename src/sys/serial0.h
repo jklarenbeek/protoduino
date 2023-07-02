@@ -4,8 +4,12 @@
 #include "cc.h"
 #include <stdint.h>
 
-#define SERIAL_BUFFER_RX_SIZE 4
-#define SERIAL_BUFFER_TX_SIZE 4
+#ifndef SERIAL_BUFFER_RX_SIZE
+#define SERIAL_BUFFER_RX_SIZE 8
+#endif
+#ifndef SERIAL_BUFFER_TX_SIZE
+#define SERIAL_BUFFER_TX_SIZE 8
+#endif
 
 #define SERIAL_BAUD_1200 1200
 #define SERIAL_BAUD_2400 2400
@@ -16,10 +20,16 @@
 #define SERIAL_BAUD_57600 57600
 #define SERIAL_BAUD_115200 115200 
 
-CC_EXTERN void serial0_on_recieved(void (*callback)(uint_fast8_t));
-CC_EXTERN void serial0_on_transmitted(void (*callback)(void));
+// send flowcontrol xoff message to sender (force sender to wait)
+#define SERIAL_FLOWCONTROL_XOFF 0x13
+// send flowcontrol xon to sender (tell sender to start transmitting again)
+#define SERIAL_FLOWCONTROL_XON 0x11
 
-CC_EXTERN void serial0_open(uint32_t baud, uint8_t config);
+CC_EXTERN void serial0_onrecieved(void (*callback)(uint_fast8_t));
+CC_EXTERN void serial0_ontransmitted(void (*callback)(void));
+
+CC_EXTERN void serial0_open(uint32_t baud);
+CC_EXTERN void serial0_openex(uint32_t baud, uint8_t options);
 CC_EXTERN void serial0_close();
 CC_EXTERN uint32_t serial0_get_baudrate();
 

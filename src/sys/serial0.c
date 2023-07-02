@@ -64,9 +64,9 @@
 #define __TXEN__ TXEN0
 // Set 8-bit character mode (UCSZ00, UCSZ01, and UCSZ02 together control this, But UCSZ00, UCSZ01 are in Register UCSR0C)
 #define __UCSZ2__ UCSZ02
-// TODO
+// Bit 1 – RXB8n: Receive Data Bit 8 n
 #define __RXB8__ RXB80
-// TODO
+// Bit 0 – TXB8n: Transmit Data Bit 8 n
 #define __TXB8__ TXB80
 
 //
@@ -78,7 +78,7 @@
 // disable parity mode -- UPM00 = 0 and UPM01 = 0
 #define __UPM0__ UPM00
 #define __UPM1__ UPM01
-// Disabilitato: Set USBS = 1 to configure to 2 stop bits per DMX standard.  The USART receiver ignores this 
+// Set USBS = 1 to configure to 2 stop bits per DMX standard.  The USART receiver ignores this 
 // setting anyway, and will only set a frame error flag if the first stop bit is 0.  
 #define __USBS__ USBS0
 // Finish configuring for 8 data bits by setting UCSZ00 and UCSZ01 to 1
@@ -95,28 +95,52 @@
 #define __UCSRA__ UCSRA
 #define __UCSRB__ UCSRB
 #define __UCSRC__ UCSRC
-
 #define __UDR__ UDR
 
-#define __UDRE__ UDRE
 #define __RXC__ RXC
 #define __TXC__ TXC
+#define __UDRE__ UDRE
+#define __FE__ FE
+#define __DOR__ DOR
 #define __U2X__ U2X
+#if defined(MPCM)
 #define __MPCM__ MPCM
 #endif
 
+#define __RXCIE__ RXCIE
+#define __TXCIE__ TXCIE
+#define __UDRIE__ UDRIE
+#define __RXEN__ RXEN
+#define __TXEN__ TXEN
+#define __UCSZ2__ UCSZ2
+#define __RXB8__ RXB8
+#define __TXB8__ TXB8
+
+#define __UMSEL0__ UMSEL0
+#define __UMSEL1__ UMSEL1
+#define __UPM0__ UPM0
+#define __UPM1__ UPM1
+#define __USBS__ USBS
+#define __UCSZ0__ UCSZ0
+#define __UCSZ1__ UCSZ1
+#define __UCPOL__ UCPOL
+
+#endif
 
 static volatile void (*serial0_on_recieve_complete)(uint_fast8_t)=0;
 static volatile void (*serial0_on_transmit_complete)(void)=0;
 
 static uint32_t serial0_baudrate = 0;
 
-void serial0_on_recieved(void (*callback)(uint_fast8_t))
+RINGB8(serial0_rx, SERIAL_BUFFER_RX_SIZE);
+RINGB8(serial0_tx, SERIAL_BUFFER_TX_SIZE);
+
+void serial0_onrecieved(void (*callback)(uint_fast8_t))
 {
   serial0_on_recieve_complete = callback;
 }
 
-void serial0_on_transmitted(void (*callback)(void))
+void serial0_ontransmitted(void (*callback)(void))
 {
   serial0_on_transmit_complete = callback;
 }
@@ -159,40 +183,18 @@ ISR(USART_UDRE_vect)
 
 #endif
 
-/**
- * SerialPort::begin(uint32_t baud, uint8_t options = SP_8_BIT_CHAR)
-
-Sets the data rate in bits per second (baud) for serial data transmission.
-
-Parameters:
-[in] baud rate in bits per second (baud)
-[in] options constructed by a bitwise-inclusive OR of values from the following list.
-
-Choose one value for stop bit, parity, and character size.
-
-The default is SP_8_BIT_CHAR which results in one stop bit, no parity, and 8-bit characters.
-
-SP_1_STOP_BIT - use one stop bit (default if stop bit not specified)
-
-SP_2_STOP_BIT - use two stop bits
-
-SP_NO_PARITY - no parity bit (default if parity not specified)
-
-SP_EVEN_PARITY - add even parity bit
-
-SP_ODD_PARITY - add odd parity bit
-
-SP_5_BIT_CHAR - use 5-bit characters (default if size not specified)
-
-SP_6_BIT_CHAR - use 6-bit characters
-
-SP_7_BIT_CHAR - use 7-bit characters
-
-SP_8_BIT_CHAR - use 8-bit characters
-
-*/
-void serial0_open(uint32_t baud, uint8_t config)
+void serial0_open(uint32_t baud)
 {
+  // data bits = 8 (__UCSZ1__ and __UCSZ2 = 1)
+  // stop bits = 1 (__USBS__ = 0)
+  // no parity (__UPM0__ and __UPM1__ = 0)
+  serial0_openex(baud, (__UCSZ1__ | __UCSZ2__));
+}
+void serial0_openex(uint32_t baud, uint8_t options)
+{
+  // disable USART interrupts.  Set UCSRB to reset values.
+  __UCSRB__ = 0;
+
   // Try u2x mode first
   uint16_t baud_setting = (F_CPU / 4 / baud - 1) / 2;
   __UCSRA__ = 1 << __U2X__;
@@ -215,9 +217,9 @@ void serial0_open(uint32_t baud, uint8_t config)
 
   //set the data bits, parity, and stop bits
 #if defined(__AVR_ATmega8__)
-  config |= 0x80; // select UCSRC register (shared with UBRRH)
+  options |= 0x80; // select UCSRC register (shared with UBRRH)
 #endif
-  __UCSRC__ = config;
+  __UCSRC__ = options;
 
   serial0_baudrate = F_CPU / (8 * (baud_setting + 1));
 
@@ -231,7 +233,9 @@ void serial0_open(uint32_t baud, uint8_t config)
 void serial0_close()
 {
   serial0_baudrate = 0;
-  // TODO: disable interupt?
+  cli();
+  __UCSRB__ &= ~(__RXEN__ | __TXEN__ | __RXCIE__ | __UDRIE__);
+  sei();
 }
 
 uint32_t serial0_get_baudrate()
