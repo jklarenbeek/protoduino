@@ -30,15 +30,25 @@ CC_EXTERN void serial0_ontransmitted(void (*callback)(void));
 
 CC_EXTERN void serial0_open(uint32_t baud);
 CC_EXTERN void serial0_openex(uint32_t baud, uint8_t options);
-CC_EXTERN void serial0_close();
-CC_EXTERN uint32_t serial0_get_baudrate();
+CC_EXTERN void serial0_close(void);
+CC_EXTERN uint_fast32_t serial0_get_baudrate(void);
 
-CC_EXTERN uint_fast8_t serial0_read_available();
-CC_EXTERN uint_fast8_t serial0_read8_unchecked();
+CC_EXTERN uint_fast8_t serial0_rx_available(void);
+CC_EXTERN uint_fast8_t serial0_rx_error(void);
+CC_EXTERN uint_fast8_t serial0_rx_read8(void);
+CC_EXTERN uint_fast8_t serial0_tx_available(void);
+CC_EXTERN void serial0_tx_write8(uint_fast8_t data);
+
+CC_EXTERN uint_fast8_t serial0_read_available(void);
 CC_EXTERN int_fast16_t serial0_read8();
+CC_EXTERN int_fast32_t serial0_read16();
+CC_EXTERN int_fast32_t serial0_read24();
+CC_EXTERN int_fast32_t serial0_read32();
 
 CC_EXTERN uint_fast8_t serial0_write_available();
-CC_EXTERN void serial0_write8_unchecked(uint_fast8_t data);
 CC_EXTERN uint_fast8_t serial0_write8(uint_fast8_t data);
+CC_EXTERN uint_fast8_t serial0_write16(uint_fast16_t data);
+CC_EXTERN uint_fast8_t serial0_write24(uint_fast32_t data);
+CC_EXTERN uint_fast8_t serial0_write32(uint_fast32_t data);
 
 #endif
