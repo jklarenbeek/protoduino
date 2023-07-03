@@ -461,6 +461,8 @@ CC_FLATTEN uint_fast8_t serial0_write16(uint_fast16_t data)
     uint8_t buf[2];
   } tmp;
 
+  tmp.data = data;
+  
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
   {
     // add data to the ringbuffer
@@ -484,6 +486,8 @@ CC_FLATTEN uint_fast8_t serial0_write24(uint_fast32_t data)
     uint32_t data;
     uint8_t buf[4];
   } tmp;
+
+  tmp.data = data;
 
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
   {
@@ -509,6 +513,8 @@ CC_FLATTEN uint_fast8_t serial0_write32(uint_fast32_t data)
     uint32_t data;
     uint8_t buf[4];
   } tmp;
+
+  tmp.data = data;
 
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
   {
