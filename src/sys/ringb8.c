@@ -20,7 +20,7 @@ uint_fast8_t ringb8_count(struct ringb8_t *self)
     return (self->head - self->tail) & self->mask;
 }
 
-uint_fast8_t ringb8_available(struct ringb8_t *self)
+CC_FLATTEN uint_fast8_t ringb8_available(struct ringb8_t *self)
 {
     return (uint_fast8_t)(ringb8_size(self) - ringb8_count(self));
 }
@@ -44,7 +44,7 @@ uint_fast8_t ringb8_last(struct ringb8_t *self)
     return self->data[(self->head - 1) & self->mask];
 }
 
-uint_fast8_t ringb8_put(struct ringb8_t *self, uint_fast8_t value)
+void ringb8_put(struct ringb8_t *self, uint_fast8_t value)
 {
     self->data[self->head] = value;
     self->head = (self->head + 1) & self->mask;

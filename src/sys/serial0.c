@@ -102,6 +102,7 @@
 #define __UDRE__ UDRE
 #define __FE__ FE
 #define __DOR__ DOR
+#define __UPE__ UPE
 #define __U2X__ U2X
 #if defined(MPCM)
 #define __MPCM__ MPCM
@@ -127,58 +128,99 @@
 
 #endif
 
-static volatile void (*serial0_on_recieve_complete)(uint_fast8_t)=0;
-static volatile void (*serial0_on_transmit_complete)(void)=0;
+#if defined(USART_RX_vect)
+#define __ISR_RX_VECT__ USART_RX_vect
+#elif defined(USART0_RX_vect)
+#define __ISR_RX_VECT__ USART0_RX_vect
+#elif defined(USART_RXC_vect)
+#define __ISR_RX_VECT__ USART_RXC_vect
+#else
+  #error "Don't know what Data Received vector is called for serial0"
+#endif
+
+#if defined(UART0_UDRE_vect)
+#define __ISR_UDRE_VECT__ UART0_UDRE_vect
+#elif defined(UART_UDRE_vect)
+#define __ISR_UDRE_VECT__ UART_UDRE_vect
+#elif defined(USART0_UDRE_vect)
+#define __ISR_UDRE_VECT__ USART0_UDRE_vect
+#elif defined(USART_UDRE_vect)
+#define __ISR_UDRE_VECT__ USART_UDRE_vect
+#else
+  #error "Don't know what Data Register Empty vector is called for serial0"
+#endif
+
+static volatile uint_fast8_t (*serial0_on_rx_complete)(uint_fast8_t)=0;
+static volatile void (*serial0_on_tx_complete)(void)=0;
 
 static uint32_t serial0_baudrate = 0;
 
 RINGB8(serial0_rx, SERIAL_BUFFER_RX_SIZE);
 RINGB8(serial0_tx, SERIAL_BUFFER_TX_SIZE);
 
-void serial0_onrecieved(void (*callback)(uint_fast8_t))
+void serial0_onrecieved(uint_fast8_t (*callback)(uint_fast8_t))
 {
-  serial0_on_recieve_complete = callback;
+  serial0_on_rx_complete = callback;
 }
 
 void serial0_ontransmitted(void (*callback)(void))
 {
-  serial0_on_transmit_complete = callback;
+  serial0_on_tx_complete = callback;
 }
 
 #if defined(USE_PROTODUINO_SERIAL) || defined(USE_PROTODUINO_SERIAL0)
-#if defined(USART_RX_vect)
-ISR(USART_RX_vect)
-#elif defined(USART0_RX_vect)
-ISR(USART0_RX_vect)
-#elif defined(USART_RXC_vect)
-ISR(USART_RXC_vect) // ATmega8
-#else
-  #error "Don't know what the Data Received vector is called for Serial"
-#endif
+ISR(__ISR_RX_VECT__)
 {
-  uint_fast8_t ch =__UDR__; // must read, to clear the interrupt flag
-  if(serial0_baudrate != 0 && serial0_on_recieve_complete != 0) 
+  uint_fast8_t data;
+
+  // is there an error in the recieved packet?
+  if (__UCSRA__ & (_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__)))
   {
-    serial0_on_recieve_complete(ch);
+    // fetch the data register and discard it.
+    data = __UDR__; // must read, to clear the interrupt flag
+    return;
+  }
+
+  data =__UDR__; // fetch the packet
+
+  // if the callback function returns true
+  if (serial0_on_rx_complete != 0 && serial0_on_rx_complete(data) > 0)
+  {
+    // skip adding byte to the rx buffer.
+    return;
+  }
+
+  // is there room in the buffer?
+  if (ringb8_available(VAR_RINGB8(serial0_rx)) > 0)
+  {
+    ringb8_put(VAR_RINGB8(serial0_rx), data);
   }
 }
 
-#if defined(UART0_UDRE_vect)
-ISR(UART0_UDRE_vect)
-#elif defined(UART_UDRE_vect)
-ISR(UART_UDRE_vect)
-#elif defined(USART0_UDRE_vect)
-ISR(USART0_UDRE_vect)
-#elif defined(USART_UDRE_vect)
-ISR(USART_UDRE_vect)
-#else
-  #error "Don't know what the Data Register Empty vector is called for Serial"
-#endif
+ISR(__ISR_UDRE_VECT__)
 {
-  if(serial0_baudrate != 0 && serial0_on_recieve_complete != 0) 
+  uint_fast8_t cnt = ringb8_count(VAR_RINGB8(serial0_tx);
+
+  // this should ALWAYS be true, since an interupt should only
+  // be generated when there is still data in the tx buffer.
+  if (cnt > 0))
   {
-    serial0_on_transmit_complete();
+    __UDR__ = ringb8_get(VAR_RINGB8(serial_tx));
   }
+
+  // clear the TXC bit, by setting it to 1
+  sbi(__UCSRA__, __TXC__);
+
+  // was this the last byte in the buffer?
+  if (cnt == 1)
+  [
+    // disable the data register empty interrupt
+    cbi(__UCSRB__, __UDRIE__);
+
+    // call the tx complete event handler
+    if (serial0_on_tx_complete != 0)
+      serial0_on_tx_complete();
+  ]
 }
 
 #endif
@@ -223,10 +265,10 @@ void serial0_openex(uint32_t baud, uint8_t options)
 
   serial0_baudrate = F_CPU / (8 * (baud_setting + 1));
 
-  sbi(__UCSRB__, __RXEN__);
-  sbi(__UCSRB__, __TXEN__);
-  sbi(__UCSRB__, __RXCIE__);
-  cbi(__UCSRB__, __UDRIE__);
+  sbi(__UCSRB__, __RXEN__); // enable reciever
+  sbi(__UCSRB__, __TXEN__); // enable transmitter
+  sbi(__UCSRB__, __RXCIE__); // enable receive complete flag interrupt
+  cbi(__UCSRB__, __UDRIE__); // disable data register empty interrupt
 
 }
 

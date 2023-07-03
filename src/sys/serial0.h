@@ -2,7 +2,7 @@
 #define __SERIAL0_H__
 
 #include "cc.h"
-#include <stdint.h>
+#include <stdbool.h>
 
 #ifndef SERIAL_BUFFER_RX_SIZE
 #define SERIAL_BUFFER_RX_SIZE 8
@@ -25,7 +25,7 @@
 // send flowcontrol xon to sender (tell sender to start transmitting again)
 #define SERIAL_FLOWCONTROL_XON 0x11
 
-CC_EXTERN void serial0_onrecieved(void (*callback)(uint_fast8_t));
+CC_EXTERN void serial0_onrecieved(uint_fast8_t (*callback)(uint_fast8_t));
 CC_EXTERN void serial0_ontransmitted(void (*callback)(void));
 
 CC_EXTERN void serial0_open(uint32_t baud);

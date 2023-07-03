@@ -124,6 +124,6 @@ CC_EXTERN uint_fast8_t ringb8_last(struct ringb8_t *self);
  * @param self Pointer to the ring buffer structure.
  * @param value The byte to write.
  */
-CC_EXTERN uint_fast8_t ringb8_put(struct ringb8_t *self, uint_fast8_t value);
+CC_EXTERN void ringb8_put(struct ringb8_t *self, uint_fast8_t value);
 
 #endif /* RINGB8_H */
