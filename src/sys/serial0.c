@@ -14,6 +14,7 @@
 #endif
 
 #if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
+#pragma message "serial0: selecting known AVR"
 
 // USART baud rate register high 
 #define __UBRRH__ UBRR0H
@@ -90,6 +91,8 @@
 #define __UCPOL__ UCPOL0
 
 #else
+
+#pragma message "serial0: selecting unknown AVR"
 
 #define __UBRRH__ UBRRH
 #define __UBRRL__ UBRRL
@@ -173,7 +176,9 @@ void serial0_ontransmitted(void (*callback)(void))
   serial0_on_tx_complete = callback;
 }
 
-#if defined(USE_PROTODUINO_SERIAL) || defined(USE_PROTODUINO_SERIAL0)
+//#if defined(USE_PROTODUINO_SERIAL) || defined(USE_PROTODUINO_SERIAL0)
+#pragma message "serial0: using interrupt service routines"
+
 ISR(__ISR_RX_VECT__)
 {
   uint_fast8_t data;
@@ -205,13 +210,13 @@ ISR(__ISR_RX_VECT__)
 
 ISR(__ISR_UDRE_VECT__)
 {
-  uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx);
+  uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
 
   // this should ALWAYS be true, since an interupt should only
   // be generated when there is still data in the tx buffer.
-  if (cnt > 0))
+  if (cnt > 0)
   {
-    __UDR__ = ringb8_get(&VAR_RINGB8(serial_tx));
+    __UDR__ = ringb8_get(&VAR_RINGB8(serial0_tx));
   }
 
   // clear the TXC bit, by setting it to 1
@@ -219,17 +224,19 @@ ISR(__ISR_UDRE_VECT__)
 
   // was this the last byte in the buffer?
   if (cnt == 1)
-  [
+  {
     // disable the data register empty interrupt
     cbi(__UCSRB__, __UDRIE__);
 
     // call the tx complete event handler
     if (serial0_on_tx_complete != 0)
       serial0_on_tx_complete();
-  ]
+  }
 }
 
-#endif
+//#endif
+
+#pragma message "serial0: compiling"
 
 void serial0_open(uint32_t baud)
 {
