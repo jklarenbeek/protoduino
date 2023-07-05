@@ -1,10 +1,12 @@
+#include "protoduino-config.h"
+#include "serial0.h"
 
 #include <avr/interrupt.h>
 #include <util/atomic.h>
 
 #include "ringb8.h"
-#include "serial0.h"
 #include "pt-errors.h"
+#include "timer.h"
 
 #ifndef cbi
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
@@ -158,56 +160,72 @@
 #define CC_NM_PREFIX serial0_
 #define CC_NM(method) CC_CONCAT2(CC_NM_PREFIX,method)
 
-static volatile uint_fast8_t (*serial0_on_rx_complete)(uint_fast8_t)=0;
-static volatile void (*serial0_on_tx_complete)(void)=0;
+static volatile uint_fast8_t (*_serial0_on_rx_complete)(uint_fast8_t)=0;
+static volatile void (*_serial0_on_rx_error)(uint_fast8_t)=0;
+static volatile void (*_serial0_on_tx_complete)(uint_fast8_t sended, uint_fast8_t misses)=0;
 
-static uint32_t serial0_baudrate = 0;
+static uint32_t _serial0_baudrate = 0;
 
 RINGB8(serial0_rx, SERIAL_BUFFER_RX_SIZE);
 RINGB8(serial0_tx, SERIAL_BUFFER_TX_SIZE);
 
-void serial0_onrecieved(uint_fast8_t (*callback)(uint_fast8_t))
+void serial0_on_rx_complete(uint_fast8_t (*callback)(uint_fast8_t))
 {
-  serial0_on_rx_complete = callback;
+  _serial0_on_rx_complete = callback;
 }
 
-void serial0_ontransmitted(void (*callback)(void))
+void serial0_on_rx_error(void (*callback)(uint_fast8_t))
 {
-  serial0_on_tx_complete = callback;
+  _serial0_on_rx_error = callback;
 }
 
-//#if defined(USE_PROTODUINO_SERIAL) || defined(USE_PROTODUINO_SERIAL0)
-#pragma message "serial0: using interrupt service routines"
+void serial0_on_tx_complete(void (*callback)(uint_fast8_t sended, uint_fast8_t misses))
+{
+  _serial0_on_tx_complete = callback;
+}
 
+#ifndef USE_ARDUINO_HARDWARESERIAL
+#pragma message "serial0: using protoduino interrupt service routines"
+
+// This interrupt is called when the cpu recieved a packet on the bus
 ISR(__ISR_RX_VECT__)
 {
   uint_fast8_t data;
+  uint_fast8_t err = serial0_rx_error();
 
   // is there an error in the recieved packet?
-  if (__UCSRA__ & (_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__)))
+  if (err != PT_ERR_SUCCESS)
   {
     // fetch the data register and discard it.
     // must read, to clear the interrupt flag.
-    data = __UDR__; 
+    data = __UDR__;
+
+    if (_serial0_on_rx_error != 0)
+      _serial0_on_rx_error(err);
+
     return;
   }
 
   data =__UDR__; // fetch the packet
 
-  // if the callback function returns true
-  if (serial0_on_rx_complete != 0 && serial0_on_rx_complete(data) > 0)
+  if (_serial0_on_rx_complete != 0)
   {
-    // skip adding byte to the rx buffer.
-    return;
+    // if callback returns true
+     if (_serial0_on_rx_complete(data) > 0)
+      return; // skip adding byte to the rx buffer.
   }
 
   // is there room in the buffer?
-  if (ringb8_available(&VAR_RINGB8(serial0_rx)) > 0)
+  if (ringb8_available(&VAR_RINGB8(serial0_rx)) == 0)
   {
     ringb8_put(&VAR_RINGB8(serial0_rx), data);
   }
 }
 
+static uint32_t _isr_udre_cnt = 0;
+static uint32_t _isr_udre_mis = 0;
+
+// This interrupt is called when the transmit register is empty in order to send another character
 ISR(__ISR_UDRE_VECT__)
 {
   uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
@@ -217,26 +235,33 @@ ISR(__ISR_UDRE_VECT__)
   if (cnt > 0)
   {
     __UDR__ = ringb8_get(&VAR_RINGB8(serial0_tx));
+    ++_isr_udre_cnt;
+  }
+  else
+  {
+    // huh?
+    ++_isr_udre_mis;
   }
 
   // clear the TXC bit, by setting it to 1
   sbi(__UCSRA__, __TXC__);
 
   // was this the last byte in the buffer?
-  if (cnt == 1)
+  if (cnt <= 1)
   {
     // disable the data register empty interrupt
     cbi(__UCSRB__, __UDRIE__);
 
     // call the tx complete event handler
-    if (serial0_on_tx_complete != 0)
-      serial0_on_tx_complete();
+    if (_serial0_on_tx_complete != 0)
+      _serial0_on_tx_complete(_isr_udre_cnt, _isr_udre_mis);
+
+    _isr_udre_cnt = 0;
+    _isr_udre_mis = 0;
   }
 }
 
-//#endif
-
-#pragma message "serial0: compiling"
+#endif
 
 void serial0_open(uint32_t baud)
 {
@@ -276,7 +301,7 @@ void serial0_openex(uint32_t baud, uint8_t options)
 #endif
   __UCSRC__ = options;
 
-  serial0_baudrate = F_CPU / (8 * (baud_setting + 1));
+  _serial0_baudrate = F_CPU / (8 * (baud_setting + 1));
 
   sbi(__UCSRB__, __RXEN__); // enable reciever
   sbi(__UCSRB__, __TXEN__); // enable transmitter
@@ -287,8 +312,8 @@ void serial0_openex(uint32_t baud, uint8_t options)
 
 void serial0_close(void)
 {
-  serial0_baudrate = 0;
   cli(); // diable all interrupts
+  _serial0_baudrate = 0;
   cbi(__UCSRB__, __RXEN__); // disable reciever
   cbi(__UCSRB__, __TXEN__); // disable transmitter
   cbi(__UCSRB__, __RXCIE__); // disable recieve complete interrupt (RX)
@@ -296,14 +321,15 @@ void serial0_close(void)
   sei(); // enable all interrupts
 }
 
-uint_fast32_t serial0_get_baudrate(void)
+uint_fast32_t serial0_baudrate(void)
 {
-  return serial0_baudrate;
+  return _serial0_baudrate;
 }
 
-uint_fast8_t serial0_rx_available(void)
+
+bool serial0_rx_is_available(void)
 {
-  return (__UCSRA__ & _BV(__RXC__)) ? 1 : 0; 
+  return (__UCSRA__ & _BV(__RXC__)) != 0; 
 }
 
 uint_fast8_t serial0_rx_error(void)
@@ -311,9 +337,9 @@ uint_fast8_t serial0_rx_error(void)
   uint8_t r = __UCSRA__ & (_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__));
   if (r == 0) 
     return PT_ERR_SUCCESS;
-  if (r & __BV(__FE__)) 
+  if (r & _BV(__FE__))
     return PT_ERR_FRAME_ERROR; // frame error
-  if (r & __BV(__DOR__)) 
+  if (r & _BV(__DOR__)) 
     return PT_ERR_DATA_OVERFLOW; // data overrun
   else 
     return PT_ERR_PARITY_ERROR; // parity error
@@ -325,25 +351,43 @@ uint_fast8_t serial0_rx_read8(void)
   return d;
 }
 
-uint_fast8_t serial0_tx_available(void)
+
+bool serial0_tx_is_interrupt_enabled(void)
 {
-  return !((__UCSRB__ & _BV(__UDRIE__)) || !(__UCSRA__ & _BV(__UDRE__))) ? 1 : 0;
+  return (__UCSRB__ & _BV(__UDRIE__)) != 0;
 }
 
-void serial0_tx_write8(uint_fast8_t data)
+bool serial0_tx_is_empty(void)
 {
-      // write the byte to the data register immediatly
-    __UDR__ = data;
-      // clear the TXC bit by setting it.
-      sbi(__UCSRA__, __TXC__);
+  return (__UCSRA__ & _BV(__UDRE__)) != 0;
 }
+
+CC_FLATTEN bool serial0_tx_is_available(void)
+{
+  // if the data register empty interrupt is not set and the data register is empty
+  return !serial0_tx_is_interrupt_enabled() && serial0_tx_is_empty();
+}
+
+void serial0_tx_write8(const uint_fast8_t data)
+{
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+  {
+    // write the byte to the data register immediatly
+    __UDR__ = data;
+    // clear the TXC bit by setting it.
+    sbi(__UCSRA__, __TXC__);
+  }
+}
+
+
+////////////////////////////////////////////////
 
 uint_fast8_t serial0_read_available(void)
 {
   return ringb8_count(&VAR_RINGB8(serial0_rx));
 }
 
-int_fast16_t serial0_peek(void)
+int_fast16_t serial0_peek8(void)
 {
   uint_fast8_t cnt = serial0_read_available();
   if (cnt == 0)
@@ -421,20 +465,14 @@ uint_fast8_t serial0_write_available(void)
   return ringb8_available(&VAR_RINGB8(serial0_tx));
 }
 
-CC_FLATTEN uint_fast8_t serial0_write8(uint_fast8_t data)
+CC_FLATTEN uint_fast8_t serial0_write8(const uint_fast8_t data)
 {
   uint8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
 
   // when the buffer is empty and the data register is empty
-  if (cnt == 0 && bit_is_set(__UCSRA__, __UDRE__))
+  if (cnt == 0 && serial0_tx_is_available())
   {
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-    {
-      // write the byte to the data register immediatly
-      __UDR__ = data;
-      // clear the TXC bit by setting it.
-      sbi(__UCSRA__, __TXC__);
-    }
+    serial0_tx_write8(data);
     return 1;
   }
 
@@ -442,7 +480,7 @@ CC_FLATTEN uint_fast8_t serial0_write8(uint_fast8_t data)
   uint8_t available = ringb8_size(&VAR_RINGB8(serial0_tx)) - cnt;
   if (available == 0) // but if we can't, we can't
   {
-    return 0; // let the user flush it manually
+    return 0; // let the user handle it manually
   }
 
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
@@ -457,7 +495,7 @@ CC_FLATTEN uint_fast8_t serial0_write8(uint_fast8_t data)
   return 1;
 }
 
-CC_FLATTEN uint_fast8_t serial0_write16(uint_fast16_t data)
+CC_FLATTEN uint_fast8_t serial0_write16(const uint_fast16_t data)
 {
   uint8_t available = serial0_write_available();
   if (available < 2)
@@ -483,7 +521,7 @@ CC_FLATTEN uint_fast8_t serial0_write16(uint_fast16_t data)
   return 2;  
 }
 
-CC_FLATTEN uint_fast8_t serial0_write24(uint_fast32_t data)
+CC_FLATTEN uint_fast8_t serial0_write24(const uint_fast32_t data)
 {
   uint8_t available = serial0_write_available();
   if (available < 3)
@@ -510,7 +548,7 @@ CC_FLATTEN uint_fast8_t serial0_write24(uint_fast32_t data)
   return 3;  
 }
 
-CC_FLATTEN uint_fast8_t serial0_write32(uint_fast32_t data)
+CC_FLATTEN uint_fast8_t serial0_write32(const uint_fast32_t data)
 {
   uint8_t available = serial0_write_available();
   if (available < 4)
@@ -536,4 +574,30 @@ CC_FLATTEN uint_fast8_t serial0_write32(uint_fast32_t data)
   }
 
   return 4;
+}
+
+uint_fast8_t serial0_flush(void)
+{
+  uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
+  // is there anything left in the buffer?
+  if (cnt == 0)
+    return 0;
+
+  // are the global interrupts disabled?
+  if (bit_is_set(SREG, SREG_I))
+  {
+    // is the transmit register empty?
+    if (serial0_tx_is_empty())
+      return cnt;
+
+    // the transmit register is empty
+    serial0_tx_write8(ringb8_get(&VAR_RINGB8(serial0_tx)));
+    return cnt - 1;
+  }
+
+  // we just re-enable the data register empty interrupt
+  sbi(__UCSRB__,__UDRIE__);
+
+  // and return the number of bytes in the buffer
+  return cnt;
 }

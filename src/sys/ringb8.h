@@ -32,7 +32,7 @@ struct ringb8_t
  *
  * @param name The base name for the ring buffer variable.
  */
-#define VAR_RINGB8(name) CC_CONCAT2EXT(name, _ringb8)
+#define VAR_RINGB8(name) CC_CONCAT2EXT(name,_ringb8)
 /**
  * @def VAR_RINGB8_DATA(name)
  * @brief Macro for generating a variable name for the ring buffer data array.
@@ -41,7 +41,7 @@ struct ringb8_t
  *
  * @param name The base name for the ring buffer data array variable.
  */
-#define VAR_RINGB8_DATA(name) CC_CONCAT2EXT(name, _ringb8_data)
+#define VAR_RINGB8_DATA(name) CC_CONCAT2EXT(name,_ringb8_data)
 
 /**
  * @def RINGB8(name, size)
@@ -57,7 +57,7 @@ struct ringb8_t
 static uint8_t VAR_RINGB8_DATA(name)[size]; \
 static struct ringb8_t VAR_RINGB8(name) = { \
     (size - 1), 0, 0, \
-    &VAR_RINGB8_DATA(name) }
+    VAR_RINGB8_DATA(name) }
 
 /**
  * @brief Initialize the ring buffer.

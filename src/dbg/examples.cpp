@@ -1,12 +1,16 @@
-#include <Arduino.h>
 #include "examples.h"
 
 int print_count = 0;
 
+#ifdef USE_ARDUINO_HARDWARESERIAL
+
+#include <Arduino.h>
+
 void print_setup()
 {
   Serial.begin(9600);
-  
+  Stream *st = &Serial;
+
   // if analog input pin 0 is unconnected, random analog
   // noise will cause the call to randomSeed() to generate
   // different seed numbers each time the sketch runs.
@@ -133,3 +137,80 @@ void print_line(const char *str, uint8_t value)
   print_line(0, str, value);
 }
 
+#else
+
+#include "../sys/serial0.h"
+
+void print_setup()
+{
+  serial0_open(SERIAL_BAUD_9600);
+
+}
+
+void print_info(const char * msg)
+{
+  ; // TODO
+}
+
+
+static void print_state_ex(const ptstate_t s, const lc_t lc)
+{
+ ; //
+}
+
+void print_state(const ptstate_t s, const char * msg)
+{
+  ; //
+}
+
+void print_state(const ptstate_t s, const char * msg, const uint8_t value)
+{
+  ; //
+}
+
+void print_state(const ptstate_t s, const lc_t lc, const char * msg)
+{
+  ; // 
+}
+
+void print_state(const ptstate_t s, const lc_t lc, const char * msg, const uint8_t value)
+{
+  ; // TODO
+}
+
+static void print_error_ex(const char * str, uint8_t err)
+{
+  ;
+}
+
+void print_error(const char * str, uint8_t err)
+{
+  ;
+}
+
+static void print_line_ex(const lc_t lc, const char *str)
+{
+;
+}
+
+void print_line(const lc_t lc, const char * str)
+{
+;
+}
+
+void print_line(const char * str)
+{
+;
+}
+
+void print_line(const lc_t lc, const char *str, uint8_t value)
+{
+;
+}
+
+void print_line(const char *str, uint8_t value)
+{
+;
+}
+
+#endif

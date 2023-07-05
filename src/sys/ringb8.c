@@ -46,6 +46,6 @@ uint_fast8_t ringb8_last(struct ringb8_t *self)
 
 void ringb8_put(struct ringb8_t *self, uint_fast8_t value)
 {
-    self->data[self->head] = value;
+    self->data[self->head] = (uint8_t)value;
     self->head = (self->head + 1) & self->mask;
 }

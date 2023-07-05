@@ -4,12 +4,6 @@
 #include "cc.h"
 #include <stdbool.h>
 
-#ifndef SERIAL_BUFFER_RX_SIZE
-#define SERIAL_BUFFER_RX_SIZE 8
-#endif
-#ifndef SERIAL_BUFFER_TX_SIZE
-#define SERIAL_BUFFER_TX_SIZE 8
-#endif
 
 #define SERIAL_BAUD_1200 1200
 #define SERIAL_BAUD_2400 2400
@@ -25,30 +19,38 @@
 // send flowcontrol xon to sender (tell sender to start transmitting again)
 #define SERIAL_FLOWCONTROL_XON 0x11
 
-CC_EXTERN void serial0_onrecieved(uint_fast8_t (*callback)(uint_fast8_t));
-CC_EXTERN void serial0_ontransmitted(void (*callback)(void));
+CC_EXTERN void serial0_on_rx_complete(uint_fast8_t (*callback)(uint_fast8_t));
+CC_EXTERN void serial0_on_rx_error(void (*callback)(uint_fast8_t));
+CC_EXTERN void serial0_on_tx_complete(void (*callback)(uint_fast8_t sended, uint_fast8_t misses));
 
 CC_EXTERN void serial0_open(uint32_t baud);
 CC_EXTERN void serial0_openex(uint32_t baud, uint8_t options);
 CC_EXTERN void serial0_close(void);
-CC_EXTERN uint_fast32_t serial0_get_baudrate(void);
+CC_EXTERN uint_fast32_t serial0_baudrate(void);
 
-CC_EXTERN uint_fast8_t serial0_rx_available(void);
+CC_EXTERN bool serial0_rx_is_available(void);
 CC_EXTERN uint_fast8_t serial0_rx_error(void);
 CC_EXTERN uint_fast8_t serial0_rx_read8(void);
-CC_EXTERN uint_fast8_t serial0_tx_available(void);
-CC_EXTERN void serial0_tx_write8(uint_fast8_t data);
+
+CC_EXTERN bool serial0_tx_is_interrupt_enabled(void);
+CC_EXTERN bool serial0_tx_is_empty(void);
+CC_EXTERN bool serial0_tx_is_available(void);
+CC_EXTERN void serial0_tx_write8(const uint_fast8_t data);
 
 CC_EXTERN uint_fast8_t serial0_read_available(void);
-CC_EXTERN int_fast16_t serial0_read8();
-CC_EXTERN int_fast32_t serial0_read16();
-CC_EXTERN int_fast32_t serial0_read24();
-CC_EXTERN int_fast32_t serial0_read32();
+CC_EXTERN int_fast16_t serial0_peek8(void);
+CC_EXTERN int_fast16_t serial0_read8(void);
+CC_EXTERN int_fast32_t serial0_read16(void);
+CC_EXTERN int_fast32_t serial0_read24(void);
+CC_EXTERN int_fast32_t serial0_read32(void);
 
 CC_EXTERN uint_fast8_t serial0_write_available();
-CC_EXTERN uint_fast8_t serial0_write8(uint_fast8_t data);
-CC_EXTERN uint_fast8_t serial0_write16(uint_fast16_t data);
-CC_EXTERN uint_fast8_t serial0_write24(uint_fast32_t data);
-CC_EXTERN uint_fast8_t serial0_write32(uint_fast32_t data);
+CC_EXTERN uint_fast8_t serial0_write8(const uint_fast8_t data);
+CC_EXTERN uint_fast8_t serial0_write16(const uint_fast16_t data);
+CC_EXTERN uint_fast8_t serial0_write24(const uint_fast32_t data);
+CC_EXTERN uint_fast8_t serial0_write32(const uint_fast32_t data);
+CC_EXTERN uint_fast8_t serial0_flush(void);
+
+#define serial0_write(data) _Generic((data), uint8_fast8_t: serial0_write8, uint_fast16_t: serial0_write16, uint_fast32_t: serial0_write32)(data)
 
 #endif
