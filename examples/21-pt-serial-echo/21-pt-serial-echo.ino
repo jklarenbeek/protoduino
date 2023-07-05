@@ -26,11 +26,11 @@ void ontransmitted(uint_fast8_t sended, uint_fast8_t misses)
 
 void setup()
 {
-  serial0_on_rx_complete(oncomplete);
-  serial0_on_rx_error(onerror);
-  serial0_on_tx_complete(ontransmitted);
+  uart0_on_rx_complete(oncomplete);
+  uart0_on_rx_error(onerror);
+  uart0_on_tx_complete(ontransmitted);
   
-  serial0_open(SERIAL_BAUD_9600);
+  uart0_open(SERIAL_BAUD_9600);
 }
 
 void loop()

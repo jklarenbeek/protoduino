@@ -143,7 +143,7 @@ void print_line(const char *str, uint8_t value)
 
 void print_setup()
 {
-  serial0_open(SERIAL_BAUD_9600);
+  uart0_open(SERIAL_BAUD_9600);
 
 }
 
