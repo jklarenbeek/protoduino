@@ -1,35 +1,54 @@
 
 #include "protoduino-config.h"
-#include "uart0.h"
+#include "serial0.h"
 
+#include "uart0.h"
 #include "ringb8.h"
 
-#include "pt-errors.h"
-#include "timer.h"
+#include <util/atomic.h>
 
 RINGB8(serial0_rx, SERIAL_BUFFER_RX_SIZE);
 RINGB8(serial0_tx, SERIAL_BUFFER_TX_SIZE);
 
-static uint_fast8_t _uart0_on_rx_complete(uint_fast8_t data)
+
+static void serial0_on_rx_complete(uint_fast8_t data)
 {
+
+  // is there room in the buffer?
+  if (ringb8_available(&VAR_RINGB8(serial0_rx)) == 0)
+  {
+    ringb8_put(&VAR_RINGB8(serial0_rx), data);
+  }
 
 }
 
-static uint_fast8_t _uart0_on_rx_error(uint_fast8_t err)
+static void serial0_on_rx_error(uint_fast8_t err)
 {
-
+  ;
 }
 
-static uint_fast8_t _uart0_on_tx_complete(uint_fast8_t sended, uint_fast8_t misses)
+CC_FLATTEN static int_fast16_t serial0_on_tx_complete(void)
 {
+  uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
 
+  // this should ALWAYS be true, since an interupt should only
+  // be generated when there is still data in the tx buffer.
+  if (cnt > 0)
+  {
+    // send the next byte from the buffer
+    return ringb8_get(&VAR_RINGB8(serial0_tx));
+  }
+  else
+  {
+    return -1;
+  }
 }
 
-void serial0_begin(uint32_t baud)
+void serial0_open(uint32_t baud)
 {
-  uart0_on_rx_complete(_uart0_on_rx_complete);
-  uart0_on_rx_error(_uart0_on_rx_error);
-  uart0_on_tx_complete(_uart0_on_tx_complete);
+  uart0_on_rx_complete(serial0_on_rx_complete);
+  uart0_on_rx_error(serial0_on_rx_error);
+  uart0_on_tx_complete(serial0_on_tx_complete);
   uart0_open(baud);
 
 }
@@ -145,8 +164,7 @@ CC_FLATTEN uint_fast8_t serial0_write8(const uint_fast8_t data)
     // add data to the ringbuffer
     ringb8_put(&VAR_RINGB8(serial0_tx), data);
 
-    // enable data register empty interrupt
-    sbi(__UCSRB__, __UDRIE__);
+    uart0_tx_enable();
   }
 
   return 1;
@@ -171,8 +189,7 @@ CC_FLATTEN uint_fast8_t serial0_write16(const uint_fast16_t data)
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[0]);
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[1]);
 
-    // enable data register empty interrupt
-    sbi(__UCSRB__, __UDRIE__);
+    uart0_tx_enable();
   }
 
   return 2;  
@@ -198,8 +215,7 @@ CC_FLATTEN uint_fast8_t serial0_write24(const uint_fast32_t data)
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[1]);
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[2]);
 
-    // enable data register empty interrupt
-    sbi(__UCSRB__, __UDRIE__);
+    uart0_tx_enable();
   }
 
   return 3;  
@@ -226,8 +242,7 @@ CC_FLATTEN uint_fast8_t serial0_write32(const uint_fast32_t data)
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[2]);
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[3]);
 
-    // enable data register empty interrupt
-    sbi(__UCSRB__, __UDRIE__);
+    uart0_tx_enable();
   }
 
   return 4;
@@ -244,7 +259,7 @@ uint_fast8_t serial0_flush(void)
   if (bit_is_set(SREG, SREG_I))
   {
     // is the transmit register empty?
-    if (uart0_tx_is_empty())
+    if (!uart0_tx_is_ready())
       return cnt;
 
     // the transmit register is empty
@@ -253,7 +268,7 @@ uint_fast8_t serial0_flush(void)
   }
 
   // we just re-enable the data register empty interrupt
-  sbi(__UCSRB__,__UDRIE__);
+  uart0_tx_enable();
 
   // and return the number of bytes in the buffer
   return cnt;

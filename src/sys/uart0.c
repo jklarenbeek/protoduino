@@ -5,7 +5,6 @@
 #include <util/atomic.h>
 
 #include "pt-errors.h"
-#include "timer.h"
 
 #ifndef cbi
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
@@ -15,7 +14,7 @@
 #endif
 
 #if defined(__AVR_ATmega128__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
-#pragma message "serial0: selecting known AVR"
+#pragma message "uart0: selecting known AVR"
 
 // USART baud rate register high 
 #define __UBRRH__ UBRR0H
@@ -93,7 +92,7 @@
 
 #else
 
-#pragma message "serial0: selecting unknown AVR"
+#pragma message "uart0: selecting unknown AVR"
 
 #define __UBRRH__ UBRRH
 #define __UBRRL__ UBRRL
@@ -141,7 +140,7 @@
 #elif defined(USART_RXC_vect)
 #define __ISR_RX_VECT__ USART_RXC_vect
 #else
-  #error "Don't know what Data Received vector is called for serial0"
+  #error "Don't know what Data Received vector is called for uart0"
 #endif
 
 #if defined(UART0_UDRE_vect)
@@ -153,32 +152,33 @@
 #elif defined(USART_UDRE_vect)
 #define __ISR_UDRE_VECT__ USART_UDRE_vect
 #else
-  #error "Don't know what Data Register Empty vector is called for serial0"
+  #error "Don't know what Data Register Empty vector is called for uart0"
 #endif
 
-#define CC_NM_PREFIX serial0_
+#define CC_NM_PREFIX uart0_
 #define CC_NM(method) CC_CONCAT2(CC_NM_PREFIX,method)
 
-static volatile uart0_on_rx_complete_fn _serial0_on_rx_complete = 0;
-static volatile uart0_on_rx_error_fn _serial0_on_rx_error = 0;
-static volatile uart0_on_tx_complete_fn _serial0_on_tx_complete = 0;
+static volatile uart0_on_rx_complete_fn _uart0_on_rx_complete = 0;
+static volatile uart0_on_rx_error_fn _uart0_on_rx_error = 0;
+static volatile uart0_on_tx_complete_fn _uart0_on_tx_complete = 0;
 
-static uint32_t _serial0_baudrate = 0;
+static uint32_t _uart0_baudrate = 0;
 
 void uart0_on_rx_complete(uart0_on_rx_complete_fn callback)
 {
-  _serial0_on_rx_complete = callback;
+  _uart0_on_rx_complete = callback;
 }
 
 void uart0_on_rx_error(uart0_on_rx_error_fn callback)
 {
-  _serial0_on_rx_error = callback;
+  _uart0_on_rx_error = callback;
 }
 
 void uart0_on_tx_complete(uart0_on_tx_complete_fn callback)
 {
-  _serial0_on_tx_complete = callback;
+  _uart0_on_tx_complete = callback;
 }
+
 
 void uart0_open(uint32_t baud)
 {
@@ -219,10 +219,11 @@ void uart0_openex(uint32_t baud, uint8_t options)
 #endif
   __UCSRC__ = options;
 
-  _serial0_baudrate = F_CPU / (8 * (baud_setting + 1));
+  _uart0_baudrate = F_CPU / (8 * (baud_setting + 1));
 
   sbi(__UCSRB__, __RXEN__); // enable reciever
   sbi(__UCSRB__, __TXEN__); // enable transmitter
+
   sbi(__UCSRB__, __RXCIE__); // enable receive complete interrupt (RX)
   cbi(__UCSRB__, __UDRIE__); // disable data register empty interrupt (TX)
 
@@ -231,7 +232,7 @@ void uart0_openex(uint32_t baud, uint8_t options)
 void uart0_close(void)
 {
   cli(); // diable all interrupts
-  _serial0_baudrate = 0;
+  _uart0_baudrate = 0;
   cbi(__UCSRB__, __RXEN__); // disable reciever
   cbi(__UCSRB__, __TXEN__); // disable transmitter
   cbi(__UCSRB__, __RXCIE__); // disable recieve complete interrupt (RX)
@@ -241,11 +242,11 @@ void uart0_close(void)
 
 uint_fast32_t uart0_baudrate(void)
 {
-  return _serial0_baudrate;
+  return _uart0_baudrate;
 }
 
 
-bool uart0_rx_is_available(void)
+bool uart0_rx_is_ready(void)
 {
   return (__UCSRA__ & _BV(__RXC__)) != 0; 
 }
@@ -269,13 +270,18 @@ uint_fast8_t uart0_rx_read8(void)
   return d;
 }
 
+void uart0_tx_enable(void)
+{
+  // enable data register empty interrupt
+  sbi(__UCSRB__, __UDRIE__);
+}
 
-bool uart0_tx_is_interrupt_enabled(void)
+bool uart0_tx_is_enabled(void)
 {
   return (__UCSRB__ & _BV(__UDRIE__)) != 0;
 }
 
-bool uart0_tx_is_empty(void)
+bool uart0_tx_is_ready(void)
 {
   return (__UCSRA__ & _BV(__UDRE__)) != 0;
 }
@@ -283,7 +289,7 @@ bool uart0_tx_is_empty(void)
 CC_FLATTEN bool uart0_tx_is_available(void)
 {
   // if the data register empty interrupt is not set and the data register is empty
-  return !uart0_tx_is_interrupt_enabled() && uart0_tx_is_empty();
+  return !uart0_tx_is_enabled() && uart0_tx_is_ready();
 }
 
 void uart0_tx_write8(const uint_fast8_t data)
@@ -292,86 +298,58 @@ void uart0_tx_write8(const uint_fast8_t data)
   {
     // write the byte to the data register immediatly
     __UDR__ = data;
+
     // clear the TXC bit by setting it.
     sbi(__UCSRA__, __TXC__);
   }
 }
 
 #ifndef USE_ARDUINO_HARDWARESERIAL
-#pragma message "serial0: using protoduino interrupt service routines"
+#pragma message "uart0: using protoduino interrupt service routines"
 
 // This interrupt is called when the cpu recieved a packet on the bus
 ISR(__ISR_RX_VECT__)
 {
-  uint_fast8_t data;
   uint_fast8_t err = uart0_rx_error();
+
+  // fetch the packet, must read, to clear the interrupt flag.
+  uint_fast8_t data =__UDR__;
 
   // is there an error in the recieved packet?
   if (err != PT_ERR_SUCCESS)
   {
-    // fetch the data register and discard it.
-    // must read, to clear the interrupt flag.
-    data = __UDR__;
-
-    if (_serial0_on_rx_error != 0)
-      _serial0_on_rx_error(err);
-
-    return;
+    if (_uart0_on_rx_error != 0)
+      _uart0_on_rx_error(err);
   }
-
-  data =__UDR__; // fetch the packet
-
-  if (_serial0_on_rx_complete != 0)
+  else
   {
-    // if callback returns true
-     if (_serial0_on_rx_complete(data) > 0)
-      return; // skip adding byte to the rx buffer.
-  }
-
-  // is there room in the buffer?
-  if (ringb8_available(&VAR_RINGB8(serial0_rx)) == 0)
-  {
-    ringb8_put(&VAR_RINGB8(serial0_rx), data);
+    if (_uart0_on_rx_complete != 0)
+      _uart0_on_rx_complete(data);
   }
 }
-
-static uint32_t _isr_udre_cnt = 0;
-static uint32_t _isr_udre_mis = 0;
 
 // This interrupt is called when the transmit register is empty in order to send another character
 ISR(__ISR_UDRE_VECT__)
 {
-  uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
+  if (_uart0_on_tx_complete != 0)
+  {
+    int_fast16_t data = _uart0_on_tx_complete();
+    if (data >= 0)
+    {
+      __UDR__ = (uint8_t)(data & 0xFF);
 
-  // this should ALWAYS be true, since an interupt should only
-  // be generated when there is still data in the tx buffer.
-  if (cnt > 0)
-  {
-    __UDR__ = ringb8_get(&VAR_RINGB8(serial0_tx));
-    ++_isr_udre_cnt;
-  }
-  else
-  {
-    // huh?
-    ++_isr_udre_mis;
+      // clear the TXC bit, by setting it to 1
+      sbi(__UCSRA__, __TXC__);
+
+      return;
+    }
   }
 
   // clear the TXC bit, by setting it to 1
   sbi(__UCSRA__, __TXC__);
 
-  // was this the last byte in the buffer?
-  if (cnt <= 1)
-  {
-    // disable the data register empty interrupt
-    cbi(__UCSRB__, __UDRIE__);
-
-    // call the tx complete event handler
-    if (_serial0_on_tx_complete != 0)
-      _serial0_on_tx_complete(_isr_udre_cnt, _isr_udre_mis);
-
-    _isr_udre_cnt = 0;
-    _isr_udre_mis = 0;
-  }
+  // disable the data register empty interrupt
+  cbi(__UCSRB__, __UDRIE__);
 }
 
 #endif

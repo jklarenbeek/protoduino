@@ -9,28 +9,10 @@
 #include <sys/ringb8.h>
 #include <sys/serial0.h>
 
-uint_fast8_t oncomplete(uint8_t data)
-{
-
-}
-
-void onerror(uint_fast8_t err)
-{
-
-}
-
-void ontransmitted(uint_fast8_t sended, uint_fast8_t misses)
-{
-
-}
 
 void setup()
 {
-  uart0_on_rx_complete(oncomplete);
-  uart0_on_rx_error(onerror);
-  uart0_on_tx_complete(ontransmitted);
-  
-  uart0_open(SERIAL_BAUD_9600);
+  serial0_open(9600);
 }
 
 void loop()
