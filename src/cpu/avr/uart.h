@@ -3,7 +3,7 @@
 
 #include "../../protoduino-config.h"
 #include "../../sys/cc.h"
-#include "../../sys/pt-errors.h"
+#include "../../sys/errors.h"
 
 #include <stdbool.h>
 

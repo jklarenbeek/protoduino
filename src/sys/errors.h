@@ -1,5 +1,5 @@
-#ifndef __PT_ERRORS__
-#define __PT_ERRORS__
+#ifndef __ERRORS_H__
+#define __ERRORS_H__
 
 #define ERR_SUCCESS              (0)
 #define ERR_GENERAL              (4)
@@ -16,6 +16,5 @@
 #define ERR_NOT_IMPLEMENTED      (ERR_GENERAL + 119)
 #define ERR_CALL_NOT_IMPLEMENTED (ERR_GENERAL + 120)
 #define ERR_BAD_ARGUMENTS        (ERR_GENERAL + 160)
-
 
 #endif
