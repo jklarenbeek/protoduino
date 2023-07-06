@@ -1,21 +1,21 @@
 #ifndef __PT_ERRORS__
 #define __PT_ERRORS__
 
-#define PT_ERR_SUCCESS              (0)
-#define PT_ERR_GENERAL              (4)
-#define PT_ERR_FRAME_ERROR          (PT_ERR_GENERAL + 1)
-#define PT_ERR_DATA_OVERFLOW        (PT_ERR_GENERAL + 2)
-#define PT_ERR_PARITY_ERROR         (PT_ERR_GENERAL + 3)
-#define PT_ERR_INVALID_FUNCTION     (PT_ERR_GENERAL + 4)
-#define PT_ERR_FILE_NOT_FOUND       (PT_ERR_GENERAL + 5)
-#define PT_ERR_INVALID_HANDLE       (PT_ERR_GENERAL + 6)
-#define PT_ERR_NOT_READY            (PT_ERR_GENERAL + 21)
-#define PT_ERR_BAD_LENGTH           (PT_ERR_GENERAL + 24)
-#define PT_ERR_NOT_SUPPORTED        (PT_ERR_GENERAL + 50)
-#define PT_ERR_BUFFER_OVERFLOW      (PT_ERR_GENERAL + 111)
-#define PT_ERR_NOT_IMPLEMENTED      (PT_ERR_GENERAL + 119)
-#define PT_ERR_CALL_NOT_IMPLEMENTED (PT_ERR_GENERAL + 120)
-#define PT_ERR_BAD_ARGUMENTS        (PT_ERR_GENERAL + 160)
+#define ERR_SUCCESS              (0)
+#define ERR_GENERAL              (4)
+#define ERR_FRAME_ERROR          (ERR_GENERAL + 1)
+#define ERR_DATA_OVERFLOW        (ERR_GENERAL + 2)
+#define ERR_PARITY_ERROR         (ERR_GENERAL + 3)
+#define ERR_INVALID_FUNCTION     (ERR_GENERAL + 4)
+#define ERR_FILE_NOT_FOUND       (ERR_GENERAL + 5)
+#define ERR_INVALID_HANDLE       (ERR_GENERAL + 6)
+#define ERR_NOT_READY            (ERR_GENERAL + 21)
+#define ERR_BAD_LENGTH           (ERR_GENERAL + 24)
+#define ERR_NOT_SUPPORTED        (ERR_GENERAL + 50)
+#define ERR_BUFFER_OVERFLOW      (ERR_GENERAL + 111)
+#define ERR_NOT_IMPLEMENTED      (ERR_GENERAL + 119)
+#define ERR_CALL_NOT_IMPLEMENTED (ERR_GENERAL + 120)
+#define ERR_BAD_ARGUMENTS        (ERR_GENERAL + 160)
 
 
 #endif

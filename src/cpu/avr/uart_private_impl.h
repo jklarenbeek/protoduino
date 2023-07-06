@@ -96,13 +96,13 @@ uint_fast8_t CC_FN(rx_error)(void)
 {
   uint8_t r = __UCSRA__ & (_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__));
   if (r == 0) 
-    return PT_ERR_SUCCESS;
+    return ERR_SUCCESS;
   if (r & _BV(__FE__))
-    return PT_ERR_FRAME_ERROR; // frame error
+    return ERR_FRAME_ERROR; // frame error
   if (r & _BV(__DOR__)) 
-    return PT_ERR_DATA_OVERFLOW; // data overrun
+    return ERR_DATA_OVERFLOW; // data overrun
   else 
-    return PT_ERR_PARITY_ERROR; // parity error
+    return ERR_PARITY_ERROR; // parity error
 }
 
 uint_fast8_t CC_FN(rx_read8)(void)
@@ -157,7 +157,7 @@ ISR(__ISR_RX_VECT__)
   uint_fast8_t data =__UDR__;
 
   // is there an error in the recieved packet?
-  if (err != PT_ERR_SUCCESS)
+  if (err != ERR_SUCCESS)
   {
     if (CC_VAR(on_rx_error) != 0)
       CC_VAR(on_rx_error)(err);
