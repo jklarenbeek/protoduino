@@ -87,6 +87,44 @@
 #define CC_CONCAT2(s1, s2) CC_CONCAT2EXT(s1, s2)
 
 /**
+ * @def CC_CONCAT3EXT(s1, s2, s3)
+ * @brief Macro to concatenate three strings or identifiers
+ * @param s1 The first string or identifier
+ * @param s2 The second string or identifier
+ * @param s3 The thirth string or identifier
+ */
+#define CC_CONCAT3EXT(s1, s2, s3) s1##s2##s3
+
+/**
+ * @def CC_CONCAT3(s1, s2, s3)
+ * @brief Macro to concatenate three strings or identifiers
+ * @param s1 The first string or identifier
+ * @param s2 The second string or identifier
+ * @param s3 The thirth string or identifier
+ */
+#define CC_CONCAT3(s1, s2, s3) CC_CONCAT3EXT(s1, s2, s3)
+
+/**
+ * @def CC_CONCAT4EXT(s1, s2, s3, s4)
+ * @brief Macro to concatenate three strings or identifiers
+ * @param s1 The first string or identifier
+ * @param s2 The second string or identifier
+ * @param s3 The thirth string or identifier
+ * @param s4 The fourth string or identifier
+ */
+#define CC_CONCAT4EXT(s1, s2, s3, s4) s1##s2##s3##s4
+
+/**
+ * @def CC_CONCAT4(s1, s2, s3)
+ * @brief Macro to concatenate three strings or identifiers
+ * @param s1 The first string or identifier
+ * @param s2 The second string or identifier
+ * @param s3 The thirth string or identifier
+ * @param s4 The fourth string or identifier
+ */
+#define CC_CONCAT4(s1, s2, s3, s4) CC_CONCAT4EXT(s1, s2, s3, s4)
+
+/**
  * @def CC_CONST_PTYPE_ARRAY(type, varname)
  * @brief Macro to define a constant array stored in program memory
  * @param type The data type of the array elements
@@ -148,5 +186,11 @@
  * @brief function called after the void main() entry point
 */
 #define CC_MAIN_DESTRUCTOR(name) void __attribute__((destructor)) name();
+
+#define CC_NAME_PREFIX unknown
+
+#define CC_VAR(name) CC_CONCAT4(_,CC_NAME_PREFIX,_,name)
+#define CC_FN(method) CC_CONCAT3(CC_NAME_PREFIX,_,method)
+
 
 #endif
