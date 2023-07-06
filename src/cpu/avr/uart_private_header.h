@@ -1,7 +1,8 @@
+#include "../../sys/cc.h"
 
-CC_EXTERN void CC_FN(on_rx_complete)(uart_on_rx_complete_fn callback);
-CC_EXTERN void CC_FN(on_rx_error)(uart_on_rx_error_fn callback);
-CC_EXTERN void CC_FN(on_tx_complete)(uart_on_tx_complete_fn callback);
+CC_EXTERN void CC_FN(on_rx_complete)(const uart_on_rx_complete_fn callback);
+CC_EXTERN void CC_FN(on_rx_error)(const uart_on_rx_error_fn callback);
+CC_EXTERN void CC_FN(on_tx_complete)(const uart_on_tx_complete_fn callback);
 
 CC_EXTERN void CC_FN(open)(uint32_t baud);
 CC_EXTERN void CC_FN(openex)(uint32_t baud, uint8_t options);

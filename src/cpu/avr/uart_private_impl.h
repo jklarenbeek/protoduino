@@ -1,3 +1,6 @@
+#include "../../sys/cc.h"
+#include <avr/interrupt.h>
+#include <util/atomic.h>
 
 static volatile uart_on_rx_complete_fn CC_VAR(on_rx_complete) = 0;
 static volatile uart_on_rx_error_fn CC_VAR(on_rx_error) = 0;
@@ -5,17 +8,17 @@ static volatile uart_on_tx_complete_fn CC_VAR(on_tx_complete) = 0;
 
 static uint32_t CC_VAR(baudrate) = 0;
 
-void CC_FN(on_rx_complete)(uart_on_rx_complete_fn callback)
+void CC_FN(on_rx_complete)(const uart_on_rx_complete_fn callback)
 {
   CC_VAR(on_rx_complete) = callback;
 }
 
-void CC_FN(on_rx_error)(uart_on_rx_error_fn callback)
+void CC_FN(on_rx_error)(const uart_on_rx_error_fn callback)
 {
   CC_VAR(on_rx_error) = callback;
 }
 
-void CC_FN(on_tx_complete)(uart_on_tx_complete_fn callback)
+void CC_FN(on_tx_complete)(const uart_on_tx_complete_fn callback)
 {
   CC_VAR(on_tx_complete) = callback;
 }
