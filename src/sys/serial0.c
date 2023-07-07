@@ -2,7 +2,7 @@
 #include "protoduino-config.h"
 #include "serial0.h"
 
-#include "../cpu/avr/uart.h"
+#include "uart.h"
 
 #include "ringb8.h"
 
