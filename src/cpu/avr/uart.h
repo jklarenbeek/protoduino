@@ -34,29 +34,29 @@ typedef int_fast16_t (*uart_on_tx_complete_fn)(void);
 
 #if defined(UBRRH) || defined(UBRR0H)
 #define HAVE_HW_UART0
-#undef CC_NAME_PREFIX
-#define CC_NAME_PREFIX uart0
+#undef CC_TMPL_PREFIX
+#define CC_TMPL_PREFIX uart0
 #include "uart_private_header.h"
 #endif
 
 #if defined(UBRR1H)
 #define HAVE_HW_UART1
-#undef CC_NAME_PREFIX
-#define CC_NAME_PREFIX uart1
+#undef CC_TMPL_PREFIX
+#define CC_TMPL_PREFIX uart1
 #include "uart_private_header.h"
 #endif
 
 #if defined(UBRR2H)
 #define HAVE_HW_UART2
-#undef CC_NAME_PREFIX
-#define CC_NAME_PREFIX uart2
+#undef CC_TMPL_PREFIX
+#define CC_TMPL_PREFIX uart2
 #include "uart_private_header.h"
 #endif
 
 #if defined(UBRR3H)
 #define HAVE_HW_UART3
-#undef CC_NAME_PREFIX
-#define CC_NAME_PREFIX uart3
+#undef CC_TMPL_PREFIX
+#define CC_TMPL_PREFIX uart3
 #include "uart_private_header.h"
 #endif
 

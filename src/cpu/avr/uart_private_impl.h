@@ -2,37 +2,37 @@
 #include <avr/interrupt.h>
 #include <util/atomic.h>
 
-static volatile uart_on_rx_complete_fn CC_VAR(on_rx_complete) = 0;
-static volatile uart_on_rx_error_fn CC_VAR(on_rx_error) = 0;
-static volatile uart_on_tx_complete_fn CC_VAR(on_tx_complete) = 0;
+static volatile uart_on_rx_complete_fn CC_TMPL_VAR(on_rx_complete) = 0;
+static volatile uart_on_rx_error_fn CC_TMPL_VAR(on_rx_error) = 0;
+static volatile uart_on_tx_complete_fn CC_TMPL_VAR(on_tx_complete) = 0;
 
-static uint32_t CC_VAR(baudrate) = 0;
+static uint32_t CC_TMPL_VAR(baudrate) = 0;
 
-void CC_FN(on_rx_complete)(const uart_on_rx_complete_fn callback)
+void CC_TMPL_FN(on_rx_complete)(const uart_on_rx_complete_fn callback)
 {
-  CC_VAR(on_rx_complete) = callback;
+  CC_TMPL_VAR(on_rx_complete) = callback;
 }
 
-void CC_FN(on_rx_error)(const uart_on_rx_error_fn callback)
+void CC_TMPL_FN(on_rx_error)(const uart_on_rx_error_fn callback)
 {
-  CC_VAR(on_rx_error) = callback;
+  CC_TMPL_VAR(on_rx_error) = callback;
 }
 
-void CC_FN(on_tx_complete)(const uart_on_tx_complete_fn callback)
+void CC_TMPL_FN(on_tx_complete)(const uart_on_tx_complete_fn callback)
 {
-  CC_VAR(on_tx_complete) = callback;
+  CC_TMPL_VAR(on_tx_complete) = callback;
 }
 
 
-void CC_FN(open)(uint32_t baud)
+void CC_TMPL_FN(open)(uint32_t baud)
 {
   // data bits = 8 (__UCSZ1__ and __UCSZ2 = 1)
   // stop bits = 1 (__USBS__ = 0)
   // no parity (__UPM0__ and __UPM1__ = 0)
-  CC_FN(openex)(baud, (__UCSZ1__ | __UCSZ2__));
+  CC_TMPL_FN(openex)(baud, (__UCSZ1__ | __UCSZ2__));
 }
 
-void CC_FN(openex)(uint32_t baud, uint8_t options)
+void CC_TMPL_FN(openex)(uint32_t baud, uint8_t options)
 {
   // disable USART interrupts.  Set UCSRB to reset values.
   __UCSRB__ = 0;
@@ -63,7 +63,7 @@ void CC_FN(openex)(uint32_t baud, uint8_t options)
 #endif
   __UCSRC__ = options;
 
-  CC_VAR(baudrate) = F_CPU / (8 * (baud_setting + 1));
+  CC_TMPL_VAR(baudrate) = F_CPU / (8 * (baud_setting + 1));
 
   sbi(__UCSRB__, __RXEN__); // enable reciever
   sbi(__UCSRB__, __TXEN__); // enable transmitter
@@ -73,10 +73,10 @@ void CC_FN(openex)(uint32_t baud, uint8_t options)
 
 }
 
-void CC_FN(close)(void)
+void CC_TMPL_FN(close)(void)
 {
   cli(); // diable all interrupts
-  CC_VAR(baudrate) = 0;
+  CC_TMPL_VAR(baudrate) = 0;
   cbi(__UCSRB__, __RXEN__); // disable reciever
   cbi(__UCSRB__, __TXEN__); // disable transmitter
   cbi(__UCSRB__, __RXCIE__); // disable recieve complete interrupt (RX)
@@ -84,18 +84,18 @@ void CC_FN(close)(void)
   sei(); // enable all interrupts
 }
 
-uint_fast32_t CC_FN(baudrate)(void)
+uint_fast32_t CC_TMPL_FN(baudrate)(void)
 {
-  return CC_VAR(baudrate);
+  return CC_TMPL_VAR(baudrate);
 }
 
 
-bool CC_FN(rx_is_ready)(void)
+bool CC_TMPL_FN(rx_is_ready)(void)
 {
   return (__UCSRA__ & _BV(__RXC__)) != 0; 
 }
 
-uint_fast8_t CC_FN(rx_error)(void)
+uint_fast8_t CC_TMPL_FN(rx_error)(void)
 {
   uint8_t r = __UCSRA__ & (_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__));
   if (r == 0) 
@@ -108,35 +108,35 @@ uint_fast8_t CC_FN(rx_error)(void)
     return ERR_PARITY_ERROR; // parity error
 }
 
-uint_fast8_t CC_FN(rx_read8)(void)
+uint_fast8_t CC_TMPL_FN(rx_read8)(void)
 {
   uint_fast8_t d = __UDR__;
   return d;
 }
 
-void CC_FN(tx_enable)(void)
+void CC_TMPL_FN(tx_enable)(void)
 {
   // enable data register empty interrupt
   sbi(__UCSRB__, __UDRIE__);
 }
 
-bool CC_FN(tx_is_enabled)(void)
+bool CC_TMPL_FN(tx_is_enabled)(void)
 {
   return (__UCSRB__ & _BV(__UDRIE__)) != 0;
 }
 
-bool CC_FN(tx_is_ready)(void)
+bool CC_TMPL_FN(tx_is_ready)(void)
 {
   return (__UCSRA__ & _BV(__UDRE__)) != 0;
 }
 
-CC_FLATTEN bool CC_FN(tx_is_available)(void)
+CC_FLATTEN bool CC_TMPL_FN(tx_is_available)(void)
 {
   // if the data register empty interrupt is not set and the data register is empty
-  return !CC_FN(tx_is_enabled)() && CC_FN(tx_is_ready)();
+  return !CC_TMPL_FN(tx_is_enabled)() && CC_TMPL_FN(tx_is_ready)();
 }
 
-void CC_FN(tx_write8)(const uint_fast8_t data)
+void CC_TMPL_FN(tx_write8)(const uint_fast8_t data)
 {
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
   {
@@ -154,7 +154,7 @@ void CC_FN(tx_write8)(const uint_fast8_t data)
 // This interrupt is called when the cpu recieved a packet on the bus
 ISR(__ISR_RX_VECT__)
 {
-  uint_fast8_t err = CC_FN(rx_error)();
+  uint_fast8_t err = CC_TMPL_FN(rx_error)();
 
   // fetch the packet, must read, to clear the interrupt flag.
   uint_fast8_t data =__UDR__;
@@ -162,22 +162,22 @@ ISR(__ISR_RX_VECT__)
   // is there an error in the recieved packet?
   if (err != ERR_SUCCESS)
   {
-    if (CC_VAR(on_rx_error) != 0)
-      CC_VAR(on_rx_error)(err);
+    if (CC_TMPL_VAR(on_rx_error) != 0)
+      CC_TMPL_VAR(on_rx_error)(err);
   }
   else
   {
-    if (CC_VAR(on_rx_complete) != 0)
-      CC_VAR(on_rx_complete)(data);
+    if (CC_TMPL_VAR(on_rx_complete) != 0)
+      CC_TMPL_VAR(on_rx_complete)(data);
   }
 }
 
 // This interrupt is called when the transmit register is empty in order to send another character
 ISR(__ISR_UDRE_VECT__)
 {
-  if (CC_VAR(on_tx_complete) != 0)
+  if (CC_TMPL_VAR(on_tx_complete) != 0)
   {
-    int_fast16_t data = CC_VAR(on_tx_complete)();
+    int_fast16_t data = CC_TMPL_VAR(on_tx_complete)();
     if (data >= 0)
     {
       __UDR__ = (uint8_t)(data & 0xFF);

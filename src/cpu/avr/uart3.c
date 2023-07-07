@@ -1,8 +1,8 @@
 #include "uart.h"
 
 #if defined(HAVE_HW_UART3)
-#undef CC_NAME_PREFIX
-#define CC_NAME_PREFIX uart3
+#undef CC_TMPL_PREFIX
+#define CC_TMPL_PREFIX uart3
 
 #include <avr/interrupt.h>
 #include <util/atomic.h>

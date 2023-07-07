@@ -187,10 +187,10 @@
 */
 #define CC_MAIN_DESTRUCTOR(name) void __attribute__((destructor)) name();
 
-#define CC_NAME_PREFIX unknown
+#define CC_TMPL_PREFIX unknown
 
-#define CC_VAR(name) CC_CONCAT4(_,CC_NAME_PREFIX,_,name)
-#define CC_FN(method) CC_CONCAT3(CC_NAME_PREFIX,_,method)
+#define CC_TMPL_VAR(name) CC_CONCAT4(_,CC_TMPL_PREFIX,_,name)
+#define CC_TMPL_FN(method) CC_CONCAT3(CC_TMPL_PREFIX,_,method)
 
 
 #endif
