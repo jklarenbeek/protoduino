@@ -7,32 +7,90 @@
 
 #include <protoduino.h>
 #include <sys/ringb8.h>
-#include <sys/serial0.h>
+#include <sys/uart.h>
+
+RINGB8(echo_rx, SERIAL_BUFFER_RX_SIZE);
+RINGB8(echo_tx, SERIAL_BUFFER_TX_SIZE);
+
+static bool echo_rx_buffer = false;
+
+static void on_rx_complete(uint_fast8_t data)
+{
+  // is there room in the buffer?
+  uint_fast8_t available = ringb8_available(&VAR_RINGB8(echo_rx));
+  if (available > 0)
+  {
+    // add the byte to the buffer
+    ringb8_put(&VAR_RINGB8(echo_rx), data);
+  }
+
+  echo_rx_buffer = true; 
+}
+
+static uint32_t errcnt = 0;
+static void on_rx_error(uint_fast8_t err)
+{
+  errcnt++;
+  uart0_rx_clear_errors();
+}
+
+static int_fast16_t on_tx_complete(void)
+{
+  // is there anything to transmit?
+  uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(echo_tx));
+  if (cnt == 0)
+    return -1;
+    
+  // send the next byte from the buffer
+  return ringb8_get(&VAR_RINGB8(echo_tx));
+}
 
 
 void setup()
 {
-  serial0_open(9600);
+  uart0_on_rx_complete(on_rx_complete);
+  uart0_on_rx_error(on_rx_error);
+  uart0_on_tx_complete(on_tx_complete);
+  uart0_open(9600);
+}
+
+static void myprint(const char * str)
+{
+    uint8_t idx = 0;
+    while(!(str[idx] == 0 || str[idx] == 13))
+    {
+      if (ringb8_available(&VAR_RINGB8(echo_tx)) == 0)
+        break;
+        
+      ringb8_put(&VAR_RINGB8(echo_tx), str[idx++]);
+    }
+}
+
+static void flush(void)
+{
+    uart0_tx_enable();
+    while(ringb8_count(&VAR_RINGB8(echo_tx)) > 0)
+    {
+      delay(1);
+    }
 }
 
 void loop()
 {
-  serial0_write8('0' + (serial0_write_available()));
-  serial0_write8('A');
-  //serial0_write8('0' + (serial0_write_available()));
-  serial0_write8('B');
-  serial0_write8('C');
-  //serial0_write8('0' + (serial0_write_available()));
-  serial0_write8('D');
-  serial0_write8('E');
-  //serial0_write8('0' + (serial0_write_available()));
-  serial0_write8('F');
-  serial0_write8('G');
-  serial0_write8('H');
-  //serial0_write8('I');
-  //serial0_write8('J');
-  serial0_write8(13);
-delay(1000);
-  //while (serial0_flush() > 0);
+  if (uart0_tx_is_available() && echo_rx_buffer == true)
+  {
+    echo_rx_buffer = false;
+    myprint("echo ");
+    while(ringb8_count(&VAR_RINGB8(echo_rx)) > 0)
+    {
+        if (ringb8_available(&VAR_RINGB8(echo_tx)))
+        {
+          ringb8_put(&VAR_RINGB8(echo_tx), ringb8_get(&VAR_RINGB8(echo_rx)));
+        }
+    }
+    
+    //printb(&VAR_RINGB8(echo_rx));
+    flush();
+  }
+  
 }
-

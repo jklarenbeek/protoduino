@@ -11,6 +11,7 @@ CC_EXTERN uint_fast32_t CC_TMPL_FN(baudrate)(void);
 
 CC_EXTERN bool CC_TMPL_FN(rx_is_ready)(void);
 CC_EXTERN uint_fast8_t CC_TMPL_FN(rx_error)(void);
+CC_EXTERN void CC_TMPL_FN(rx_clear_errors)(void);
 CC_EXTERN uint_fast8_t CC_TMPL_FN(rx_read8)(void);
 
 CC_EXTERN void CC_TMPL_FN(tx_enable)();

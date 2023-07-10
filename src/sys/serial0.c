@@ -16,7 +16,7 @@ static void serial0_on_rx_complete(uint_fast8_t data)
 {
 
   // is there room in the buffer?
-  if (ringb8_available(&VAR_RINGB8(serial0_rx)) == 0)
+  if (ringb8_available(&VAR_RINGB8(serial0_rx)) > 0)
   {
     ringb8_put(&VAR_RINGB8(serial0_rx), data);
   }
@@ -147,7 +147,7 @@ CC_FLATTEN uint_fast8_t serial0_write8(const uint_fast8_t data)
   uint8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
 
   // when the buffer is empty and the data register is empty
-  if (cnt == 0 && uart0_tx_is_available())
+  if (cnt == 0 && uart0_tx_is_ready())
   {
     uart0_tx_write8(data);
     return 1;

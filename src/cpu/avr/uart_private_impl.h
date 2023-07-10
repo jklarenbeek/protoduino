@@ -97,7 +97,9 @@ bool CC_TMPL_FN(rx_is_ready)(void)
 
 uint_fast8_t CC_TMPL_FN(rx_error)(void)
 {
-  uint8_t r = __UCSRA__ & (_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__));
+  // it appears the the frame error bit can not be cleared, so we skip it.
+  // uint8_t r = __UCSRA__ & (_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__));
+  uint8_t r = __UCSRA__ & (_BV(__DOR__) | _BV(__UPE__));
   if (r == 0) 
     return ERR_SUCCESS;
   if (r & _BV(__FE__))
@@ -106,6 +108,11 @@ uint_fast8_t CC_TMPL_FN(rx_error)(void)
     return ERR_DATA_OVERFLOW; // data overrun
   else 
     return ERR_PARITY_ERROR; // parity error
+}
+
+void CC_TMPL_FN(rx_clear_errors)(void)
+{
+  __UCSRA__ &= ~(_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__));
 }
 
 uint_fast8_t CC_TMPL_FN(rx_read8)(void)
@@ -149,7 +156,7 @@ void CC_TMPL_FN(tx_write8)(const uint_fast8_t data)
 }
 
 #ifndef USE_ARDUINO_HARDWARESERIAL
-#pragma message "uart0: using protoduino interrupt service routines"
+#pragma message "uart: using protoduino interrupt service routines"
 
 // This interrupt is called when the cpu recieved a packet on the bus
 ISR(__ISR_RX_VECT__)
@@ -195,6 +202,7 @@ ISR(__ISR_UDRE_VECT__)
   // disable the data register empty interrupt
   cbi(__UCSRB__, __UDRIE__);
 }
-
+#else
+#pragma message "uart: using arduino hardwareserial"
 #endif /* USE_ARDUINO_HARDWARESERIAL */
 
