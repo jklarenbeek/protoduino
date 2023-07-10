@@ -9,8 +9,10 @@
 #include <sys/ringb8.h>
 #include <sys/uart.h>
 
-RINGB8(echo_rx, SERIAL_BUFFER_RX_SIZE);
-RINGB8(echo_tx, SERIAL_BUFFER_TX_SIZE);
+void delay(unsigned long ms);
+
+RINGB8(echo_rx, SERIAL_RX_BUFFER_SIZE);
+RINGB8(echo_tx, SERIAL_TX_BUFFER_SIZE);
 
 static bool echo_rx_buffer = false;
 
@@ -68,7 +70,7 @@ static void myprint(const char * str)
 
 static void flush(void)
 {
-    uart0_tx_enable();
+    uart0_tx_enable_int();
     while(ringb8_count(&VAR_RINGB8(echo_tx)) > 0)
     {
       delay(1);

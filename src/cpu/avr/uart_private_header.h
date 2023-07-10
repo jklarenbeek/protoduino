@@ -14,8 +14,8 @@ CC_EXTERN uint_fast8_t CC_TMPL_FN(rx_error)(void);
 CC_EXTERN void CC_TMPL_FN(rx_clear_errors)(void);
 CC_EXTERN uint_fast8_t CC_TMPL_FN(rx_read8)(void);
 
-CC_EXTERN void CC_TMPL_FN(tx_enable)();
-CC_EXTERN bool CC_TMPL_FN(tx_is_enabled)(void);
+CC_EXTERN void CC_TMPL_FN(tx_enable_int)();
+CC_EXTERN bool CC_TMPL_FN(tx_is_int_enabled)(void);
 CC_EXTERN bool CC_TMPL_FN(tx_is_ready)(void);
 CC_EXTERN bool CC_TMPL_FN(tx_is_available)(void);
 CC_EXTERN void CC_TMPL_FN(tx_write8)(const uint_fast8_t data);

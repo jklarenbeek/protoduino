@@ -121,13 +121,13 @@ uint_fast8_t CC_TMPL_FN(rx_read8)(void)
   return d;
 }
 
-void CC_TMPL_FN(tx_enable)(void)
+void CC_TMPL_FN(tx_enable_int)(void)
 {
   // enable data register empty interrupt
   sbi(__UCSRB__, __UDRIE__);
 }
 
-bool CC_TMPL_FN(tx_is_enabled)(void)
+bool CC_TMPL_FN(tx_is_int_enabled)(void)
 {
   return (__UCSRB__ & _BV(__UDRIE__)) != 0;
 }
@@ -140,7 +140,7 @@ bool CC_TMPL_FN(tx_is_ready)(void)
 CC_FLATTEN bool CC_TMPL_FN(tx_is_available)(void)
 {
   // if the data register empty interrupt is not set and the data register is empty
-  return !CC_TMPL_FN(tx_is_enabled)() && CC_TMPL_FN(tx_is_ready)();
+  return !CC_TMPL_FN(tx_is_int_enabled)() && CC_TMPL_FN(tx_is_ready)();
 }
 
 void CC_TMPL_FN(tx_write8)(const uint_fast8_t data)

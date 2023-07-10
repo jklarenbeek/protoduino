@@ -8,8 +8,8 @@
 
 #include <util/atomic.h>
 
-RINGB8(serial0_rx, SERIAL_BUFFER_RX_SIZE);
-RINGB8(serial0_tx, SERIAL_BUFFER_TX_SIZE);
+RINGB8(serial0_rx, SERIAL_RX_BUFFER_SIZE);
+RINGB8(serial0_tx, SERIAL_TX_BUFFER_SIZE);
 
 
 static void serial0_on_rx_complete(uint_fast8_t data)
@@ -165,7 +165,7 @@ CC_FLATTEN uint_fast8_t serial0_write8(const uint_fast8_t data)
     // add data to the ringbuffer
     ringb8_put(&VAR_RINGB8(serial0_tx), data);
 
-    uart0_tx_enable();
+    uart0_tx_enable_int();
   }
 
   return 1;
@@ -190,7 +190,7 @@ CC_FLATTEN uint_fast8_t serial0_write16(const uint_fast16_t data)
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[0]);
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[1]);
 
-    uart0_tx_enable();
+    uart0_tx_enable_int();
   }
 
   return 2;  
@@ -216,7 +216,7 @@ CC_FLATTEN uint_fast8_t serial0_write24(const uint_fast32_t data)
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[1]);
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[2]);
 
-    uart0_tx_enable();
+    uart0_tx_enable_int();
   }
 
   return 3;  
@@ -243,7 +243,7 @@ CC_FLATTEN uint_fast8_t serial0_write32(const uint_fast32_t data)
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[2]);
     ringb8_put(&VAR_RINGB8(serial0_tx), tmp.buf[3]);
 
-    uart0_tx_enable();
+    uart0_tx_enable_int();
   }
 
   return 4;
@@ -269,7 +269,7 @@ uint_fast8_t serial0_flush(void)
   }
 
   // we just re-enable the data register empty interrupt
-  uart0_tx_enable();
+  uart0_tx_enable_int();
 
   // and return the number of bytes in the buffer
   return cnt;

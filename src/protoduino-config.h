@@ -5,11 +5,22 @@
 // flag to force using the default Arduino UART ISR vectors
 //#define USE_ARDUINO_HARDWARESERIAL
 
-#ifndef SERIAL_BUFFER_RX_SIZE
-#define SERIAL_BUFFER_RX_SIZE 8
+
+#if !defined(SERIAL_RX_BUFFER_SIZE)
+#if ((RAMEND - RAMSTART) < 1023)
+#define SERIAL_RX_BUFFER_SIZE 16
+#else
+#define SERIAL_RX_BUFFER_SIZE 64
 #endif
-#ifndef SERIAL_BUFFER_TX_SIZE
-#define SERIAL_BUFFER_TX_SIZE 8
 #endif
+
+#if !defined(SERIAL_TX_BUFFER_SIZE)
+#if ((RAMEND - RAMSTART) < 1023)
+#define SERIAL_TX_BUFFER_SIZE 16
+#else
+#define SERIAL_TX_BUFFER_SIZE 64
+#endif
+#endif
+
 
 #endif
