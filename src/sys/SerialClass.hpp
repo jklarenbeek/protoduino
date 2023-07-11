@@ -1,48 +1,52 @@
 #ifndef __SerialClass_HPP__
 #define __SerialClass_HPP__
-
-#include "pt.h"
 #include "Stream.h"
-void delay(unsigned long ms);
+#include <stdbool.h>
+
+extern "C" {
+  typedef bool (*serial_onrecieved_fn)(uint_fast8_t);
+}
 
 class Serial0Class : public Stream
 {
 
   public:
-    virtual void begin(unsigned long baud);
-    virtual void begin(unsigned long, uint8_t);
+    virtual void onRecieved(const serial_onrecieved_fn callback);
+
+    virtual void begin(uint32_t baud);
+    virtual void begin(uint32_t, uint8_t);
     virtual void end();
-    virtual ptstate_t end(struct pt *pt);
+
     virtual int available(void);
     virtual int peek(void);
     virtual int read(void);
+
+    virtual int_fast32_t read16(void);
+    virtual int_fast32_t read24(void);
+    virtual int_fast32_t read32(void);
+
+    virtual int flushOne(void);
+    virtual void flush(void);
+
     virtual int availableForWrite(void);
-    virtual int flushex(void);
-    virtual ptstate_t flush(struct pt *pt);
-    inline void flush(void) 
-    { 
-      int val = 0;
-      int cnt = 0;
-      while((val = flushex()) > 0)
-      {
-        cnt += val;
-        delay(1);
-      }
-    
-      return cnt;
-    }
 
     virtual size_t write(const uint8_t);
 
-    inline size_t write(unsigned long n) { return write((const uint8_t)n); }
-    inline size_t write(long n) { return write((const uint8_t)n); }
-    inline size_t write(unsigned int n) { return write((const uint8_t)n); }
-    inline size_t write(int n) { return write((const uint8_t)n); }
+    inline size_t write(uint32_t n) { return write((const uint8_t)n); }
+    inline size_t write(int32_t n) { return write((const uint8_t)n); }
+    inline size_t write(uint16_t n) { return write((const uint8_t)n); }
+    inline size_t write(int16_t n) { return write((const uint8_t)n); }
 
     using Print::write; // pull in write(str) and write(buf, size) from Print
+
+    virtual uint_fast8_t write16(const uint_fast16_t data);
+    virtual uint_fast8_t write24(const uint_fast32_t data);
+    virtual uint_fast8_t write32(const uint_fast32_t data);
 
     operator bool() { return true; } // TODO: Why?
 
 };
+
+Serial0Class Serial0 = Serial0Class();
 
 #endif
