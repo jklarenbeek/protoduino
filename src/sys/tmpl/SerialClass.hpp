@@ -20,7 +20,18 @@ class Serial0Class : public Stream
 
     inline int availableForWrite(void) { return serial0_write_available(); }
 
-    inline size_t write(const uint8_t n) { return serial0_write8(n); }
+    inline size_t write(const uint8_t n)
+    { 
+      uint_fast8_t cnt = 0;
+      do
+      {
+        cnt = serial0_write8(n);
+        if (cnt == 0)
+          serial0_flush();
+      } while (cnt == 0);
+      
+      return cnt; 
+    }
 
     inline size_t write(uint32_t n) { return write((const uint8_t)n); }
     inline size_t write(int32_t n) { return write((const uint8_t)n); }
