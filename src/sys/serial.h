@@ -12,7 +12,9 @@
 CC_EXTERN typedef bool (*serial_onrecieved_fn)(uint_fast8_t);
 
 #ifdef HAVE_HW_UART0
-#include "tmpl/serial0.h"
+#undef CC_TMPL_PREFIX
+#define CC_TMPL_PREFIX serial0
+#include "tmpl/serial_private_header.h"
 #endif
 
 #endif /* __SERIAL_H__ */
