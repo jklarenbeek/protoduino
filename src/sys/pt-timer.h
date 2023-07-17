@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, Swedish Institute of Computer Science.
+ * Copyright (c) 2023, Johannes Klarenbeek
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,6 @@
  * SUCH DAMAGE.
  *
  *
- * Author: Adam Dunkels <adam@sics.se>
  * Author: Joham https://github.com/jklarenbeek
  * 
  * $Id: pt-timer.h,v 1.8 2022/11/04 14:55:17 joham Exp $
@@ -35,38 +34,13 @@
 
 /**
  * \file
- * Timer library header file.
+ * Protothreads v2 Timer library header file.
  * \author
- * Adam Dunkels <adam@sics.se>
  * Johannes Klarenbeek https://github.com/jklarenbeek
  */
 
 /** \addtogroup timers
  * @{ */
-
-/**
- * \defgroup timer Timer library
- *
- * The timer library provides functions for setting, resetting and
- * restarting timers, and for checking if a timer has expired. An
- * application must "manually" check if its timers have expired; this
- * is not done automatically.
- *
- * A timer is declared as a \c struct \c timer and all access to the
- * timer is made by a pointer to the declared timer.
- *
- * \note The timer library is not able to post events when a timer
- * expires. The \ref etimer "Event timers" should be used for this
- * purpose.
- *
- * \note The timer library uses the \ref clock "Clock library" to
- * measure time. Intervals should be specified in the format used by
- * the clock library.
- *
- * \sa \ref etimer "Event timers"
- *
- * @{
- */
 
 #ifndef __PT_TIMER_H__
 #define __PT_TIMER_H__
