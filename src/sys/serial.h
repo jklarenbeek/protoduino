@@ -1,7 +1,7 @@
 #ifndef __SERIAL_H__
 #define __SERIAL_H__
 
-#include "protoduino-config.h"
+#include "../protoduino-config.h"
 #include "cc.h"
 #include "errors.h"
 #include "uart.h"

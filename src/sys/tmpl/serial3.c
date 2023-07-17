@@ -1,4 +1,3 @@
-#include "../protoduino-config.h"
 #include "../serial.h"
 
 #if defined(HAVE_HW_UART3)
