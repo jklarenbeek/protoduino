@@ -11,38 +11,43 @@
 RINGB8(serial0_rx, SERIAL_RX_BUFFER_SIZE);
 RINGB8(serial0_tx, SERIAL_TX_BUFFER_SIZE);
 
+static volatile serial_onrecieved_fn _serial0_onrecieved_callback = 0;
 
 static void serial0_on_rx_complete(uint_fast8_t data)
 {
-
+  // the subscriber of this one, needs to get out of here a.s.a.p.
+  if (_serial0_onrecieved_callback != 0 && _serial0_onrecieved_callback(data) == true)
+    return;
+    
   // is there room in the buffer?
-  if (ringb8_available(&VAR_RINGB8(serial0_rx)) > 0)
+  uint_fast8_t available = ringb8_available(&VAR_RINGB8(serial0_rx));
+  if (available > 0)
   {
+    // add the byte to the buffer
     ringb8_put(&VAR_RINGB8(serial0_rx), data);
   }
 
 }
 
+static uint32_t _serial0_rx_errcnt = 0;
+
 static void serial0_on_rx_error(uint_fast8_t err)
 {
-  ;
+  _serial0_rx_errcnt++;
+  uart0_rx_clear_errors();
 }
 
-CC_FLATTEN static int_fast16_t serial0_on_tx_complete(void)
+static int_fast16_t serial0_on_tx_complete(void)
 {
-  uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
+  // is there anything to transmit?
+  return ringb8_count(&VAR_RINGB8(serial0_tx)) > 0
+    ? ringb8_get(&VAR_RINGB8(serial0_tx))
+    : -1;
+}
 
-  // this should ALWAYS be true, since an interupt should only
-  // be generated when there is still data in the tx buffer.
-  if (cnt > 0)
-  {
-    // send the next byte from the buffer
-    return ringb8_get(&VAR_RINGB8(serial0_tx));
-  }
-  else
-  {
-    return -1;
-  }
+void serial0_on_recieved(const serial_onrecieved_fn callback)
+{
+  _serial0_onrecieved_callback = callback;
 }
 
 void serial0_open(uint32_t baud)
@@ -51,11 +56,19 @@ void serial0_open(uint32_t baud)
   uart0_on_rx_error(serial0_on_rx_error);
   uart0_on_tx_complete(serial0_on_tx_complete);
   uart0_open(baud);
+}
 
+void serial0_openex(uint32_t baud, uint8_t config)
+{
+  uart0_on_rx_complete(serial0_on_rx_complete);
+  uart0_on_rx_error(serial0_on_rx_error);
+  uart0_on_tx_complete(serial0_on_tx_complete);
+  uart0_openex(baud, config);
 }
 
 void serial0_close(void)
 {
+  serial0_flush();
   uart0_close();
 }
 
@@ -66,20 +79,16 @@ uint_fast8_t serial0_read_available(void)
 
 int_fast16_t serial0_peek8(void)
 {
-  uint_fast8_t cnt = serial0_read_available();
-  if (cnt == 0)
-    return -1;
-  else
-    return ringb8_peek(&VAR_RINGB8(serial0_rx));
+  return serial0_read_available() > 0
+    ? ringb8_peek(&VAR_RINGB8(serial0_rx))
+    : -1;
 }
 
 int_fast16_t serial0_read8(void)
 {
-  uint_fast8_t cnt = serial0_read_available();
-  if (cnt == 0)
-    return -1;
-  else
-    return ringb8_get(&VAR_RINGB8(serial0_rx));
+  return serial0_read_available() > 0
+    ? ringb8_get(&VAR_RINGB8(serial0_rx))
+    : -1;
 }
 
 int_fast32_t serial0_read16(void)
@@ -118,14 +127,14 @@ int_fast32_t serial0_read24(void)
   return tmp.data;
 }
 
-int_fast32_t serial0_read32(void)
+uint_fast32_t serial0_read32(void)
 {
   uint_fast8_t cnt = serial0_read_available();
   if (cnt < 4)
     return 0; // WATCH OUT! caller needs to care of available here!!
   
   union {
-    int32_t data;
+    uint32_t data;
     uint8_t buf[4];
   } tmp;
 
@@ -251,8 +260,9 @@ CC_FLATTEN uint_fast8_t serial0_write32(const uint_fast32_t data)
 
 uint_fast8_t serial0_flush(void)
 {
+  // get the amount of bytes still to be transmitted
   uint_fast8_t cnt = ringb8_count(&VAR_RINGB8(serial0_tx));
-  // is there anything left in the buffer?
+  // is there anything left in the buffer
   if (cnt == 0)
     return 0;
 
@@ -268,7 +278,7 @@ uint_fast8_t serial0_flush(void)
     return cnt - 1;
   }
 
-  // we just re-enable the data register empty interrupt
+  // make sure the interrupt is enabled
   uart0_tx_enable_int();
 
   // and return the number of bytes in the buffer
