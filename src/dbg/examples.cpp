@@ -1,6 +1,7 @@
 #include "examples.h"
 
 #ifdef USE_ARDUINO_HARDWARESERIAL
+#include <Arduino.h>
 #define SerialOut Serial
 #else
 #include "../sys/tmpl/SerialClass.hpp"

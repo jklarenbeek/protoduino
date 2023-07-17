@@ -3,7 +3,7 @@
 
 
 // flag to force using the default Arduino UART ISR vectors
-//#define USE_ARDUINO_HARDWARESERIAL
+#define USE_ARDUINO_HARDWARESERIAL
 
 // flag to get a count of rx errors or buffer overflows
 // this feature will consume an extra 8 bytes per serial device.
