@@ -1,7 +1,7 @@
 #include "SerialClass.hpp"
 
-#include "ringb8.h"
-#include "uart.h"
+#include "../ringb8.h"
+#include "../uart.h"
 
 #include <util/atomic.h>
 

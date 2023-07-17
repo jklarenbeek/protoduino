@@ -139,7 +139,7 @@ void print_line(const char *str, uint8_t value)
 
 #else
 
-#include "../sys/serial0.h"
+#include "../sys/serial.h"
 
 void print_setup()
 {

@@ -1,10 +1,8 @@
 #ifndef __SERIAL0_H__
 #define __SERIAL0_H__
 
-#include "cc.h"
+#include "../cc.h"
 #include <stdbool.h>
-
-CC_EXTERN typedef bool (*serial_onrecieved_fn)(uint_fast8_t);
 
 CC_EXTERN void serial0_on_recieved(const serial_onrecieved_fn callback);
 

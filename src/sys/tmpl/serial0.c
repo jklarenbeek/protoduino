@@ -1,10 +1,10 @@
 
 #include "protoduino-config.h"
-#include "serial0.h"
+#include "../serial.h"
 
-#include "uart.h"
+#include "../uart.h"
 
-#include "ringb8.h"
+#include "../ringb8.h"
 
 #include <util/atomic.h>
 
