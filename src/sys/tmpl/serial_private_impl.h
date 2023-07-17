@@ -18,6 +18,16 @@ static volatile serial_onrecieved_fn CC_TMPL_VAR(onrecieved_callback) = 0;
 #ifdef SERIAL_REGISTER_ERRORS
 static uint32_t CC_TMPL_VAR(rx_errcnt) = 0;
 static uint32_t CC_TMPL_VAR(rx_errofw) = 0;
+
+uint_fast32_t CC_TMPL_FN(get_read_errors)(void)
+{
+  return CC_TMPL_VAR(rx_errcnt);
+}
+
+uint_fast32_t CC_TMPL_FN(get_read_overflow)(void)
+{
+  return CC_TMPL_VAR(rx_errofw);
+}
 #endif
 
 static void CC_TMPL_FN(on_rx_complete)(uint_fast8_t data)

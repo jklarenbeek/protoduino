@@ -1,5 +1,10 @@
 #include "../cc.h"
 
+#ifdef SERIAL_REGISTER_ERRORS
+CC_EXTERN uint_fast32_t CC_TMPL_FN(get_read_errors)(void);
+CC_EXTERN uint_fast32_t CC_TMPL_FN(get_read_overflow)(void);
+#endif
+
 CC_EXTERN void CC_TMPL_FN(on_recieved)(const serial_onrecieved_fn callback);
 
 CC_EXTERN void CC_TMPL_FN(open)(uint32_t baud);
