@@ -191,5 +191,8 @@
 #define CC_TMPL_VAR(name) CC_CONCAT4(_,CC_TMPL_PREFIX,_,name)
 #define CC_TMPL_FN(method) CC_CONCAT3(CC_TMPL_PREFIX,_,method)
 
+#define CC_TMPL2_PREFIX unknown2
+#define CC_TMPL2_VAR(name) CC_CONCAT4(_,CC_TMPL2_PREFIX,_,name)
+#define CC_TMPL2_FN(method) CC_CONCAT3(CC_TMPL2_PREFIX,_,method)
 
 #endif
