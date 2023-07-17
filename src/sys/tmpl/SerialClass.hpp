@@ -22,15 +22,9 @@ class Serial0Class : public Stream
 
     inline size_t write(const uint8_t n)
     { 
-      uint_fast8_t cnt = 0;
-      do
-      {
-        cnt = serial0_write8(n);
-        if (cnt == 0)
-          serial0_flush();
-      } while (cnt == 0);
-      
-      return cnt; 
+      while(serial0_write8(n) == 0)
+        serial0_flush();
+      return 1;
     }
 
     inline size_t write(uint32_t n) { return write((const uint8_t)n); }
