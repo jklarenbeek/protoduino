@@ -1,36 +1,26 @@
 #ifndef __SerialClass_HPP__
 #define __SerialClass_HPP__
 #include "Stream.h"
+#include "../serial.h"
 #include <stdbool.h>
-
-extern "C" {
-  typedef bool (*serial_onrecieved_fn)(uint_fast8_t);
-}
 
 class Serial0Class : public Stream
 {
 
   public:
-    virtual void onRecieved(const serial_onrecieved_fn callback);
+    inline void begin(uint32_t baud) { serial0_open(baud); }
+    inline void begin(uint32_t baud, uint8_t config) { serial0_openex(baud, config); }
+    inline void end() { serial0_close(); }
 
-    virtual void begin(uint32_t baud);
-    virtual void begin(uint32_t, uint8_t);
-    virtual void end();
+    inline int available(void) { return serial0_read_available(); }
+    inline int peek(void) { return serial0_peek8(); }
+    inline int read(void) { return serial0_read8(); }
 
-    virtual int available(void);
-    virtual int peek(void);
-    virtual int read(void);
+    inline void flush(void) { while(serial0_flush() > 0); }
 
-    virtual int_fast32_t read16(void);
-    virtual int_fast32_t read24(void);
-    virtual int_fast32_t read32(void);
+    inline int availableForWrite(void) { return serial0_write_available(); }
 
-    virtual int flushOne(void);
-    virtual void flush(void);
-
-    virtual int availableForWrite(void);
-
-    virtual size_t write(const uint8_t);
+    inline size_t write(const uint8_t n) { return serial0_write8(n); }
 
     inline size_t write(uint32_t n) { return write((const uint8_t)n); }
     inline size_t write(int32_t n) { return write((const uint8_t)n); }
@@ -39,14 +29,10 @@ class Serial0Class : public Stream
 
     using Print::write; // pull in write(str) and write(buf, size) from Print
 
-    virtual uint_fast8_t write16(const uint_fast16_t data);
-    virtual uint_fast8_t write24(const uint_fast32_t data);
-    virtual uint_fast8_t write32(const uint_fast32_t data);
-
     operator bool() { return true; } // TODO: Why?
 
 };
 
-Serial0Class Serial0 = Serial0Class();
+Serial0Class CSerial0 = Serial0Class();
 
 #endif
