@@ -1,5 +1,5 @@
 #include <protoduino.h>
-
+#include <dbg/examples.h>
 #include <sys/ringb8.h>
 
 RINGB8(rbuf, 8);
