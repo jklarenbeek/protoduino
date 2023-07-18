@@ -6,15 +6,15 @@ RINGB8(rbuf, 8);
 
 char nextchar()
 {
-  return 'A' + ringb8_count(&VAR_RINGB8(rbuf));
+  return 'A' + RINGB8_COUNT(rbuf);
 }
 
 void print_size(void)
 {
   SerialOut.print("count:");
-  SerialOut.print(ringb8_count(&VAR_RINGB8(rbuf)));
+  SerialOut.print(RINGB8_COUNT(rbuf));
   SerialOut.print(" ,available:");
-  SerialOut.print(ringb8_available(&VAR_RINGB8(rbuf)));
+  SerialOut.print(RINGB8_AVAILABLE(rbuf));
   SerialOut.print(" ,head:");
   SerialOut.print(VAR_RINGB8(rbuf).head);
   SerialOut.print(" ,tail:");
@@ -23,8 +23,8 @@ void print_size(void)
 
 void print_buf(void)
 {
-    while(ringb8_count(&VAR_RINGB8(rbuf)) > 0)
-        SerialOut.print((char)ringb8_get(&VAR_RINGB8(rbuf)));
+    while(RINGB8_COUNT(rbuf) > 0)
+        SerialOut.print((char)RINGB8_GET(rbuf));
         
     SerialOut.println(" -> done");
 }
@@ -32,9 +32,9 @@ void print_buf(void)
 void setup()
 {
   SerialOut.begin(9600);
-  ringb8_put(&VAR_RINGB8(rbuf), nextchar());
-  ringb8_put(&VAR_RINGB8(rbuf), nextchar());
-  ringb8_put(&VAR_RINGB8(rbuf), nextchar());
+  RINGB8_PUT(rbuf, nextchar());
+  RINGB8_PUT(rbuf, nextchar());
+  RINGB8_PUT(rbuf, nextchar());
   SerialOut.print("starting:");
   print_size();
   delay(1000);
@@ -42,10 +42,10 @@ void setup()
 
 void loop()
 {    
-  ringb8_put(&VAR_RINGB8(rbuf), nextchar());
+  RINGB8_PUT(rbuf, nextchar());
   print_size();
 
-  if (ringb8_available(&VAR_RINGB8(rbuf)) == 0)
+  if (RINGB8_AVAILABLE(rbuf) == 0)
   {
     SerialOut.print("printing buffer:");
     print_buf();
