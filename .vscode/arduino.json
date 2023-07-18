@@ -1,5 +1,5 @@
 {
-    "sketch": "examples\\50-pt-basic-echo\\50-pt-basic-echo.ino",
+    "sketch": "examples\\20-lib-ringb8\\20-lib-ringb8.ino",
     "board": "arduino:avr:uno",
     "output": "..\\..\\build"
 }

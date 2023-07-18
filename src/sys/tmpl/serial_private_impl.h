@@ -185,7 +185,7 @@ CC_FLATTEN uint_fast8_t CC_TMPL_FN(write8)(const uint_fast8_t data)
   }
 
   // we need to add data to the buffer
-  uint8_t available = ringb8_size(&VAR_TX) - cnt;
+  uint8_t available = ringb8_available(&VAR_TX);
   if (available == 0) // but if we can't, we can't
   {
     return 0; // let the user handle it manually
