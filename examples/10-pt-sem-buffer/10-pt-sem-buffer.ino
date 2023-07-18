@@ -60,6 +60,7 @@
 
 #include <protoduino.h>
 #include <sys/pt-sem.h>
+#include <dbg/examples.h>
 
 #define NUM_ITEMS 32
 #define BUFSIZE 8
@@ -91,9 +92,9 @@ static int produce_item(void)
 
 static void consume_item(int item)
 {
-  Serial.print("Item ");
-  Serial.print(item);
-  Serial.println(" consumed");
+  SerialOut.print("Item ");
+  SerialOut.print(item);
+  SerialOut.println(" consumed");
 }
 
 static struct pt_sem full, empty;
@@ -156,7 +157,7 @@ struct pt driver_pt;
 
 void setup()
 {
-  Serial.begin(9600);
+  print_setup();
 }
 
 void loop()

@@ -5,6 +5,7 @@
  *	SimulIde also has a problem with flushing/sending its buffer in the same way as a real arduino does.
  */ 
 #include <protoduino.h>
+#include <dbg/examples.h>
 #include <utf/vt100.h>
 #include <utf/utf8-stream.h>
 
@@ -55,7 +56,7 @@ static ptstate_t getch(struct ptecho *self)
         rune = vt_escape_match(self->vt_buf, self->vt_idx);
         if (rune == UTF8_DECODE_ERROR)
         {
-          PT_THROW(self, PT_ERROR_FILE_NOT_FOUND); // escape sequence not found.
+          PT_THROW(self, ERR_FILE_NOT_FOUND); // escape sequence not found.
         }
 
         self->value = rune; // we found the keycode.
@@ -65,10 +66,10 @@ static ptstate_t getch(struct ptecho *self)
       {
         if (ret == VT_ERR_INVALID_INPUT)
         {
-          PT_THROW(self, PT_ERROR_BAD_ARGUMENTS);
+          PT_THROW(self, ERR_BAD_ARGUMENTS);
         }
         
-        PT_THROW(self, PT_ERROR_BUFFER_OVERFLOW);
+        PT_THROW(self, ERR_BUFFER_OVERFLOW);
       }
     }
   }
@@ -108,7 +109,7 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
 
 void setup()
 {
-  Serial.begin(9600);
+  SerialOut.begin(9600);
   
   // if analog input pin 0 is unconnected, random analog
   // noise will cause the call to randomSeed() to generate
@@ -116,20 +117,20 @@ void setup()
   // randomSeed() will then shuffle the random function.
   randomSeed(analogRead(0));
 
-  Serial.println("Done setup, waiting 3 sec.");
+  SerialOut.println("Done setup, waiting 3 sec.");
   delay(1000);
 
-  Serial.println("waiting 2 sec.");
+  SerialOut.println("waiting 2 sec.");
   delay(1000);
 
-  Serial.println("waiting 1 sec.");
+  SerialOut.println("waiting 1 sec.");
   delay(1000);
 }
 
 void loop()
 {
-  Serial.print("= Starting loop: ");
-  Serial.println(count);
+  SerialOut.print("= Starting loop: ");
+  SerialOut.println(count);
 
   static struct pt main1;
 
@@ -140,7 +141,7 @@ void loop()
    * Call the main driver protothread until it exits,
    * ends or throws an error
    */
-  while(PT_ISRUNNING(main_driver(&main1, &Serial)))
+  while(PT_ISRUNNING(main_driver(&main1, &SerialOut)))
   {
     ++count;
   }

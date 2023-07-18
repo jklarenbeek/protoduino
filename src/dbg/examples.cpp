@@ -1,14 +1,5 @@
 #include "examples.h"
 
-#ifdef USE_ARDUINO_HARDWARESERIAL
-#include <Arduino.h>
-#define SerialOut Serial
-#else
-#include "../sys/tmpl/SerialClass.hpp"
-#define SerialOut CSerial0
-#endif
-
-
 int print_count = 0;
 
 void print_setup()
@@ -39,7 +30,7 @@ void print_info(const char * msg)
 }
 
 
-static void print_state_ex(const ptstate_t s, const lc_t lc)
+void print_state_ex(const ptstate_t s, const lc_t lc)
 {
   SerialOut.print(print_count);
   if (lc != 0)

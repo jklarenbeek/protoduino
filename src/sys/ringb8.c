@@ -22,7 +22,7 @@ uint_fast8_t ringb8_count(struct ringb8_t *self)
 
 CC_FLATTEN uint_fast8_t ringb8_available(struct ringb8_t *self)
 {
-    return (uint_fast8_t)(ringb8_size(self) - ringb8_count(self));
+    return (uint_fast8_t)(self->mask - ringb8_count(self));
 }
 
 // read next byte in buffer without increasing tail ptr

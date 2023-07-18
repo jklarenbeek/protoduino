@@ -2,6 +2,10 @@
 #define __PROTODUINO_H__
 
 #include "protoduino-config.h"
+#ifdef USE_ARDUINO_HARDWARESERIAL
+#include <Arduino.h>
+#define SerialOut Serial
+#endif
 
 #include <stdbool.h>
 

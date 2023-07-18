@@ -38,6 +38,10 @@ class Serial0Class : public Stream
 
 };
 
-Serial0Class CSerial0 = Serial0Class();
+static Serial0Class CSerial0 = Serial0Class();
+
+#ifndef USE_ARDUINO_HARDWARESERIAL
+#define SerialOut CSerial0
+#endif
 
 #endif

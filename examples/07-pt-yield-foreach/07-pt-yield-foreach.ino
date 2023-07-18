@@ -32,14 +32,14 @@ struct ptyield {
 
 static void print_iterator(struct ptyield *it)
 {
-    Serial.print(print_count);
-    Serial.print(" - iterator ");
-    Serial.print(it->node);
-    Serial.print(" (");
-    Serial.print(it->lc);
-    Serial.print(") ");
-    Serial.print(" yielded value: ");
-    Serial.println((it->value));
+    SerialOut.print(print_count);
+    SerialOut.print(" - iterator ");
+    SerialOut.print(it->node);
+    SerialOut.print(" (");
+    SerialOut.print(it->lc);
+    SerialOut.print(") ");
+    SerialOut.print(" yielded value: ");
+    SerialOut.println((it->value));
 }
 
 /**

@@ -1,14 +1,18 @@
 
-#ifndef __DEBUG_PRINT_H__
-#define __DEBUG_PRINT_H__
+#ifndef __EXAMPLES_H__
+#define __EXAMPLES_H__
 
 #include <protoduino.h>
+#ifndef USE_ARDUINO_HARDWARESERIAL
+#include "../sys/tmpl/SerialClass.hpp"
+#endif
 
 extern int print_count;
 
 void print_setup();
 void print_info(const char *msg);
 
+void print_state_ex(const ptstate_t s, const lc_t lc);
 void print_state(const ptstate_t s, const char *msg);
 void print_state(const ptstate_t s, const char * msg, const uint8_t value);
 void print_state(const ptstate_t s, const lc_t lc, const char * msg);

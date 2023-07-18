@@ -1,6 +1,6 @@
 /**
  * @file ringb8.h
- * @brief Ring buffer implementation for 8-bit data.
+ * @brief Unchecked Ring buffer implementation for 8-bit data.
  * 
  * @warning this module does not check on buffer overflow. this is up te the user.
  */

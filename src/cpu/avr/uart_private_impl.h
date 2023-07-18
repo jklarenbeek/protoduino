@@ -29,7 +29,8 @@ void CC_TMPL_FN(open)(uint32_t baud)
   // data bits = 8 (__UCSZ1__ and __UCSZ2 = 1)
   // stop bits = 1 (__USBS__ = 0)
   // no parity (__UPM0__ and __UPM1__ = 0)
-  CC_TMPL_FN(openex)(baud, (__UCSZ1__ | __UCSZ2__));
+  //CC_TMPL_FN(openex)(baud, (__UCSZ1__ | __UCSZ2__));
+  CC_TMPL_FN(openex(baud, 0x06));
 }
 
 void CC_TMPL_FN(openex)(uint32_t baud, uint8_t options)

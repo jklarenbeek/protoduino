@@ -31,48 +31,29 @@ struct ptyield {
 
 static void print_waitone(const struct ptyield *p)
 {
-  Serial.print(print_count);
-  Serial.print(" - instance ");
-  Serial.print(p->node);
-  Serial.print(" wait one @");
-  Serial.println(p->idx);
+  SerialOut.print(print_count);
+  SerialOut.print(" - instance ");
+  SerialOut.print(p->node);
+  SerialOut.print(" wait one @");
+  SerialOut.println(p->idx);
 }
 
 static void print_yield(const struct ptyield *p)
 {
-    Serial.print(print_count);
-    Serial.print(" - instance ");
-    Serial.print(p->node);
-    Serial.print(" yield random(0, 255) = ");
-    Serial.println(p->value);
+    SerialOut.print(print_count);
+    SerialOut.print(" - instance ");
+    SerialOut.print(p->node);
+    SerialOut.print(" yield random(0, 255) = ");
+    SerialOut.println(p->value);
 
 }
 
 static void print_thread(const ptstate_t s, const struct ptyield *p)
 {
-  Serial.print(print_count);
-
-  if (s == PT_WAITING)
-    Serial.print(" - PT_WAITING ");
-  else if (s == PT_YIELDED)
-    Serial.print(" - PT_YIELDED ");
-  else if (s == PT_EXITED)
-    Serial.print(" - PT_EXITED ");
-  else if (s == PT_ENDED)
-    Serial.print(" - PT_ENDED ");
-  else if (s == PT_FINALIZED)
-    Serial.print(" - PT_FINALIZED");
-  else if (s >= PT_ERROR)
-  {
-    Serial.print(" - PT_ERROR (");
-    Serial.print(s);
-    Serial.print(") ");
-  }
-
-  Serial.print(p->node);
-  Serial.print(" value: ");
-  Serial.println(p->value);
-
+  print_state_ex(s, p->lc);
+  SerialOut.print(p->node);
+  SerialOut.print(" value: ");
+  SerialOut.println(p->value);
 }
 
 /**
