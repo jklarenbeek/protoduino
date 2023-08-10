@@ -22,14 +22,14 @@
  * - a counter for the protothread for loop
  * - a value that is to be yielded when set
  */
-struct ptyield {
+struct yield_pt {
   lc_t lc;
   uint8_t node;
   uint8_t idx;
   uint8_t value;
 };
 
-static void print_waitone(const struct ptyield *p)
+static void print_waitone(const struct yield_pt *p)
 {
   SerialOut.print(print_count);
   SerialOut.print(" - instance ");
@@ -38,7 +38,7 @@ static void print_waitone(const struct ptyield *p)
   SerialOut.println(p->idx);
 }
 
-static void print_yield(const struct ptyield *p)
+static void print_yield(const struct yield_pt *p)
 {
     SerialOut.print(print_count);
     SerialOut.print(" - instance ");
@@ -48,7 +48,7 @@ static void print_yield(const struct ptyield *p)
 
 }
 
-static void print_thread(const ptstate_t s, const struct ptyield *p)
+static void print_thread(const ptstate_t s, const struct yield_pt *p)
 {
   print_state_ex(s, p->lc);
   SerialOut.print(p->node);
@@ -62,7 +62,7 @@ static void print_thread(const ptstate_t s, const struct ptyield *p)
  * to an singleton protothread which uses static variables inside
  * the protothread to hold its variable structure.
  */
-static ptstate_t protothread(struct ptyield *self)
+static ptstate_t protothread(struct yield_pt *self)
 {  
   PT_BEGIN(self);
 
@@ -102,7 +102,7 @@ static ptstate_t protothread(struct ptyield *self)
  * protothread state variables pt1 and pt2, which hold the state of
  * the two protothread instances.
  */
-static struct ptyield pt1, pt2;
+static struct yield_pt pt1, pt2;
 static ptstate_t st1, st2;
 
 void setup()
@@ -114,7 +114,7 @@ void setup()
  * Here we initialize the state and variable structure of each
  * protothread instance.
  */
-void init_pt(struct ptyield * p, uint8_t node)
+void init_pt(struct yield_pt * p, uint8_t node)
 {
   PT_INIT(p);
   p->node = node;

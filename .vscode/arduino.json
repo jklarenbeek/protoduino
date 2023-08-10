@@ -1,5 +1,5 @@
 {
-    "sketch": "examples\\20-lib-ringb8\\20-lib-ringb8.ino",
+    "sketch": "examples\\06-pt-yield-basic\\06-pt-yield-basic.ino",
     "board": "arduino:avr:uno",
     "output": "..\\..\\build"
 }
