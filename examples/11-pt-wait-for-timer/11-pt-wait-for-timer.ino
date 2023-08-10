@@ -3,19 +3,23 @@
 #include <sys/pt-timer.h>
 #include <dbg/examples.h>
 
-static ptstate_t protothread1(struct pt *pt)
+struct timer_pt
 {
-  struct timer timer1;
+  lc_t lc;
+  timer timer1;
+};
 
+static ptstate_t protothread1(struct timer_pt *pt)
+{
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(pt);
 
   print_line("Protothread 1: Setting timer1 for 3 seconds and awaits.");
   
-  timer_set(&timer1, clock_from_seconds(3));
+  timer_set(&pt->timer1, clock_from_seconds(3));
 
-  PT_WAIT_UNTIL(pt, timer_expired(&timer1));
+  PT_WAIT_UNTIL(pt, timer_expired(&pt->timer1));
 
   print_line("Protothread 1: Timer1 expired");
 
@@ -45,7 +49,8 @@ static ptstate_t protothread2(struct pt *pt)
 
 }
 
-static struct pt pt1, pt2;
+static struct timer_pt pt1;
+static struct pt pt2;
 
 void setup()
 {
