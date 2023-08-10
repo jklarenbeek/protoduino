@@ -24,13 +24,13 @@
  * For clarity we added an extra node field that serves as the
  * thread id.
  */
-struct ptyield {
+struct yield_pt {
   lc_t lc;
   uint8_t node;
   uint8_t value;
 };
 
-static void print_iterator(struct ptyield *it)
+static void print_iterator(struct yield_pt *it)
 {
     SerialOut.print(print_count);
     SerialOut.print(" - iterator ");
@@ -48,7 +48,7 @@ static void print_iterator(struct ptyield *it)
  * The protothread iterator is driven by the main_driver
  * protothread further down in the code.
  */
-static ptstate_t iterator1(struct ptyield *self, uint8_t max)
+static ptstate_t iterator1(struct yield_pt *self, uint8_t max)
 {  
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
@@ -87,7 +87,7 @@ static ptstate_t iterator1(struct ptyield *self, uint8_t max)
  * The protothread iterator is driven by the main_driver
  * protothread further down in the code.
  */
-static ptstate_t iterator2(struct ptyield *self, uint8_t max)
+static ptstate_t iterator2(struct yield_pt *self, uint8_t max)
 {  
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
@@ -140,7 +140,7 @@ static ptstate_t iterator2(struct ptyield *self, uint8_t max)
  */
 static ptstate_t main_driver(struct pt *pt)
 {
-  static struct ptyield it1, it2;
+  static struct yield_pt it1, it2;
 
   PT_BEGIN(pt);
 
