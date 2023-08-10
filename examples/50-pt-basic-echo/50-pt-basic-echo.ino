@@ -11,7 +11,7 @@
 
 static int count = 0;
 
-struct ptecho {
+struct echo_pt {
   lc_t lc;                      // protothread state
   Stream * stream;              // stream for getc and putc
   rune16_t value;               // yielded rune
@@ -20,10 +20,10 @@ struct ptecho {
 };
 
 
-#define PT_GETR(echo_pt) \
-  PT_WAIT_UNTIL(echo_pt, (utf8_getr(echo_pt->stream, &echo_pt->value) > 0))
+#define PT_GETR(ptecho) \
+  PT_WAIT_UNTIL(ptecho, (utf8_getr(ptecho->stream, &ptecho->value) > 0))
 
-static ptstate_t getch(struct ptecho *self)
+static ptstate_t getch(struct echo_pt *self)
 {
   PT_BEGIN(self);
 
@@ -77,12 +77,12 @@ static ptstate_t getch(struct ptecho *self)
   PT_END(self);
 }
 
-#define PT_PUTR(pt, echo_pt) \
-  PT_WAIT_UNTIL(pt, (utf8_putr(echo_pt.stream, echo_pt.value) > 0))
+#define PT_PUTR(pt, ptecho) \
+  PT_WAIT_UNTIL(pt, (utf8_putr(ptecho.stream, ptecho.value) > 0))
 
 static ptstate_t main_driver(struct pt *self, Stream *stream)
 {
-  static struct ptecho pt1;
+  static struct echo_pt pt1;
   
   PT_BEGIN(self);
 

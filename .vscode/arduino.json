@@ -1,5 +1,5 @@
 {
-    "sketch": "examples\\06-pt-yield-basic\\06-pt-yield-basic.ino",
+    "sketch": "examples\\50-pt-basic-echo\\50-pt-basic-echo.ino",
     "board": "arduino:avr:uno",
     "output": "..\\..\\build"
 }
