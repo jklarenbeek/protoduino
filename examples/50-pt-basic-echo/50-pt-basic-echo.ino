@@ -11,12 +11,12 @@
 
 static int count = 0;
 
-struct echo_pt {
+struct echo_pt { // : rune16_pt, buf8_pt
   lc_t lc;                      // protothread state
   Stream * stream;              // stream for getc and putc
   rune16_t value;               // yielded rune
-  uint8_t vt_idx;               // current index of buffer
-  char vt_buf[VT_ESCAPE_BUFLEN];  // current escape buffer
+  uint8_t idx;               // current index of buffer
+  uint8_t buf[VT_ESCAPE_BUFLEN];  // current escape buffer
 };
 
 
@@ -38,14 +38,14 @@ static ptstate_t getch(struct echo_pt *self)
     { 
       uint8_t ret;
       rune16_t rune;
-      self->vt_idx = 0;
+      self->idx = 0;
 
       // from here we buffer all input
       // until we reach an escape terminator code.
       do
       {
         PT_GETR(self);
-        ret = vt_escape_add(self->vt_buf, &self->vt_idx, self->value);
+        ret = vt_escape_add(self->buf, &self->idx, self->value);
       }
       while(ret > 0);
 
@@ -53,7 +53,7 @@ static ptstate_t getch(struct echo_pt *self)
       if (ret == 0)
       {
         // find the rune keycode for the escape sequence
-        rune = vt_escape_match(self->vt_buf, self->vt_idx);
+        rune = vt_escape_match(self->buf, self->idx);
         if (rune == UTF8_DECODE_ERROR)
         {
           PT_THROW(self, ERR_FILE_NOT_FOUND); // escape sequence not found.
@@ -62,7 +62,7 @@ static ptstate_t getch(struct echo_pt *self)
         self->value = rune; // we found the keycode.
         PT_YIELD(self);
       }
-      else
+      else // if (ret < 0)
       {
         if (ret == VT_ERR_INVALID_INPUT)
         {
@@ -80,10 +80,10 @@ static ptstate_t getch(struct echo_pt *self)
 #define PT_PUTR(pt, ptecho) \
   PT_WAIT_UNTIL(pt, (utf8_putr(ptecho.stream, ptecho.value) > 0))
 
+static struct echo_pt pt1;
+
 static ptstate_t main_driver(struct pt *self, Stream *stream)
-{
-  static struct echo_pt pt1;
-  
+{  
   PT_BEGIN(self);
 
   pt1.stream = stream;
@@ -127,12 +127,14 @@ void setup()
   delay(1000);
 }
 
+
+static struct pt main1;
+
 void loop()
 {
   SerialOut.print("= Starting loop: ");
   SerialOut.println(count);
 
-  static struct pt main1;
 
   /* Initialize the protothread state variables. */
   PT_INIT(&main1);
