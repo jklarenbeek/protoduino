@@ -2,7 +2,7 @@
 #ifndef QUICKSORT8_H
 #define QUICKSORT8_H
 
-#include "../sys/cc.h"
+#include <cc.h>
 #include <stdint.h>
 
 /**

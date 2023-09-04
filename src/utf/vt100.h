@@ -1,8 +1,8 @@
 #ifndef __VT100_H__
 #define __VT100_H__
 
+#include <cc.h>
 #include <stdint.h>
-#include "../sys/cc.h"
 
 #include "utf8.h"
 

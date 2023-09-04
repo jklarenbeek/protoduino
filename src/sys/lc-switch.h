@@ -59,7 +59,7 @@
 #ifndef __LC_SWITCH_H__
 #define __LC_SWITCH_H__
 
-#include "cc.h"
+#include <cc.h>
 #include <limits.h>
 #include <stdint.h>
 

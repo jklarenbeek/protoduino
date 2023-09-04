@@ -1,4 +1,4 @@
-#include "../../sys/cc.h"
+#include <cc.h>
 
 CC_EXTERN void CC_TMPL_FN(on_rx_complete)(const uart_on_rx_complete_fn callback);
 CC_EXTERN void CC_TMPL_FN(on_rx_error)(const uart_on_rx_error_fn callback);

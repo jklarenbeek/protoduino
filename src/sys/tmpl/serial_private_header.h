@@ -1,4 +1,4 @@
-#include "../cc.h"
+#include <cc.h>
 
 #ifdef SERIAL_REGISTER_ERRORS
 CC_EXTERN uint_fast32_t CC_TMPL_FN(get_read_errors)(void);

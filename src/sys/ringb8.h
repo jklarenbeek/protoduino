@@ -9,7 +9,7 @@
 #define RINGB8_H
 
 
-#include "cc.h"
+#include <cc.h>
 #include <stdint.h>
 
 /**

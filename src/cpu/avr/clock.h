@@ -3,7 +3,7 @@
 #define __CLOCK_H__
 
 #include <stdint.h>
-#include <sys/cc.h>
+#include <cc.h>
 
 typedef uint32_t clock_time_t;
 

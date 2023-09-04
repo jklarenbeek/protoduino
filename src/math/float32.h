@@ -1,6 +1,6 @@
 
+#include <cc.h>
 #include <stdbool.h>
-#include "../sys/cc.h"
 
 /**
  * Fast inverse square-root

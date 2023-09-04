@@ -9,7 +9,7 @@
 
 #include <stdbool.h>
 
-#include "sys/cc.h"
+#include "cc.h"
 #include "sys/pt.h"
 #include "sys/errors.h"
 

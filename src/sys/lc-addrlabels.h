@@ -58,7 +58,7 @@
 #ifndef __LC_ADDRLABELS_H__
 #define __LC_ADDRLABELS_H__
 
-#include "cc.h"
+#include <cc.h>
 
 #error TODO: implement LC_RET macro
 

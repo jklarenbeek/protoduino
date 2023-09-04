@@ -7,7 +7,7 @@
 #ifndef __RUNE16_H__
 #define __RUNE16_H__
 
-#include "../sys/cc.h"
+#include <cc.h>
 #include <stdbool.h>
 
 //#include <stdio.h>

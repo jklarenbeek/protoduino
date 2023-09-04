@@ -53,7 +53,7 @@
 #ifndef __PT_H__
 #define __PT_H__
 
-#include "cc.h"
+#include <cc.h>
 #include "lc.h"
 
 struct pt {

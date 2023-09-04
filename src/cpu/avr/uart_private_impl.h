@@ -1,4 +1,4 @@
-#include "../../sys/cc.h"
+#include <cc.h>
 #include <avr/interrupt.h>
 #include <util/atomic.h>
 

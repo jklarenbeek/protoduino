@@ -18,7 +18,7 @@
 #ifndef __UTF8_H__
 #define __UTF8_H__
 
-#include "../sys/cc.h"
+#include <cc.h>
 //#include <stdint.h>
 #include <stdbool.h>
 //#include <stdio.h>

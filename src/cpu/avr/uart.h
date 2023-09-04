@@ -1,8 +1,8 @@
 #ifndef __UART_H__
 #define __UART_H__
 
-#include "../../protoduino-config.h"
-#include "../../sys/cc.h"
+#include <protoduino-config.h>
+#include <cc.h>
 #include "../../sys/errors.h"
 
 #include <stdbool.h>
