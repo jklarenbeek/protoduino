@@ -3,7 +3,7 @@
 
 #include "../uart.h"
 
-#include "../ringb8.h"
+#include "../../lib/ringb8.h"
 
 #include <util/atomic.h>
 

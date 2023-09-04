@@ -1,6 +1,6 @@
 #include <protoduino.h>
 #include <dbg/examples.h>
-#include <sys/ringb8.h>
+#include <lib/ringb8.h>
 
 RINGB8(rbuf, 8);
 

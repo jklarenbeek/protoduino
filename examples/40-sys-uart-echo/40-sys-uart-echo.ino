@@ -6,7 +6,7 @@
  */ 
 
 #include <protoduino.h>
-#include <sys/ringb8.h>
+#include <lib/ringb8.h>
 #include <sys/uart.h>
 
 void delay(unsigned long ms);
