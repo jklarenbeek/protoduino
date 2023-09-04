@@ -4,7 +4,7 @@
 #include "protoduino-config.h"
 #ifdef USE_ARDUINO_HARDWARESERIAL
 #include <Arduino.h>
-#define SerialOut Serial
+#define SerialLine Serial
 #endif
 
 #include <stdbool.h>

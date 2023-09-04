@@ -31,29 +31,29 @@ struct yield_pt {
 
 static void print_waitone(const struct yield_pt *p)
 {
-  SerialOut.print(print_count);
-  SerialOut.print(" - instance ");
-  SerialOut.print(p->node);
-  SerialOut.print(" wait one @");
-  SerialOut.println(p->idx);
+  SerialLine.print(print_count);
+  SerialLine.print(" - instance ");
+  SerialLine.print(p->node);
+  SerialLine.print(" wait one @");
+  SerialLine.println(p->idx);
 }
 
 static void print_yield(const struct yield_pt *p)
 {
-    SerialOut.print(print_count);
-    SerialOut.print(" - instance ");
-    SerialOut.print(p->node);
-    SerialOut.print(" yield random(0, 255) = ");
-    SerialOut.println(p->value);
+    SerialLine.print(print_count);
+    SerialLine.print(" - instance ");
+    SerialLine.print(p->node);
+    SerialLine.print(" yield random(0, 255) = ");
+    SerialLine.println(p->value);
 
 }
 
 static void print_thread(const ptstate_t s, const struct yield_pt *p)
 {
   print_state_ex(s, p->lc);
-  SerialOut.print(p->node);
-  SerialOut.print(" value: ");
-  SerialOut.println(p->value);
+  SerialLine.print(p->node);
+  SerialLine.print(" value: ");
+  SerialLine.println(p->value);
 }
 
 /**

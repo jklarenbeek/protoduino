@@ -32,14 +32,14 @@ struct yield_pt {
 
 static void print_iterator(struct yield_pt *it)
 {
-    SerialOut.print(print_count);
-    SerialOut.print(" - iterator ");
-    SerialOut.print(it->node);
-    SerialOut.print(" (");
-    SerialOut.print(it->lc);
-    SerialOut.print(") ");
-    SerialOut.print(" yielded value: ");
-    SerialOut.println((it->value));
+    SerialLine.print(print_count);
+    SerialLine.print(" - iterator ");
+    SerialLine.print(it->node);
+    SerialLine.print(" (");
+    SerialLine.print(it->lc);
+    SerialLine.print(") ");
+    SerialLine.print(" yielded value: ");
+    SerialLine.println((it->value));
 }
 
 /**

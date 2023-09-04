@@ -4,8 +4,8 @@ int print_count = 0;
 
 void print_setup()
 {
-  SerialOut.begin(9600);
-  Stream *st = &SerialOut;
+  SerialLine.begin(9600);
+  Stream *st = &SerialLine;
 
 #ifdef USE_ARDUINO_HARDWARESERIAL
   // if analog input pin 0 is unconnected, random analog
@@ -15,8 +15,8 @@ void print_setup()
   randomSeed(analogRead(0));
 #endif
 
-  SerialOut.println();
-  SerialOut.println("Done setup, waiting 1 sec.");
+  SerialLine.println();
+  SerialLine.println("Done setup, waiting 1 sec.");
   
 #ifdef USE_ARDUINO_HARDWARESERIAL
   delay(1000);
@@ -26,42 +26,42 @@ void print_setup()
 
 void print_info(const char * msg)
 {
-    SerialOut.println(msg);
+    SerialLine.println(msg);
 }
 
 
 void print_state_ex(const ptstate_t s, const lc_t lc)
 {
-  SerialOut.print(print_count);
+  SerialLine.print(print_count);
   if (lc != 0)
   {
-    SerialOut.print(":");
-    SerialOut.print(lc);
+    SerialLine.print(":");
+    SerialLine.print(lc);
   }
 
   if (s == PT_WAITING)
-    SerialOut.print(" - PT_WAITING");
+    SerialLine.print(" - PT_WAITING");
   if (s == PT_YIELDED)
-    SerialOut.print(" - PT_YIELDED");
+    SerialLine.print(" - PT_YIELDED");
   if (s == PT_EXITED)
-    SerialOut.print(" - PT_EXITED");
+    SerialLine.print(" - PT_EXITED");
   if (s == PT_ENDED)
-    SerialOut.print(" - PT_ENDED");
+    SerialLine.print(" - PT_ENDED");
   if (s == PT_FINALIZED)
-    SerialOut.print(" - PT_FINALIZED");
+    SerialLine.print(" - PT_FINALIZED");
   else if (s >= PT_ERROR)
   {
-    SerialOut.print(" - PT_ERROR (");
-    SerialOut.print(s);
-    SerialOut.print(")");
+    SerialLine.print(" - PT_ERROR (");
+    SerialLine.print(s);
+    SerialLine.print(")");
   }
 }
 
 void print_state(const ptstate_t s, const char * msg)
 {
   print_state_ex(s, 0);
-  SerialOut.print(" ");
-  SerialOut.println(msg);
+  SerialLine.print(" ");
+  SerialLine.println(msg);
 }
 
 void print_state(const ptstate_t s, const char * msg, const uint8_t value)
@@ -72,52 +72,52 @@ void print_state(const ptstate_t s, const char * msg, const uint8_t value)
 void print_state(const ptstate_t s, const lc_t lc, const char * msg)
 {
   print_state_ex(s, lc);
-  SerialOut.print(" ");
-  SerialOut.print(msg);
-  SerialOut.println();
+  SerialLine.print(" ");
+  SerialLine.print(msg);
+  SerialLine.println();
 }
 
 void print_state(const ptstate_t s, const lc_t lc, const char * msg, const uint8_t value)
 {
   print_state_ex(s, lc);
-  SerialOut.print(" ");
-  SerialOut.print(msg);
-  SerialOut.print(":");
-  SerialOut.println(value);
+  SerialLine.print(" ");
+  SerialLine.print(msg);
+  SerialLine.print(":");
+  SerialLine.println(value);
 }
 
 static void print_error_ex(const char * str, uint8_t err)
 {
-  SerialOut.print(print_count);
-  SerialOut.print(" - ");
-  SerialOut.print(str);
-  SerialOut.print(" (");
-  SerialOut.print(err);
-  SerialOut.print(")");
+  SerialLine.print(print_count);
+  SerialLine.print(" - ");
+  SerialLine.print(str);
+  SerialLine.print(" (");
+  SerialLine.print(err);
+  SerialLine.print(")");
 }
 
 void print_error(const char * str, uint8_t err)
 {
   print_error_ex(str, err);
-  SerialOut.println("");
+  SerialLine.println("");
 }
 
 static void print_line_ex(const lc_t lc, const char *str)
 {
-  SerialOut.print(print_count);
+  SerialLine.print(print_count);
   if (lc != 0)
   {
-    SerialOut.print(":");
-    SerialOut.print(lc);
+    SerialLine.print(":");
+    SerialLine.print(lc);
   }
-  SerialOut.print(" - ");
-  SerialOut.print(str);
+  SerialLine.print(" - ");
+  SerialLine.print(str);
 }
 
 void print_line(const lc_t lc, const char * str)
 {
   print_line_ex(lc, str);
-  SerialOut.println();
+  SerialLine.println();
 }
 
 void print_line(const char * str)
@@ -128,8 +128,8 @@ void print_line(const char * str)
 void print_line(const lc_t lc, const char *str, uint8_t value)
 {
   print_line_ex(lc, str);
-  SerialOut.print(":");
-  SerialOut.println(value);
+  SerialLine.print(":");
+  SerialLine.println(value);
 }
 
 void print_line(const char *str, uint8_t value)

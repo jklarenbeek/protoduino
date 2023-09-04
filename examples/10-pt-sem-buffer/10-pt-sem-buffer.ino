@@ -92,9 +92,9 @@ static int produce_item(void)
 
 static void consume_item(int item)
 {
-  SerialOut.print("Item ");
-  SerialOut.print(item);
-  SerialOut.println(" consumed");
+  SerialLine.print("Item ");
+  SerialLine.print(item);
+  SerialLine.println(" consumed");
 }
 
 static struct pt_sem full, empty;

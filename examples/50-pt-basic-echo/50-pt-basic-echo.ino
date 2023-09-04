@@ -109,7 +109,7 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
 
 void setup()
 {
-  SerialOut.begin(9600);
+  SerialLine.begin(9600);
   
   // if analog input pin 0 is unconnected, random analog
   // noise will cause the call to randomSeed() to generate
@@ -117,13 +117,13 @@ void setup()
   // randomSeed() will then shuffle the random function.
   randomSeed(analogRead(0));
 
-  SerialOut.println("Done setup, waiting 3 sec.");
+  SerialLine.println("Done setup, waiting 3 sec.");
   delay(1000);
 
-  SerialOut.println("waiting 2 sec.");
+  SerialLine.println("waiting 2 sec.");
   delay(1000);
 
-  SerialOut.println("waiting 1 sec.");
+  SerialLine.println("waiting 1 sec.");
   delay(1000);
 }
 
@@ -132,8 +132,8 @@ static struct pt main1;
 
 void loop()
 {
-  SerialOut.print("= Starting loop: ");
-  SerialOut.println(count);
+  SerialLine.print("= Starting loop: ");
+  SerialLine.println(count);
 
 
   /* Initialize the protothread state variables. */
@@ -143,7 +143,7 @@ void loop()
    * Call the main driver protothread until it exits,
    * ends or throws an error
    */
-  while(PT_ISRUNNING(main_driver(&main1, &SerialOut)))
+  while(PT_ISRUNNING(main_driver(&main1, &SerialLine)))
   {
     ++count;
   }

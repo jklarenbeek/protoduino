@@ -41,7 +41,7 @@ class Serial0Class : public Stream
 static Serial0Class CSerial0 = Serial0Class();
 
 #ifndef USE_ARDUINO_HARDWARESERIAL
-#define SerialOut CSerial0
+#define SerialLine CSerial0
 #endif
 
 #endif
