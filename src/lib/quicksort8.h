@@ -14,7 +14,7 @@
  * @param i Index of the first element to be swapped.
  * @param j Index of the second element to be swapped.
  */
-CC_EXTERN void swap8x8(int8_t *arr, int8_t i, int8_t j);
+CC_EXTERN void swap8x8(int8_t *arr, int_fast8_t i, int_fast8_t j);
 
 /**
  * @brief Partitions an array around a pivot.
@@ -27,7 +27,7 @@ CC_EXTERN void swap8x8(int8_t *arr, int8_t i, int8_t j);
  * @param r Index of the rightmost element in the current partition.
  * @return Index of the pivot element after partitioning.
  */
-CC_EXTERN void partition8x8(int8_t *arr, int8_t l, int8_t r);
+CC_EXTERN int_fast8_t partition8x8(int8_t *arr, int_fast8_t l, int_fast8_t r);
 
 /**
  * @brief Sorts an array using the Quicksort algorithm.
@@ -46,6 +46,6 @@ CC_EXTERN void partition8x8(int8_t *arr, int8_t l, int8_t r);
  *   quickSort8x8(arr, 0, n - 1);
  *
  */
-CC_EXTERN void quickSort8x8(int8_t *arr, int8_t l, int8_t r);
+CC_EXTERN void quickSort8x8(int8_t *arr, int_fast8_t l, int_fast8_t r);
 
 #endif
