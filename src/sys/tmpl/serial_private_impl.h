@@ -1,3 +1,4 @@
+// file: ./src/sys/tmpl/serial_private_impl.h
 
 #include "../serial.h"
 
@@ -35,7 +36,7 @@ static void CC_TMPL_FN(on_rx_complete)(uint_fast8_t data)
   // the subscriber of this one, needs to get out of here a.s.a.p.
   if (CC_TMPL_VAR(onrecieved_callback) != 0 && CC_TMPL_VAR(onrecieved_callback)(data) == true)
     return;
-    
+
   // is there room in the buffer?
   uint_fast8_t available = ringb8_available(&VAR_RX);
   if (available > 0)
@@ -118,7 +119,7 @@ int_fast32_t CC_TMPL_FN(read16)(void)
   uint_fast8_t cnt = CC_TMPL_FN(read_available)();
   if (cnt < 2)
     return -1;
-  
+
   union {
     uint16_t data;
     uint8_t buf[2];
@@ -135,7 +136,7 @@ int_fast32_t CC_TMPL_FN(read24)(void)
   uint_fast8_t cnt = CC_TMPL_FN(read_available)();
   if (cnt < 3)
     return -1;
-  
+
   union {
     int32_t data;
     uint8_t buf[4];
@@ -154,7 +155,7 @@ uint_fast32_t CC_TMPL_FN(read32)(void)
   uint_fast8_t cnt = CC_TMPL_FN(read_available)();
   if (cnt < 4)
     return 0; // WATCH OUT! caller needs to care of available here!!
-  
+
   union {
     uint32_t data;
     uint8_t buf[4];
@@ -214,7 +215,7 @@ CC_FLATTEN uint_fast8_t CC_TMPL_FN(write16)(const uint_fast16_t data)
   } tmp;
 
   tmp.data = data;
-  
+
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
   {
     // add data to the ringbuffer
@@ -224,7 +225,7 @@ CC_FLATTEN uint_fast8_t CC_TMPL_FN(write16)(const uint_fast16_t data)
     CC_TMPL2_FN(tx_enable_int)();
   }
 
-  return 2;  
+  return 2;
 }
 
 CC_FLATTEN uint_fast8_t CC_TMPL_FN(write24)(const uint_fast32_t data)
@@ -250,7 +251,7 @@ CC_FLATTEN uint_fast8_t CC_TMPL_FN(write24)(const uint_fast32_t data)
     CC_TMPL2_FN(tx_enable_int)();
   }
 
-  return 3;  
+  return 3;
 }
 
 CC_FLATTEN uint_fast8_t CC_TMPL_FN(write32)(const uint_fast32_t data)

@@ -1,7 +1,7 @@
 /**
  * This module provides utf8 support
  * Some functions are taken from https://github.com/9fans/plan9port
- * 
+ *
  */
 
 /**
@@ -19,9 +19,7 @@
 #define __UTF8_H__
 
 #include <cc.h>
-//#include <stdint.h>
 #include <stdbool.h>
-//#include <stdio.h>
 #include "rune16.h"
 
 // https://www.ssec.wisc.edu/~tomw/java/unicode.html
@@ -35,7 +33,7 @@
  *
  * This typedef defines the type "rune32_t" as a 32-bit Unicode character representation.
  * It is used for storing Unicode characters with a maximum value of 0xFFFFFFFF (4294967295).
- * 
+ *
  */
 typedef uint32_t rune32_t;
 

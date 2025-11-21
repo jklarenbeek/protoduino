@@ -1,5 +1,5 @@
 {
     "sketch": "examples\\50-pt-basic-echo\\50-pt-basic-echo.ino",
     "board": "arduino:avr:uno",
-    "output": "..\\..\\build"
+    "output": ".\\build"
 }

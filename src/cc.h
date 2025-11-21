@@ -1,13 +1,14 @@
+// file: ./src/cc.h
+
 /**
- * @file cc.h
  * @brief Common definitions and macros for Protoduino
- * 
- * This file provides common definitions and macros used in the Protoduino library. 
+ *
+ * This file provides common definitions and macros used in the Protoduino library.
  * It includes various macros for attribute handling, inlining functions, concatenating
- * strings/identifiers, defining constant arrays and strings stored in program memory, 
- * declaring externally defined constant arrays and strings, and determining the number 
+ * strings/identifiers, defining constant arrays and strings stored in program memory,
+ * declaring externally defined constant arrays and strings, and determining the number
  * of elements in an array.
- * 
+ *
  */
 
 
@@ -44,12 +45,12 @@
 #endif
 
 /**
- * 
+ *
 */
-#define CC_FLATTEN __attribute__((flatten)) 
+#define CC_FLATTEN __attribute__((flatten))
 
 /**
- * 
+ *
 */
 #define CC_NO_INLINE __attribute__((noinline))
 

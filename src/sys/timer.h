@@ -1,3 +1,4 @@
+// file: ./src/sys/timer.h
 
 #ifndef __TIMER_H__
 #define __TIMER_H__
@@ -29,7 +30,7 @@ struct timer {
  * \param interval The interval before the timer expires.
  *
  */
-CC_ALWAYS_INLINE void timer_set(struct timer *t, const clock_time_t interval)
+static CC_ALWAYS_INLINE void timer_set(struct timer *t, const clock_time_t interval)
 {
   t->interval = interval;
   t->start = clock_time();
@@ -37,21 +38,21 @@ CC_ALWAYS_INLINE void timer_set(struct timer *t, const clock_time_t interval)
 
 /**
  * Calculate the difference from start of timer.
- * 
+ *
  * This functions calculates the time past from the start of the timer.
- * 
+ *
  * \param t A pointer to the timer
- * 
+ *
  * \return The differences in microseconds.
  */
-clock_time_t timer_diff(const struct timer *t) {
+static CC_ALWAYS_INLINE clock_time_t timer_diff(const struct timer *t) {
   register clock_time_t d = clock_time();
   register clock_time_t s = t->start;
-  if (d > s) { 
-    return d - s; 
+  if (d > s) {
+    return d - s;
   }
   else {
-    return (0xFFFFFFFFL - s) + d; 
+    return (0xFFFFFFFFL - s) + d;
   }
 }
 
@@ -66,7 +67,7 @@ clock_time_t timer_diff(const struct timer *t) {
  * \return Non-zero if the timer has expired, zero otherwise.
  *
  */
-uint32_t timer_expired(const struct timer *t) {
+static CC_ALWAYS_INLINE uint32_t timer_expired(const struct timer *t) {
   register uint32_t d = (uint32_t)timer_diff(t);
   if (t->interval == 0) {
 #if defined ARDUSIM
@@ -94,7 +95,7 @@ uint32_t timer_expired(const struct timer *t) {
  * \param t A pointer to the timer.
  * \sa timer_restart()
  */
-void timer_reset(struct timer *t)
+static CC_ALWAYS_INLINE void timer_reset(struct timer *t)
 {
   if(timer_expired(t)) {
     t->start += t->interval;
@@ -115,7 +116,7 @@ void timer_reset(struct timer *t)
  *
  * \sa timer_reset()
  */
-void timer_restart(struct timer *t)
+static CC_ALWAYS_INLINE void timer_restart(struct timer *t)
 {
   t->start = clock_time();
 }
@@ -130,7 +131,7 @@ void timer_restart(struct timer *t)
  * \return The time until the timer expires
  *
  */
-clock_time_t timer_remaining(struct timer *t)
+static CC_ALWAYS_INLINE clock_time_t timer_remaining(struct timer *t)
 {
   return (t->start + t->interval) - clock_time();
 }

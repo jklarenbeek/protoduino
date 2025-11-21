@@ -1,8 +1,12 @@
+// file: ./src/sys/tmpl/SerialClass.hpp
+
 #ifndef __SerialClass_HPP__
 #define __SerialClass_HPP__
 #include "Stream.h"
 #include "../serial.h"
 #include <stdbool.h>
+
+#ifndef USE_ARDUINO_HARDWARESERIAL
 
 class Serial0Class : public Stream
 {
@@ -21,7 +25,7 @@ class Serial0Class : public Stream
     inline int availableForWrite(void) { return serial0_write_available(); }
 
     inline size_t write(const uint8_t n)
-    { 
+    {
       while(serial0_write8(n) == 0)
         serial0_flush();
       return 1;
@@ -40,7 +44,6 @@ class Serial0Class : public Stream
 
 static Serial0Class CSerial0 = Serial0Class();
 
-#ifndef USE_ARDUINO_HARDWARESERIAL
 #define SerialLine CSerial0
 #endif
 

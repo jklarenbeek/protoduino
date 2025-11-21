@@ -52,7 +52,7 @@ void CC_TMPL_FN(openex)(uint32_t baud, uint8_t options)
     baud_setting = (F_CPU / 8 / baud - 1) / 2;
     __UCSRA__ = 0;
   }
- 
+
 
   // assign the baud_setting, a.k.a. ubrr (USART Baud Rate Register)
   __UBRRH__ = baud_setting >> 8;
@@ -93,7 +93,7 @@ uint_fast32_t CC_TMPL_FN(baudrate)(void)
 
 bool CC_TMPL_FN(rx_is_ready)(void)
 {
-  return (__UCSRA__ & _BV(__RXC__)) != 0; 
+  return (__UCSRA__ & _BV(__RXC__)) != 0;
 }
 
 uint_fast8_t CC_TMPL_FN(rx_error)(void)
@@ -101,14 +101,14 @@ uint_fast8_t CC_TMPL_FN(rx_error)(void)
   // it appears the the frame error bit can not be cleared, so we skip it.
   // uint8_t r = __UCSRA__ & (_BV(__FE__) | _BV(__DOR__) | _BV(__UPE__));
   uint8_t r = __UCSRA__ & (_BV(__DOR__) | _BV(__UPE__));
-  if (r == 0) 
+  if (r == 0)
     return ERR_SUCCESS;
   if (r & _BV(__FE__))
-    return ERR_FRAME_ERROR; // frame error
-  if (r & _BV(__DOR__)) 
+    return ERR_IO_FRAME_ERROR; // frame error
+  if (r & _BV(__DOR__))
     return ERR_DATA_OVERFLOW; // data overrun
-  else 
-    return ERR_PARITY_ERROR; // parity error
+  else
+    return ERR_IO_PARITY_ERROR; // parity error
 }
 
 void CC_TMPL_FN(rx_clear_errors)(void)

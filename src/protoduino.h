@@ -1,3 +1,5 @@
+// file: ./src/protoduino.h
+
 #ifndef __PROTODUINO_H__
 #define __PROTODUINO_H__
 
@@ -8,10 +10,13 @@
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "cc.h"
 #include "sys/pt.h"
 #include "sys/errors.h"
+
+CC_EXTERN void protoduino_start(void);
 
 
 #endif

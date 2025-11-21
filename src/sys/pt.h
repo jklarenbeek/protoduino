@@ -1,3 +1,5 @@
+// file:./src/sys/pt.h
+
 /*
  * Copyright (c) 2004-2005, Swedish Institute of Computer Science.
  * All rights reserved.
@@ -26,14 +28,14 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * This file is part of the Contiki operating system.
+ * This file is part of the protoduino operating system.
  *
  * Author: Adam Dunkels <adam@sics.se>
  * Author: Joham https://github.com/jklarenbeek
  *
  * $Id: pt.h,v 1.7 2006/10/02 07:52:56 adam Exp $
  * $Id: pt.h,v 1.8 2022/11/04 14:55:17 joham Exp $
- * 
+ * $Id: pt.h,v 2.0 2023/20/06 03:43:01 joham Exp $
  */
 
 /**
@@ -47,7 +49,7 @@
  * \authors
  * Adam Dunkels <adam@sics.se>
  * Joham https://github.com/jklarenbeek
- * 
+ *
  */
 
 #ifndef __PT_H__
@@ -60,15 +62,15 @@ struct pt {
   lc_t lc;
 };
 
-enum ptstate_t : uint8_t
+typedef enum
 {
-  PT_WAITING = 0,
-  PT_YIELDED = 1,
-  PT_EXITED = 2,
-  PT_ENDED = 3,
-  PT_ERROR = 4, // or anything higher.
+  PT_WAITING   = 0,
+  PT_YIELDED   = 1,
+  PT_EXITED    = 2,
+  PT_ENDED     = 3,
+  PT_ERROR     = 4, // any value >= 4 is an error
   PT_FINALIZED = 255
-};
+} ptstate_t;
 
 /**
  * \name Initialization
@@ -91,7 +93,7 @@ enum ptstate_t : uint8_t
 
 /**
  * Set the protothread to the finalize state.
- * 
+ *
  * A protothread should NEVER call PT_FINAL(). Setting the protothread
  * to an exit state must be done by the caller when a protothread exits
  * with PT_EXITED, PT_ENDED or any PT_ERROR state.
@@ -161,12 +163,12 @@ enum ptstate_t : uint8_t
 
 /**
  * Block and wait one cycle
- * 
+ *
  * This macro blocks the protothread until next entry.
- * 
+ *
  * \param pt A pointer to the protothread control structure
- * 
- * \hideinitializer 
+ *
+ * \hideinitializer
  */
 #define PT_WAIT_ONE(pt)				\
   do {						\
@@ -229,7 +231,7 @@ enum ptstate_t : uint8_t
 
 /**
  * \brief      Yield from the protothread until a condition occurs.
- * 
+ *
  * \param pt   A pointer to the protothread control structure.
  * \param cond The condition.
  *
@@ -240,7 +242,7 @@ enum ptstate_t : uint8_t
  *          caution you of using it. In this case the yield will
  *          remain until the condition is met. But instead, logically
  *          it should return PT_WAITING
- * 
+ *
  * \hideinitializer
  */
 #define PT_YIELD_UNTIL(pt, cond) \
@@ -300,13 +302,13 @@ enum ptstate_t : uint8_t
 
 /**
  * Declare the start of an exit handler
- * 
+ *
  * This macro is trigger when a protothread exits with
  * PT_EXITED, PT_ENDED or PT_ERROR. It must be set by the caller
  * in order to execute. If not manually started, a protothread
  * will never just flow into a finally block. It does not recover
  * any error code that was raised, catched or throwed.
- * 
+ *
  * \param pt A pointer to the protothread control structure.
 */
 #define PT_FINALLY(pt) \
@@ -324,17 +326,17 @@ enum ptstate_t : uint8_t
 
 /**
  * Raise an exception within the protothread.
- * 
+ *
  * This macro will block and cause the running protothread to be set
  * in an error state, which is the exception. The exception can be catched with the PT_CATCH()
  * and PT_CATCHANY() macro declarations the next time the protothread
  * is scheduled.
- * 
+ *
  * \warning err must not be greater then max value ptstate_t -1 and not less the PT_ERROR!
- * 
+ *
  * \param pt A pointer to the protothread control structure
  * \param err An integer between 4 and 254 representing the error code
- * 
+ *
  * \hideinitializer
  */
 #define PT_RAISE(pt, err) \
@@ -345,7 +347,7 @@ enum ptstate_t : uint8_t
 
 /**
  * Declare the start of catch block.
- * 
+ *
  * This macro is used for declaring a protothread with an error
  * handling structure and can occur multiple times within a
  * protothread. The error code MUST be unique within the protothread
@@ -353,7 +355,7 @@ enum ptstate_t : uint8_t
  * without producing any errors, it will never flow into this macro.
  * A PT_CATCH() declaration will ALWAYS end gracefully with PT_ENDED
  * if the error is not thrown with PT_THROW() or PT_RETHROW().
- * 
+ *
 */
 #define PT_CATCH(pt, err) \
   do { \
@@ -364,7 +366,7 @@ enum ptstate_t : uint8_t
 
 /**
  * Declare the start of a catch any block.
- * 
+ *
  * This macro is used for declaring a protothread with an error
  * handling structure and can only occur one time within a
  * protothread. It catches all errors not handled by PT_CATCH().
@@ -372,7 +374,7 @@ enum ptstate_t : uint8_t
  * never flow into this macro. A PT_CATCHANY() declaration will
  * ALWAYS end gracefully with PT_ENDED if the error is not thrown
  * with PT_THROW() or PT_RETHROW().
- * 
+ *
  * \param pt A pointer to the protothread control structure.
 */
 #define PT_CATCHANY(pt) \
@@ -384,13 +386,13 @@ enum ptstate_t : uint8_t
 
 /**
  * Declare the start of an exit handler
- * 
+ *
  * This macro is trigger when a protothread exits with
  * PT_EXITED, PT_ENDED or PT_ERROR. It must be set by the caller
  * in order to execute. If not manually started, a protothread
  * will never just flow into a finally block. It does not recover
  * any error code that was raised, catched or throwed.
- * 
+ *
  * \param pt A pointer to the protothread control structure.
 */
 #define PT_FINALLY(pt) \
@@ -409,13 +411,13 @@ enum ptstate_t : uint8_t
 
 /**
  * Test if error occured after spawning a thread
- * 
+ *
  * If a child thread is spawn in a protothread, one can
  * test for the error with this macro. Child threads are typically
  * run by PT_WAIT_THREAD, PT_SPAWN or PT_FOREACH.
- * 
+ *
  * \param pt A pointer to the protothread
- * 
+ *
  */
 #define PT_ONERROR(state) \
     if (state >= PT_ERROR && state != PT_FINALIZED)
@@ -423,15 +425,15 @@ enum ptstate_t : uint8_t
 
 /**
  * Throws an error within a protothread PT_CATCH() block.
- * 
+ *
  * This macro causes the protothread to exit with an error.
  * It MUST only be used inside a PT_CATCH() or PT_CACHANY()
- * block. It behaves the same as PT_EXITED or PT_ENDED but 
+ * block. It behaves the same as PT_EXITED or PT_ENDED but
  * with an additional error code encoded.
- * 
+ *
  * \param pt A pointer to the protothread control structure.
  * \param err An error code within the range of 4 - 254
- * 
+ *
  */
 #define PT_THROW(pt, err) \
   do { \
@@ -440,14 +442,14 @@ enum ptstate_t : uint8_t
 
 /**
  * ReThrows an error within a protothread PT_CATCHANY() block.
- * 
+ *
  * This macro causes the protothread to exit with an error.
  * It must always be used inside a PT_CATCH() or PT_CACHANY()
- * block. It behaves the same as PT_EXITED or PT_ENDED but 
+ * block. It behaves the same as PT_EXITED or PT_ENDED but
  * with an additional error code encoded.
- * 
+ *
  * \param pt A pointer to the protothread control structure.
- * 
+ *
  */
 #define PT_RETHROW(pt) \
   do { \
@@ -466,8 +468,8 @@ enum ptstate_t : uint8_t
  * Test if a protothread is running.
  *
  * Warning: The state of the protothread is not saved. Use PT_SCHEDULE
- * instead when inside a protothread. This function schedules a 
- * protothread. The return value of the function is non-zero if the 
+ * instead when inside a protothread. This function schedules a
+ * protothread. The return value of the function is non-zero if the
  * protothread is running or zero if the protothread has exited.
  *
  * \param f The call to the C function implementing the protothread to
@@ -481,10 +483,10 @@ enum ptstate_t : uint8_t
  * Schedule a protothread.
  *
  * This function schedules a protothread. The return value of the
- * function must be of type ptstate_t and is saved in the current 
+ * function must be of type ptstate_t and is saved in the current
  * protothread local PT_ERROR_STATE variable. Must be used within
  * a PT_BEGIN() and PT_END()/PT_ENDCATCH declaration.
- * 
+ *
  * \param f The call to the C function implementing the protothread to
  * be scheduled
  *
@@ -496,7 +498,7 @@ enum ptstate_t : uint8_t
  * Block and wait until a child protothread completes.
  *
  * This macro schedules a child protothread. The current protothread
- * will block until the child protothread completes. The child 
+ * will block until the child protothread completes. The child
  * protothread MUST be manually initialized with the PT_INIT() function
  * before this function is used.
  *
@@ -504,9 +506,9 @@ enum ptstate_t : uint8_t
  * \param thread The child protothread with arguments
  *
  * \sa PT_SPAWN()
- * 
+ *
  * \example
- * 
+ *
  * PT_WAIT_THREAD(pt, thread(&child));
  * PT_ONERROR(PT_ERROR_STATE) {
  *  PT_RAISE(pt, PT_ERROR_STATE);
@@ -526,7 +528,7 @@ enum ptstate_t : uint8_t
  * \param pt A pointer to the protothread control structure.
  * \param child A pointer to the child protothread's control structure.
  * \param thread The child protothread with arguments
- * 
+ *
  * \hideinitializer
  */
 #define PT_SPAWN(pt, child, thread)		\
@@ -539,15 +541,15 @@ enum ptstate_t : uint8_t
 
 /**
  * Spawn a protothread and wait until it yields.
- * 
+ *
  * This macro can be nested.
- * 
+ *
  * see: PT_SPAWN()
- * 
+ *
  * \param pt A pointer to the protothread control structure.
  * \param child A pointer to the child protothread's control structure.
  * \param thread The child protothread with arguments
- * 
+ *
  * \hideinitializer
  */
 #define PT_FOREACH(pt, child, thread) \
@@ -567,7 +569,7 @@ enum ptstate_t : uint8_t
  * macro.
  *
  * \todo this is a nonsensical way to finalize it. rewrite.
- * 
+ *
  * \param pt A pointer to the protothread control structure.
  *
  * \hideinitializer

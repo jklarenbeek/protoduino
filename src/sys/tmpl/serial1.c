@@ -1,3 +1,5 @@
+// file: ./src/sys/tmpl/serial1.c
+
 #include "../serial.h"
 
 #if defined(HAVE_HW_UART1)

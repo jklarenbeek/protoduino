@@ -1,3 +1,5 @@
+// file: ./src/sys/tmpl/serial_private_header.h
+
 #include <cc.h>
 
 #ifdef SERIAL_REGISTER_ERRORS
