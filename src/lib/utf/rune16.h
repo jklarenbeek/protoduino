@@ -1,7 +1,7 @@
 /**
  * This module provides unicode support
  * most functions are taken from https://github.com/9fans/plan9port
- * 
+ *
  */
 
 #ifndef __RUNE16_H__
@@ -10,15 +10,13 @@
 #include <cc.h>
 #include <stdbool.h>
 
-//#include <stdio.h>
-
 /**
  * \typedef rune16_t
  * \brief 16-bit Unicode character representation.
  *
  * This typedef defines the type "rune16_t" as a 16-bit Unicode character representation.
  * It is used for storing Unicode characters with a maximum value of 0xFFFF (65535).
- * 
+ *
  */
 typedef int_least16_t rune16_t;
 

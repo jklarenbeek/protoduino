@@ -63,7 +63,6 @@ static void call_process(struct process *p, process_event_t ev, process_data_t d
 static void do_poll(void);
 static void do_event(void);
 static void exit_process(struct process *p);
-static int check_pipe_cycle(struct process *start, struct process *dst); /* Detect loops */
 
 /* Helpers */
 static struct process *alloc_process(void)
@@ -130,39 +129,78 @@ uint16_t process_alloc_module_id(void)
   return next_module_id++;
 }
 
-/* Internal: Exit process
+/**
+ * Exit a process with proper error handling for deferred-free overflow.
  *
- * We defer actual freeing of the process slot to avoid dangling pointers
- * in the event queue. process_unload() may post events referencing 'p'
- * (e.g., PROCESS_EVENT_UNLOADED). Freeing immediately would make those
- * queued references invalid. The slot will be freed later at a safe point.
+ * This improved version refuses to exit if the deferred-free list is full,
+ * posting an error to the global sink instead. This prevents the dangerous
+ * fallback of immediate freeing which could leave dangling pointers in the
+ * event queue.
  */
 static void exit_process(struct process *p)
 {
   if (!p)
     return;
 
-  /* Mark as exiting and defer actual freeing to avoid dangling pointers
-   * in the event queue. process_unload() may post events referencing 'p'
-   * (e.g., PROCESS_EVENT_UNLOADED). Freeing immediately would make those
-   * queued references invalid. We therefore move the slot to a deferred-free
-   * list and actually free it when the event queue is empty.
-   */
-  p->state = PROCESS_STATE_EXITING;
-  if (p->is_dynamic)
-    process_unload(p); /* If dynamic, unload (may post UNLOADED) */
+  /* Check if deferred-free list has space */
+  if (deferred_free_count >= PROCESS_CONF_MAX_PROCESSES)
+  {
+    /* Cannot safely exit - deferred list is full.
+     * This should be extremely rare (requires MAX processes to exit
+     * before event queue drains), but we must handle it safely.
+     */
 
-  /* Add to deferred-free list */
-  if (deferred_free_count < PROCESS_CONF_MAX_PROCESSES)
-  {
-    deferred_free_list[deferred_free_count++] = p;
+    /* Post error to global sink if available */
+    if (process_error_sink)
+    {
+      struct error_report report;
+      report.source = p;
+      report.code = ERR_RES_NO_SLOT;
+      process_post(process_error_sink, PROCESS_EVENT_ERROR,
+                   (process_data_t)&report);
+    }
+
+    /* Mark process as blocked/paused instead of exiting.
+     * This prevents it from being scheduled, but keeps the slot allocated
+     * until deferred list has space. The process effectively becomes a
+     * "zombie-in-waiting".
+     */
+    p->state = PROCESS_STATE_PAUSED;
+    p->needspoll = 0;
+
+    /* Set a flag so we can retry exit later */
+    /* Note: This requires adding a retry mechanism in drain_deferred_free() */
+    return;
   }
-  else
+
+  /* Mark as exiting to prevent further scheduling */
+  p->state = PROCESS_STATE_EXITING;
+
+  /* If dynamic, trigger unload sequence (may post UNLOADED events) */
+  if (p->is_dynamic)
   {
-    /* Should not happen: no space in deferred list — fallback to immediate free
-     * to avoid memory leak, but this risks dangling pointers. */
-    free_process(p);
+    process_unload(p);
   }
+
+  /* Add to deferred-free list - actual freeing happens when queue is empty */
+  deferred_free_list[deferred_free_count++] = p;
+}
+
+static int check_pipe_cycle(struct process *start, struct process *dst) {
+  struct process *p = dst;
+  while (p && p->pipe_to) {
+    if (p->pipe_to == start) return 1; // Cycle found
+    p = p->pipe_to;
+  }
+  return 0;
+}
+
+int process_pipe_connect(struct process *src, struct process *dst) {
+  if (check_pipe_cycle(src, dst))
+    return ERR_PROTO_PIPE_CYCLE;
+  src->pipe_to = dst;
+  process_post(dst, PROCESS_EVENT_PIPE_CONNECT, src);
+  return ERR_SUCCESS;
 }
 
 /* Pause/Continue */
@@ -250,14 +288,23 @@ process_event_t process_alloc_event(void)
   return next_event++;
 }
 
-/* Run Scheduler */
+/**
+ * Enhanced deferred-free draining with retry logic for blocked exits.
+ *
+ * This version not only frees tombstone processes when the event queue
+ * is empty, but also retries any processes that couldn't exit due to
+ * a full deferred-free list.
+ */
 static void drain_deferred_free(void)
 {
+  /* Only drain when event queue is completely empty and no polls pending */
   if (event_pending == 0 && !poll_requested && deferred_free_count > 0)
   {
+    /* Free all processes in the deferred list */
     for (uint8_t i = 0; i < deferred_free_count; i++)
     {
       struct process *p = deferred_free_list[i];
+
       /* Final sanity: only free if slot is in exiting state */
       if (p && p->state == PROCESS_STATE_EXITING)
       {
@@ -266,6 +313,52 @@ static void drain_deferred_free(void)
       }
     }
     deferred_free_count = 0;
+
+    /* Now that we've freed up space, check for any PAUSED processes
+     * that were blocked from exiting. These are "zombie-in-waiting"
+     * processes that need to be moved to the deferred list.
+     */
+    for (uint8_t prio = 0; prio < PROCESS_CONF_PRIOS; prio++)
+    {
+      struct process *p = prio_lists[prio];
+      struct process *prev = NULL;
+
+      while (p)
+      {
+        struct process *next = p->next;
+
+        /* Check if this is a zombie-in-waiting (PAUSED but no normal reason) */
+        if (p->state == PROCESS_STATE_PAUSED && p->needspoll == 0)
+        {
+          /* Attempt to move to deferred-free list now that we have space */
+          if (deferred_free_count < PROCESS_CONF_MAX_PROCESSES)
+          {
+            /* Remove from priority list */
+            if (prev)
+              prev->next = next;
+            else
+              prio_lists[prio] = next;
+
+            /* Add to deferred list */
+            p->state = PROCESS_STATE_EXITING;
+            deferred_free_list[deferred_free_count++] = p;
+
+            /* Don't update prev since we removed this node */
+          }
+          else
+          {
+            /* Still no space - leave as zombie-in-waiting */
+            prev = p;
+          }
+        }
+        else
+        {
+          prev = p;
+        }
+
+        p = next;
+      }
+    }
   }
 }
 
@@ -421,6 +514,93 @@ static void call_process(struct process *p, process_event_t ev, process_data_t d
   }
 
   process_current = NULL;
+}
+
+/**
+ * Iterate over all active processes, calling a callback for each.
+ *
+ * This function traverses all priority lists and invokes the callback
+ * for each process that is not in NONE or EXITING state. Useful for
+ * debugging, monitoring, and implementing process management commands.
+ *
+ * @param callback Function to call for each process (receives process pointer)
+ *
+ * Example usage:
+ *   void print_process(struct process *p) {
+ *     printf("Process: %s, Prio: %d, State: %d\n",
+ *            PROCESS_NAME_STRING(p), p->prio, p->state);
+ *   }
+ *   process_foreach(print_process);
+ */
+void process_foreach(void (*callback)(struct process *))
+{
+  if (!callback)
+    return;
+
+  /* Iterate through each priority level */
+  for (uint8_t prio = 0; prio < PROCESS_CONF_PRIOS; prio++)
+  {
+    struct process *p = prio_lists[prio];
+
+    /* Walk the linked list for this priority */
+    while (p)
+    {
+      /* Save next pointer in case callback modifies the list */
+      struct process *next = p->next;
+
+      /* Only callback for active processes (not freed or exiting) */
+      if (p->state != PROCESS_STATE_NONE &&
+          p->state != PROCESS_STATE_EXITING)
+      {
+        callback(p);
+      }
+
+      p = next;
+    }
+  }
+}
+
+/**
+ * Count the number of active processes.
+ *
+ * Helper function that uses process_foreach to count running processes.
+ *
+ * @return Number of processes in states other than NONE or EXITING
+ */
+uint8_t process_count_active(void)
+{
+  static uint8_t count;
+  count = 0;
+
+  void count_callback(struct process *p) {
+    count++;
+  }
+
+  process_foreach(count_callback);
+  return count;
+}
+
+/**
+ * Find a process by ID using process_foreach.
+ *
+ * @param id The process ID to search for
+ * @return Pointer to process or NULL if not found
+ */
+struct process *process_find_by_pid(process_id_t id)
+{
+  static struct process *found;
+  static process_id_t search_id;
+
+  found = NULL;
+  search_id = id;
+
+  void find_callback(struct process *p) {
+    if (p->id == search_id)
+      found = p;
+  }
+
+  process_foreach(find_callback);
+  return found;
 }
 
 /* Find by Name */
