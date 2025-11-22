@@ -72,7 +72,6 @@
 typedef uint8_t process_event_t;
 typedef void * process_data_t;
 typedef uint8_t process_prio_t;  /* 0=highest */
-typedef uint8_t process_id_t;    /* Unique ID */
 typedef uint8_t process_num_events_t;
 
 #define PROCESS_EVENT_NONE          0x00  /* No event / sentinel */
@@ -99,11 +98,11 @@ typedef uint8_t process_num_events_t;
 #define PROCESS_ZOMBIE ((struct process *)0x1)
 
 /* Process States */
-#define PROCESS_STATE_NONE     0 /* TODO: ? */
-#define PROCESS_STATE_RUNNING  1 /* TODO: ? */
-#define PROCESS_STATE_CALLED   2 /* TODO: ? */
-#define PROCESS_STATE_PAUSED   3 /* TODO: ? */
-#define PROCESS_STATE_EXITING  0 /* TODO: ? The zero is here only because of a 3bit alignment, in the process struct */
+#define PROCESS_STATE_NONE     0 /* Process is initialized */
+#define PROCESS_STATE_RUNNING  1 /* Process is running */
+#define PROCESS_STATE_CALLED   2 /* Process is waiting */
+#define PROCESS_STATE_PAUSED   3 /* Process is paused */
+#define PROCESS_STATE_EXITING  0 /* Process is exiting */
 
 /**
  * \typedef process_thread_t
@@ -136,12 +135,9 @@ struct process {
   process_prio_t prio;           /* Scheduling priority (0 = highest) */
   uint8_t state : 3;             /* Current runtime state */
   uint8_t needspoll : 1;         /* Flag indicating poll request */
-  uint8_t is_dynamic : 1;        /* 1 if loaded from ELF */
-  uint8_t reserved_flags : 3;    /* Reserved for future extensions */
+  uint8_t reserved_flags : 4;    /* Reserved for future extensions */
 
-  process_id_t id;               /* Unique process identifier */
-  uint16_t module_id;            /* Non-zero for dynamic/ELF processes */
-  void *data_seg;                /* Data segment for dynamic modules */
+
   struct process *next;          /* Next process in the priority list */
   struct process *pipe_to;       /* Piped output destination */
 
@@ -156,13 +152,15 @@ struct process {
 
 #if !PROCESS_CONF_NO_PROCESS_NAMES
 #define PROCESS_NAME_STRING(p) ((p)->name ? (p)->name : "")
+#else
+#define PROCESS_NAME_STRING(p) ""
 #endif
 
 /* Event Queue Entry */
 struct event_data {
+  struct process *p;  /* Destination, NULL=broadcast */
   process_event_t ev;
   process_data_t data;
-  struct process *p;  /* Destination, NULL=broadcast */
 };
 
 /* For error sink – sends both source process and code */
@@ -180,18 +178,16 @@ struct error_report {
  *
  * \hideinitializer
  */
-#define PROCESS_CURRENT() process_current
 CC_EXTERN struct process *process_current;
 
 /* Error sink: the kernel can forward uncaught process exceptions to a
  * single, optional error-handler process. Use process_set_error_sink()
  * to register an error sink (e.g. a logger process). If NULL, no sink.
  */
-CC_EXTERN void process_set_error_sink(struct process *p);
+CC_EXTERN void process_set_error_sink(struct process *sink);
 
 /* Public API */
 CC_EXTERN void process_init(void);
-CC_EXTERN process_id_t process_alloc_id(void);
 CC_EXTERN int process_start(struct process *p, process_data_t data);
 CC_EXTERN void process_exit(struct process *p);
 CC_EXTERN int process_is_running(struct process *p);
@@ -199,58 +195,39 @@ CC_EXTERN int process_pause(struct process *p);
 CC_EXTERN int process_continue(struct process *p);
 
 CC_EXTERN int process_post(struct process *p, process_event_t ev, process_data_t data);
-CC_EXTERN void process_post_synch(struct process *p, process_event_t ev, process_data_t data);
+
+/**
+ * \brief Synchronously post event and wait for processing
+ *
+ * NOTE: This function is declared but not implemented. Use process_call() instead
+ * for synchronous invocation, or process_post() for async event delivery.
+ */
+// CC_EXTERN void process_post_synch(struct process *p, process_event_t ev, process_data_t data);
+CC_EXTERN void process_call(struct process *p, process_event_t ev, process_data_t data);
+
 CC_EXTERN void process_poll(struct process *p);
-CC_EXTERN void process_poll_isr(struct process *p);  /* ISR-safe version */
+// CC_EXTERN void process_poll_isr(struct process *p);  /* ISR-safe version */
+
 
 CC_EXTERN process_event_t process_alloc_event(void);
 
 CC_EXTERN int process_run(void);  /* Run scheduler once, returns pending events */
 CC_EXTERN int process_nevents(void);  /* Pending events + polls */
 
+// 6. Add process iteration helpers declaration (already implemented but not declared)
+CC_EXTERN void process_foreach(void (*callback)(struct process *));
+CC_EXTERN uint8_t process_count_active(void);
+
 CC_EXTERN struct process *process_find(const char *name);
-CC_EXTERN struct process *process_find_by_id(uint16_t module_id);
 
 /* Piping API */
 CC_EXTERN int process_pipe_connect(struct process *src, struct process *dst);
 CC_EXTERN int process_pipe_close(struct process *src);
 CC_EXTERN int process_pipe_send(struct process *src, process_data_t data);  /* Convenience for PIPE_DATA */
 
-/* ELF Integration (Stubs - Implement later using Contiki-style loader) */
-/**
- * \brief Load ELF32 module and create process
- * \param elf_data ELF binary data
- * \param elf_size Size of ELF
- * \param name Optional name override
- * \return Loaded process or NULL on error
- *
- * TODO: Implement full loader:
- * - Parse ELF headers (Ehdr, Phdr for single LOAD segment)
- * - Allocate static pool slot or fixed mem for code/data (no malloc)
- * - Perform PIC relocations (assume simple additive)
- * - Resolve symbols to system hooks (e.g., process_post)
- * - Extract entry point as thread function
- * - Assign module_id, set is_dynamic=1
- * - Start process and post LOADED
- */
-CC_EXTERN struct process *process_load_elf(const uint8_t *elf_data, uint16_t elf_size, const char *name);
-
-/**
- * \brief Unload dynamic process
- * \param p Process to unload
- * \return PROCESS_ERR_OK or error
- *
- * TODO: Implement:
- * - Exit process if running
- * - Free fixed mem slots (no free(), just mark available)
- * - Clear module_id, post UNLOADED
- * - Handle pipe disconnections
- */
-CC_EXTERN int process_unload(struct process *p);
-
 /* Macros for Process Definition */
 #define PROCESS_THREAD(name, ev, data) \
-  ptstate_t name##_thread(struct process *self, process_event_t ev, process_data_t data)
+  ptstate_t process_thread_##name(struct process *self, process_event_t ev, process_data_t data)
 
 /**
  * Define a process.
@@ -259,22 +236,34 @@ CC_EXTERN int process_unload(struct process *p);
  * \param strname The string representation of the process' name.
  * \param prio The priority (0=highest).
  */
+#if !PROCESS_CONF_NO_PROCESS_NAMES
 #define PROCESS(name, strname, prio) \
-  static const char name##_proc_name[] PROGMEM = strname; \
+  static const char process_name_##name[] PROGMEM = strname; \
   PROCESS_THREAD(name, ev, data); \
   struct process name = { \
-    {0}, \
-    name##_proc_name, \
+    NULL, \
+    process_name_##name, \
     prio, \
     PROCESS_STATE_NONE, \
-    0, 0, 0, /* needspoll, is_dynamic, reserved_flags */ \
-    0, /* id */ \
-    0, /* module_id */ \
-    NULL, /* data_seg */ \
+    0, 0, /* needspoll, reserved_flags */ \
     NULL, /* next */ \
     NULL, /* pipe_to */ \
-    name##_thread \
+    process_thread_##name \
   }
+#else
+  PROCESS_THREAD(name, ev, data); \
+  struct process name = { \
+    NULL, \
+    prio, \
+    PROCESS_STATE_NONE, \
+    0, 0, /* needspoll, reserved_flags */ \
+    NULL, /* next */ \
+    NULL, /* pipe_to */ \
+    process_thread_##name \
+  }
+#endif
+
+#define PROCESS_NAME(name) extern struct process name
 
 /* Hooks for Process-Specific Handlers */
 #define PROCESS_POLLHANDLER(handler) if(ev == PROCESS_EVENT_POLL) { handler; }
@@ -295,6 +284,17 @@ CC_EXTERN void process_win32_poll(void);  /* Simulate hardware polls */
 #define process_win32_init()
 #define process_win32_poll()
 #endif
+
+/**
+ * Wait for a specific event in a process thread
+ */
+#define PROCESS_WAIT_EVENT() \
+  PROCESS_YIELD()
+
+#define PROCESS_WAIT_EVENT_UNTIL(condition) \
+  do { \
+    PROCESS_YIELD(); \
+  } while(!(condition))
 
 /** @} */
 /** @} */

@@ -37,8 +37,7 @@ static uint8_t poll_requested = 0;
  *
  * \hideinitializer
  */
-#define PROCESS_CURRENT() process_current
- struct process *process_current;
+struct process *process_current;
 
 /* Events queue */
 static struct event_data event_queue[PROCESS_CONF_NUMEVENTS];
@@ -51,12 +50,6 @@ static process_num_events_t process_maxevents;
 #endif
 
 static process_event_t next_event = PROCESS_EVENT_MAX;
-
-static uint8_t next_id = 1; /* Start from 1 */
-static uint16_t next_module_id = 1;
-
-static struct process *error_logger_sink = NULL;
-
 
 /* Forward Declarations */
 static void call_process(struct process *p, process_event_t ev, process_data_t data);
@@ -82,7 +75,6 @@ static struct process *alloc_process(void)
       p->next = NULL;
       p->pipe_to = NULL;
       p->thread = NULL;
-      p->is_dynamic = 0;
       return p;
     }
   }
@@ -111,22 +103,8 @@ void process_init(void)
   memset(event_queue, 0, sizeof(event_queue));
   event_head = event_tail = event_pending = 0;
   next_event = PROCESS_EVENT_MAX;
-  next_id = 1;
-  next_module_id = 1;
   deferred_free_count = 0;
   process_error_sink = NULL;
-}
-
-/* Alloc ID */
-process_id_t process_alloc_id(void)
-{
-  return next_id++;
-}
-
-/* Alloc Module ID */
-uint16_t process_alloc_module_id(void)
-{
-  return next_module_id++;
 }
 
 /**
@@ -175,12 +153,6 @@ static void exit_process(struct process *p)
 
   /* Mark as exiting to prevent further scheduling */
   p->state = PROCESS_STATE_EXITING;
-
-  /* If dynamic, trigger unload sequence (may post UNLOADED events) */
-  if (p->is_dynamic)
-  {
-    process_unload(p);
-  }
 
   /* Add to deferred-free list - actual freeing happens when queue is empty */
   deferred_free_list[deferred_free_count++] = p;
@@ -580,29 +552,6 @@ uint8_t process_count_active(void)
   return count;
 }
 
-/**
- * Find a process by ID using process_foreach.
- *
- * @param id The process ID to search for
- * @return Pointer to process or NULL if not found
- */
-struct process *process_find_by_pid(process_id_t id)
-{
-  static struct process *found;
-  static process_id_t search_id;
-
-  found = NULL;
-  search_id = id;
-
-  void find_callback(struct process *p) {
-    if (p->id == search_id)
-      found = p;
-  }
-
-  process_foreach(find_callback);
-  return found;
-}
-
 /* Find by Name */
 struct process *process_find(const char *name)
 {
@@ -623,42 +572,6 @@ struct process *process_find(const char *name)
 #endif
 }
 
-/* Find by Module ID */
-struct process *process_find_by_id(uint16_t module_id)
-{
-  for (uint8_t prio = 0; prio < PROCESS_CONF_PRIOS; prio++)
-  {
-    struct process *p = prio_lists[prio];
-    while (p)
-    {
-      if (p->module_id == module_id)
-        return p;
-      p = p->next;
-    }
-  }
-  return NULL;
-}
-
-/* Load ELF - stub (header documents expected behavior) */
-struct process *process_load_elf(const uint8_t *elf_data, uint16_t elf_size, const char *name)
-{
-  /* TODO: Implement as per header comment */
-  return NULL;
-}
-
-/* ELF Unload */
-int process_unload(struct process *p)
-{
-  if (!p || !p->is_dynamic)
-    return ERR_PT_INVALID_STATE;
-  /* TODO: Implement as per header comment */
-  process_post(p, PROCESS_EVENT_UNLOADED, NULL);
-  p->is_dynamic = 0;
-  p->module_id = 0;
-  p->data_seg = NULL; /* Assume fixed mem released */
-  return ERR_SUCCESS;
-}
-
 /*
  * Provides implementation functions for initializing system processes at boot.
  */
@@ -673,7 +586,7 @@ void procinit_init(void) {
 }
 
 void process_set_error_sink(struct process *sink) {
-  error_logger_sink = sink;
+  process_error_sink = sink;
 }
 
 /*

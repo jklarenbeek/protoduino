@@ -5,19 +5,6 @@
 #include "process.h"
 #include "errors.h"
 #include "serial.h" // C interface to serial0_ functions
-#include "dsc.h"
-
-// ---------------------------------------------------------------------------
-// DSC and Process Definition
-// ---------------------------------------------------------------------------
-
-PROCESS(error_logger_process, "Error Logger", 0);
-
-DSC(error_logger_dsc,
-    "Default Error Logger",
-    "logger.prg",
-    error_logger_process); // Note: 4-argument version from dsc.h
-
 
 // ---------------------------------------------------------------------------
 // Helper: Print a PROGMEM string (F-macro style) using serial0_write8
@@ -54,6 +41,8 @@ static void print(const char *s)
 // ---------------------------------------------------------------------------
 // Process Implementation
 // ---------------------------------------------------------------------------
+
+PROCESS(error_logger_process, "Error Logger", 0);
 
 PROCESS_THREAD(error_logger_process, ev, data)
 {

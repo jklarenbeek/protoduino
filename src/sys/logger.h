@@ -3,8 +3,9 @@
 #ifndef LOGGER_H_
 #define LOGGER_H_
 
-#include "sys/dsc.h"
+#include "process.h"
 
-DSC_HEADER(error_logger_dsc);
+
+PROCESS_NAME(error_logger_process);
 
 #endif /* LOGGER_H_ */
