@@ -4,7 +4,7 @@
  * by the PT_WAIT_ONE() macro. Then the next protothread
  * will run until that thread hits a PT_WAIT_ONE(), etc, etc
  * When all three protothread have run one cylce, the
- * arduino runs the void loop() fu®nction again and runs 
+ * arduino runs the void loop() fu®nction again and runs
  * each protothread until it hits PT_WAIT_ONE(). Since each
  * protothread contains a while(1)/forever loop, this will
  * go on forever.
@@ -34,7 +34,7 @@ static ptstate_t protothread1(struct pt *pt)
   forever: while(1)
   {
     print_count++;
-    print_line("Protothread 1 running");
+    print_line(F("Protothread 1 running"));
 
     PT_WAIT_ONE(pt);
   }
@@ -55,16 +55,16 @@ static ptstate_t protothread2(struct pt *pt)
   forever: while(1) // and here too
   {
     print_count++;
-    print_line("Protothread 2 running");
+    print_line(F("Protothread 2 running"));
 
     PT_WAIT_ONE(pt);
 
     print_count++;
-    print_line("Protothread 2 continue 1");
+    print_line(F("Protothread 2 continue 1"));
 
     PT_WAIT_ONE(pt);
   }
-  
+
   PT_END(pt);
 }
 
@@ -76,21 +76,21 @@ static ptstate_t protothread3(struct pt *pt)
 {
   PT_BEGIN(pt);
 
-  forever: while(1) 
+  forever: while(1)
   {
 
     print_count++;
-    print_line("Protothread 3 running");
+    print_line(F("Protothread 3 running"));
 
     PT_WAIT_ONE(pt);
 
     print_count++;
-    print_line("Protothread 3 continue 1");
+    print_line(F("Protothread 3 continue 1"));
 
     PT_WAIT_ONE(pt);
 
     print_count++;
-    print_line("Protothread 3 continue 2");
+    print_line(F("Protothread 3 continue 2"));
 
     PT_WAIT_ONE(pt);
 
@@ -111,7 +111,7 @@ static struct pt pt1, pt2, pt3;
 void setup()
 {
   print_setup();
-  
+
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&pt1);
   PT_INIT(&pt2);
@@ -121,11 +121,11 @@ void setup()
 
 void loop()
 {
-  print_line("void loop()");
+  print_line(F("void loop()"));
 
-  print_state(protothread1(&pt1), "void loop():protothread1");
-  print_state(protothread2(&pt2), "void loop():protothread2");
-  print_state(protothread3(&pt3), "void loop():protothread3");
-  
+  print_state(protothread1(&pt1), F("void loop():protothread1"));
+  print_state(protothread2(&pt2), F("void loop():protothread2"));
+  print_state(protothread3(&pt3), F("void loop():protothread3"));
+
   delay(2000);
 }

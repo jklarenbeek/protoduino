@@ -41,8 +41,11 @@ static void print(const char *s)
 // ---------------------------------------------------------------------------
 // Process Implementation
 // ---------------------------------------------------------------------------
+static void init_logger(void) {
+      serial0_open(9600);
+}
 
-PROCESS(error_logger_process, "Error Logger", 0);
+PROCESS(error_logger_process /*, &init_logger */, "Error Logger", 0);
 
 PROCESS_THREAD(error_logger_process, ev, data)
 {

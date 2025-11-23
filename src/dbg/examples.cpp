@@ -16,8 +16,8 @@ void print_setup()
 #endif
 
   SerialLine.println();
-  SerialLine.println("Done setup, waiting 1 sec.");
-  
+  SerialLine.println(F("Done setup, waiting 1 sec."));
+
 #ifdef USE_ARDUINO_HARDWARESERIAL
   delay(1000);
 #endif
@@ -35,32 +35,32 @@ void print_state_ex(const ptstate_t s, const lc_t lc)
   SerialLine.print(print_count);
   if (lc != 0)
   {
-    SerialLine.print(":");
+    SerialLine.print(F(":"));
     SerialLine.print(lc);
   }
 
   if (s == PT_WAITING)
-    SerialLine.print(" - PT_WAITING");
+    SerialLine.print(F(" - PT_WAITING"));
   if (s == PT_YIELDED)
-    SerialLine.print(" - PT_YIELDED");
+    SerialLine.print(F(" - PT_YIELDED"));
   if (s == PT_EXITED)
-    SerialLine.print(" - PT_EXITED");
+    SerialLine.print(F(" - PT_EXITED"));
   if (s == PT_ENDED)
-    SerialLine.print(" - PT_ENDED");
+    SerialLine.print(F(" - PT_ENDED"));
   if (s == PT_FINALIZED)
-    SerialLine.print(" - PT_FINALIZED");
+    SerialLine.print(F(" - PT_FINALIZED"));
   else if (s >= PT_ERROR)
   {
-    SerialLine.print(" - PT_ERROR (");
+    SerialLine.print(F(" - PT_ERROR ("));
     SerialLine.print(s);
-    SerialLine.print(")");
+    SerialLine.print(F(")"));
   }
 }
 
 void print_state(const ptstate_t s, const char * msg)
 {
   print_state_ex(s, 0);
-  SerialLine.print(" ");
+  SerialLine.print(F(" "));
   SerialLine.println(msg);
 }
 
@@ -72,7 +72,7 @@ void print_state(const ptstate_t s, const char * msg, const uint8_t value)
 void print_state(const ptstate_t s, const lc_t lc, const char * msg)
 {
   print_state_ex(s, lc);
-  SerialLine.print(" ");
+  SerialLine.print(F(" "));
   SerialLine.print(msg);
   SerialLine.println();
 }
@@ -80,26 +80,26 @@ void print_state(const ptstate_t s, const lc_t lc, const char * msg)
 void print_state(const ptstate_t s, const lc_t lc, const char * msg, const uint8_t value)
 {
   print_state_ex(s, lc);
-  SerialLine.print(" ");
+  SerialLine.print(F(" "));
   SerialLine.print(msg);
-  SerialLine.print(":");
+  SerialLine.print(F(":"));
   SerialLine.println(value);
 }
 
 static void print_error_ex(const char * str, uint8_t err)
 {
   SerialLine.print(print_count);
-  SerialLine.print(" - ");
+  SerialLine.print(F(" - "));
   SerialLine.print(str);
-  SerialLine.print(" (");
+  SerialLine.print(F(" ("));
   SerialLine.print(err);
-  SerialLine.print(")");
+  SerialLine.print(F(")"));
 }
 
 void print_error(const char * str, uint8_t err)
 {
   print_error_ex(str, err);
-  SerialLine.println("");
+  SerialLine.println(F(""));
 }
 
 static void print_line_ex(const lc_t lc, const char *str)
@@ -107,10 +107,10 @@ static void print_line_ex(const lc_t lc, const char *str)
   SerialLine.print(print_count);
   if (lc != 0)
   {
-    SerialLine.print(":");
+    SerialLine.print(F(":"));
     SerialLine.print(lc);
   }
-  SerialLine.print(" - ");
+  SerialLine.print(F(" - "));
   SerialLine.print(str);
 }
 
@@ -128,7 +128,7 @@ void print_line(const char * str)
 void print_line(const lc_t lc, const char *str, uint8_t value)
 {
   print_line_ex(lc, str);
-  SerialLine.print(":");
+  SerialLine.print(F(":"));
   SerialLine.println(value);
 }
 
