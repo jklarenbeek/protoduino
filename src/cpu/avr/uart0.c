@@ -1,3 +1,5 @@
+// file: ./src/cpu/avr/uart0.c
+
 #include "uart.h"
 
 #if defined(HAVE_HW_UART0)
@@ -9,7 +11,7 @@
 
 #if defined(UBRR0H)
 
-// USART baud rate register high 
+// USART baud rate register high
 #define __UBRRH__ UBRR0H
 // USART baud rate register low
 #define __UBRRL__ UBRR0L
@@ -74,8 +76,8 @@
 // disable parity mode -- UPM00 = 0 and UPM01 = 0
 #define __UPM0__ UPM00
 #define __UPM1__ UPM01
-// Set USBS = 1 to configure to 2 stop bits per DMX standard.  The USART receiver ignores this 
-// setting anyway, and will only set a frame error flag if the first stop bit is 0.  
+// Set USBS = 1 to configure to 2 stop bits per DMX standard.  The USART receiver ignores this
+// setting anyway, and will only set a frame error flag if the first stop bit is 0.
 #define __USBS__ USBS0
 // Finish configuring for 8 data bits by setting UCSZ00 and UCSZ01 to 1
 #define __UCSZ0__ UCSZ00

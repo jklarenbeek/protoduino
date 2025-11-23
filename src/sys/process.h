@@ -129,7 +129,7 @@ struct process {
   struct pt pt;                  /* Protothread internal state */
 
 #if !PROCESS_CONF_NO_PROCESS_NAMES
-  const char PROGMEM *name;      /* Process name stored in flash */
+  const char CC_PROGMEM *name;      /* Process name stored in flash */
 #endif
 
   process_prio_t prio;           /* Scheduling priority (0 = highest) */
@@ -238,7 +238,7 @@ CC_EXTERN int process_pipe_send(struct process *src, process_data_t data);  /* C
  */
 #if !PROCESS_CONF_NO_PROCESS_NAMES
 #define PROCESS(name, strname, prio) \
-  static const char process_name_##name[] PROGMEM = strname; \
+  static const char process_name_##name[] CC_PROGMEM = strname; \
   PROCESS_THREAD(name, ev, data); \
   struct process name = { \
     NULL, \

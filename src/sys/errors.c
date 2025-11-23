@@ -4,92 +4,87 @@
 #include "errors.h"
 
 /* -------------------------------------------------------------------------
- * String table stored in PROGMEM to avoid wasting RAM.
+ * String table stored in CC_PROGMEM to avoid wasting RAM.
  * ------------------------------------------------------------------------- */
 
-// TODO: PROGMEM macro
-// this is not usable for a cross device setup;
-// PROGMEM is not always relevant for the platform.
-// therefore a macro must be made that decides wether or
-// not PROGMEM is included.
-static const char unknown_error[] PROGMEM = "Unknown Error";
+static const char unknown_error[] CC_PROGMEM = "Unknown Error";
 
 /* PT errors (4–31) */
-static const char str_pt_general[]           PROGMEM = "PT: General Error";
-static const char str_pt_timeout[]           PROGMEM = "PT: Timeout";
-static const char str_pt_invalid_state[]     PROGMEM = "PT: Invalid State";
-static const char str_pt_illegal_op[]        PROGMEM = "PT: Illegal Operation";
-static const char str_pt_stack_corrupt[]     PROGMEM = "PT: Stack Corruption";
-static const char str_pt_child_failed[]      PROGMEM = "PT: Child Thread Failed";
-static const char str_pt_uncaught[]          PROGMEM = "PT: Uncaught Error";
-static const char str_pt_assert_failed[]     PROGMEM = "PT: Assertion Failed";
-static const char str_pt_restart_loop[]      PROGMEM = "PT: Infinite Restart Loop";
+static const char str_pt_general[]           CC_PROGMEM = "PT: General Error";
+static const char str_pt_timeout[]           CC_PROGMEM = "PT: Timeout";
+static const char str_pt_invalid_state[]     CC_PROGMEM = "PT: Invalid State";
+static const char str_pt_illegal_op[]        CC_PROGMEM = "PT: Illegal Operation";
+static const char str_pt_stack_corrupt[]     CC_PROGMEM = "PT: Stack Corruption";
+static const char str_pt_child_failed[]      CC_PROGMEM = "PT: Child Thread Failed";
+static const char str_pt_uncaught[]          CC_PROGMEM = "PT: Uncaught Error";
+static const char str_pt_assert_failed[]     CC_PROGMEM = "PT: Assertion Failed";
+static const char str_pt_restart_loop[]      CC_PROGMEM = "PT: Infinite Restart Loop";
 
 /* System errors (32–63) */
-static const char str_sys_general[]          PROGMEM = "System: General Error";
-static const char str_sys_init_failed[]      PROGMEM = "System: Init Failed";
-static const char str_sys_no_memory[]        PROGMEM = "System: No Memory";
-static const char str_sys_invalid_handle[]   PROGMEM = "System: Invalid Handle";
-static const char str_sys_bad_argument[]     PROGMEM = "System: Bad Argument";
-static const char str_sys_unsupported[]      PROGMEM = "System: Not Supported";
-static const char str_sys_overflow[]         PROGMEM = "System: Overflow";
-static const char str_sys_timeout[]          PROGMEM = "System: Timeout";
-static const char str_sys_denied[]           PROGMEM = "System: Access Denied";
-static const char str_sys_not_ready[]        PROGMEM = "System: Not Ready";
+static const char str_sys_general[]          CC_PROGMEM = "System: General Error";
+static const char str_sys_init_failed[]      CC_PROGMEM = "System: Init Failed";
+static const char str_sys_no_memory[]        CC_PROGMEM = "System: No Memory";
+static const char str_sys_invalid_handle[]   CC_PROGMEM = "System: Invalid Handle";
+static const char str_sys_bad_argument[]     CC_PROGMEM = "System: Bad Argument";
+static const char str_sys_unsupported[]      CC_PROGMEM = "System: Not Supported";
+static const char str_sys_overflow[]         CC_PROGMEM = "System: Overflow";
+static const char str_sys_timeout[]          CC_PROGMEM = "System: Timeout";
+static const char str_sys_denied[]           CC_PROGMEM = "System: Access Denied";
+static const char str_sys_not_ready[]        CC_PROGMEM = "System: Not Ready";
 
 /* I/O errors (64–95) */
-static const char str_io_general[]           PROGMEM = "I/O: General Error";
-static const char str_io_frame_error[]       PROGMEM = "I/O: Frame Error";
-static const char str_io_parity_error[]      PROGMEM = "I/O: Parity Error";
-static const char str_io_bad_length[]        PROGMEM = "I/O: Bad Length";
-static const char str_io_corrupt_data[]      PROGMEM = "I/O: Corrupt Data";
-static const char str_io_timeout[]           PROGMEM = "I/O: Timeout";
-static const char str_io_not_ready[]         PROGMEM = "I/O: Not Ready";
-static const char str_io_disconnected[]      PROGMEM = "I/O: Disconnected";
+static const char str_io_general[]           CC_PROGMEM = "I/O: General Error";
+static const char str_io_frame_error[]       CC_PROGMEM = "I/O: Frame Error";
+static const char str_io_parity_error[]      CC_PROGMEM = "I/O: Parity Error";
+static const char str_io_bad_length[]        CC_PROGMEM = "I/O: Bad Length";
+static const char str_io_corrupt_data[]      CC_PROGMEM = "I/O: Corrupt Data";
+static const char str_io_timeout[]           CC_PROGMEM = "I/O: Timeout";
+static const char str_io_not_ready[]         CC_PROGMEM = "I/O: Not Ready";
+static const char str_io_disconnected[]      CC_PROGMEM = "I/O: Disconnected";
 
 /* Data errors (96–127) */
-static const char str_data_general[]         PROGMEM = "Data: General Error";
-static const char str_data_overflow[]        PROGMEM = "Data: Overflow";
-static const char str_data_underflow[]       PROGMEM = "Data: Underflow";
-static const char str_data_invalid_format[]  PROGMEM = "Data: Invalid Format";
-static const char str_data_checksum[]        PROGMEM = "Data: Bad Checksum";
-static const char str_data_range[]           PROGMEM = "Data: Out of Range";
+static const char str_data_general[]         CC_PROGMEM = "Data: General Error";
+static const char str_data_overflow[]        CC_PROGMEM = "Data: Overflow";
+static const char str_data_underflow[]       CC_PROGMEM = "Data: Underflow";
+static const char str_data_invalid_format[]  CC_PROGMEM = "Data: Invalid Format";
+static const char str_data_checksum[]        CC_PROGMEM = "Data: Bad Checksum";
+static const char str_data_range[]           CC_PROGMEM = "Data: Out of Range";
 
 /* Resource errors (128–159) */
-static const char str_res_general[]          PROGMEM = "Resource: General Error";
-static const char str_res_no_slot[]          PROGMEM = "Resource: No Slot Available";
-static const char str_res_locked[]           PROGMEM = "Resource: Locked";
-static const char str_res_busy[]             PROGMEM = "Resource: Busy";
-static const char str_res_not_found[]        PROGMEM = "Resource: Not Found";
-static const char str_res_exists[]           PROGMEM = "Resource: Already Exists";
-static const char str_res_invalid_state[]    PROGMEM = "Resource: Invalid State";
+static const char str_res_general[]          CC_PROGMEM = "Resource: General Error";
+static const char str_res_no_slot[]          CC_PROGMEM = "Resource: No Slot Available";
+static const char str_res_locked[]           CC_PROGMEM = "Resource: Locked";
+static const char str_res_busy[]             CC_PROGMEM = "Resource: Busy";
+static const char str_res_not_found[]        CC_PROGMEM = "Resource: Not Found";
+static const char str_res_exists[]           CC_PROGMEM = "Resource: Already Exists";
+static const char str_res_invalid_state[]    CC_PROGMEM = "Resource: Invalid State";
 
 /* IPC & Protocol errors (160–191) */
-static const char str_proto_general[]        PROGMEM = "IPC: General Error";
-static const char str_proto_bad_message[]    PROGMEM = "IPC: Bad Message";
-static const char str_proto_bad_header[]     PROGMEM = "IPC: Bad Header";
-static const char str_proto_unsupported[]    PROGMEM = "IPC: Unsupported";
-static const char str_proto_cycle[]          PROGMEM = "IPC: Pipe Cycle Detected";
-static const char str_proto_broken[]         PROGMEM = "IPC: Pipe Broken";
-static const char str_proto_overflow[]       PROGMEM = "IPC: Pipe Overflow";
-static const char str_proto_no_rcpt[]        PROGMEM = "IPC: No Recipient";
-static const char str_proto_queue_full[]     PROGMEM = "IPC: Queue Full";
-static const char str_proto_corrupt[]        PROGMEM = "IPC: Corrupt Data";
+static const char str_proto_general[]        CC_PROGMEM = "IPC: General Error";
+static const char str_proto_bad_message[]    CC_PROGMEM = "IPC: Bad Message";
+static const char str_proto_bad_header[]     CC_PROGMEM = "IPC: Bad Header";
+static const char str_proto_unsupported[]    CC_PROGMEM = "IPC: Unsupported";
+static const char str_proto_cycle[]          CC_PROGMEM = "IPC: Pipe Cycle Detected";
+static const char str_proto_broken[]         CC_PROGMEM = "IPC: Pipe Broken";
+static const char str_proto_overflow[]       CC_PROGMEM = "IPC: Pipe Overflow";
+static const char str_proto_no_rcpt[]        CC_PROGMEM = "IPC: No Recipient";
+static const char str_proto_queue_full[]     CC_PROGMEM = "IPC: Queue Full";
+static const char str_proto_corrupt[]        CC_PROGMEM = "IPC: Corrupt Data";
 
 /* Module / Loader errors (192–223) */
-static const char str_mod_general[]          PROGMEM = "Module: General Error";
-static const char str_mod_load_failed[]      PROGMEM = "Module: Load Failed";
-static const char str_mod_unload_failed[]    PROGMEM = "Module: Unload Failed";
-static const char str_mod_bad_id[]           PROGMEM = "Module: Invalid ID";
-static const char str_mod_restricted[]       PROGMEM = "Module: Restricted";
+static const char str_mod_general[]          CC_PROGMEM = "Module: General Error";
+static const char str_mod_load_failed[]      CC_PROGMEM = "Module: Load Failed";
+static const char str_mod_unload_failed[]    CC_PROGMEM = "Module: Unload Failed";
+static const char str_mod_bad_id[]           CC_PROGMEM = "Module: Invalid ID";
+static const char str_mod_restricted[]       CC_PROGMEM = "Module: Restricted";
 
 /* Application errors (224–254) */
-static const char str_app_general[]          PROGMEM = "App: General Error";
-static const char str_app_invalid[]          PROGMEM = "App: Invalid Input";
-static const char str_app_failed[]           PROGMEM = "App: Operation Failed";
-static const char str_app_not_impl[]         PROGMEM = "App: Not Implemented";
-static const char str_app_out_range[]        PROGMEM = "App: Out of Range";
-static const char str_app_assert_failed[]    PROGMEM = "App: Assertion Failed";
+static const char str_app_general[]          CC_PROGMEM = "App: General Error";
+static const char str_app_invalid[]          CC_PROGMEM = "App: Invalid Input";
+static const char str_app_failed[]           CC_PROGMEM = "App: Operation Failed";
+static const char str_app_not_impl[]         CC_PROGMEM = "App: Not Implemented";
+static const char str_app_out_range[]        CC_PROGMEM = "App: Out of Range";
+static const char str_app_assert_failed[]    CC_PROGMEM = "App: Assertion Failed";
 
 
 

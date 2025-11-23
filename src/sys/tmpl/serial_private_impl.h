@@ -6,7 +6,7 @@
 
 #include "../../lib/ringb8.h"
 
-#include <util/atomic.h>
+#include <util/atomic.h> // <-- important!!
 
 RINGB8(CC_TMPL_VAR(rx), SERIAL_RX_BUFFER_SIZE);
 RINGB8(CC_TMPL_VAR(tx), SERIAL_TX_BUFFER_SIZE);

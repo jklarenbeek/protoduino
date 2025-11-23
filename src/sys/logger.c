@@ -7,7 +7,7 @@
 #include "serial.h" // C interface to serial0_ functions
 
 // ---------------------------------------------------------------------------
-// Helper: Print a PROGMEM string (F-macro style) using serial0_write8
+// Helper: Print a CC_PROGMEM string (F-macro style) using serial0_write8
 // ---------------------------------------------------------------------------
 static void print_P(const char *s)
 {
@@ -101,7 +101,7 @@ PROCESS_THREAD(error_logger_process, ev, data)
             const char *msg = error_to_string(info->code);
             if (msg)
             {
-                print_P((const char *)msg); // error_to_string returns PROGMEM pointer
+                print_P((const char *)msg); // error_to_string returns CC_PROGMEM pointer
             }
             else
             {

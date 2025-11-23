@@ -1,3 +1,5 @@
+// file: ./src/cpu/avr/uart.h
+
 #ifndef __UART_H__
 #define __UART_H__
 
@@ -21,7 +23,7 @@
 #define UART_BAUD_19200 19200
 #define UART_BAUD_38400 38400
 #define UART_BAUD_57600 57600
-#define UART_BAUD_115200 115200 
+#define UART_BAUD_115200 115200
 
 // send flowcontrol xoff message to sender (force sender to wait)
 #define UART_FLOWCONTROL_XOFF 0x13

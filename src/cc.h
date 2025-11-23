@@ -71,6 +71,8 @@
  */
 #define CC_WEAKFN(f) f __attribute__((weak))
 
+#define CC_PROGMEM PROGMEM
+
 /**
  * @def CC_CONCAT2EXT(s1, s2)
  * @brief Macro to concatenate two strings or identifiers
@@ -131,7 +133,7 @@
  * @param type The data type of the array elements
  * @param varname The name of the variable representing the array
  */
-#define CC_CONST_PTYPE_ARRAY(type, varname) const type varname[] PROGMEM
+#define CC_CONST_PTYPE_ARRAY(type, varname) const type varname[] CC_PROGMEM
 
 /**
  * @def CC_EXPORT_CONST_PTYPE_ARRAY(type, varname)
@@ -148,7 +150,7 @@
  * @param value The value of the string
  */
 #define CC_CONST_PSTR(varname, value) CC_CONST_PTYPE_ARRAY(char, varname) = value;
-//#define CC_CONST_PSTR(var, val) const char var[] PROGMEM = val
+//#define CC_CONST_PSTR(var, val) const char var[] CC_PROGMEM = val
 
 /**
  * @def CC_EXPORT_CONST_PSTR(varname)
@@ -164,7 +166,7 @@
  * @param varname The name of the variable representing the array
  */
 #define CC_CONST_PSTRUCT_ARR(type, varname) CC_CONST_PTYPE_ARRAY(struct type, varname)
-//#define CC_CONST_PSTRUCT_ARR(type, varname) const struct type varname[] PROGMEM
+//#define CC_CONST_PSTRUCT_ARR(type, varname) const struct type varname[] CC_PROGMEM
 
 /**
  * @def CC_NELEM(x)

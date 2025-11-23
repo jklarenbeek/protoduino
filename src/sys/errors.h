@@ -156,7 +156,7 @@ extern "C" {
 
 /**
  * Lookup human-readable error text.
- * Returns a pointer to a PROGMEM string.
+ * Returns a pointer to a CC_PROGMEM string.
  *
  * If the code is unknown:
  *   returns PSTR("Unknown Error")

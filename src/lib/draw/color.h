@@ -71,7 +71,7 @@ static void hsv2rgb(struct rgb * left, struct hsv * right, int16_t bighue) {
 // from: https://learn.adafruit.com/sipping-power-with-neopixels/demo-code
 
 // This bizarre construct isn't Arduino code in the conventional sense.
-// It exploits features of GCC's preprocessor to generate a PROGMEM
+// It exploits features of GCC's preprocessor to generate a CC_PROGMEM
 // table (in flash memory) holding an 8-bit unsigned sine wave (0-255).
 const int _SBASE_ = __COUNTER__ + 1; // Index of 1st __COUNTER__ ref below
 #define _S1_ (sin((__COUNTER__ - _SBASE_) / 128.0 * M_PI) + 1.0) * 127.5 + 0.5,

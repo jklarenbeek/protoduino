@@ -75,7 +75,7 @@ int utf8_puts(Stream *st, const rune16_t * rune);
 /**
  * @brief Writes a null-terminated string of Unicode runes stored in program memory as UTF-8 characters to the stream.
  *
- * This function encodes and writes a null-terminated string of Unicode runes stored in program memory (PROGMEM) as UTF-8
+ * This function encodes and writes a null-terminated string of Unicode runes stored in program memory (CC_PROGMEM) as UTF-8
  * characters to the provided stream. It iterates over each rune in the string, retrieving it from program memory using
  * `pgm_read_word` function, and then encoding and writing it using the utf8_putr function. If there is not enough space
  * in the stream to write a rune, the function stops and returns the number of runes successfully written.

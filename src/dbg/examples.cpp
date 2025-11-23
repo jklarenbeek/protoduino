@@ -1,3 +1,5 @@
+// file: ./src/dbg/examples.cpp
+
 #include "examples.h"
 
 int print_count = 0;
