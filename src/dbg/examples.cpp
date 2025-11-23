@@ -88,6 +88,26 @@ void print_state(const ptstate_t s, const lc_t lc, const char * msg, const uint8
   SerialLine.println(value);
 }
 
+void print_state(const ptstate_t s, const __FlashStringHelper *msg)
+{
+  print_state(s, (const char *)msg);
+}
+
+void print_state(const ptstate_t s, const __FlashStringHelper *msg, const uint8_t value)
+{
+  print_state(s, 0, (const char *)msg, value);
+}
+
+void print_state(const ptstate_t s, const lc_t lc, const __FlashStringHelper *msg)
+{
+  print_state(s, lc, (const char *)msg);
+}
+
+void print_state(const ptstate_t s, const lc_t lc, const __FlashStringHelper *msg, const uint8_t value)
+{
+  print_state(s, lc, (const char *)msg, value);
+}
+
 static void print_error_ex(const char * str, uint8_t err)
 {
   SerialLine.print(print_count);
@@ -137,4 +157,24 @@ void print_line(const lc_t lc, const char *str, uint8_t value)
 void print_line(const char *str, uint8_t value)
 {
   print_line(0, str, value);
+}
+
+void print_line(const __FlashStringHelper *str)
+{
+  print_line(0, (const char *)str);
+}
+
+void print_line(const lc_t lc, const __FlashStringHelper *str)
+{
+  print_line(lc, (const char *)str);
+}
+
+void print_line(const __FlashStringHelper *str, uint8_t value)
+{
+  print_line(0, (const char *)str, value);
+}
+
+void print_line(const lc_t lc, const __FlashStringHelper *str, uint8_t value)
+{
+  print_line(lc, (const char *)str, value);
 }

@@ -1,3 +1,4 @@
+// file: ./src/lib/ringb8.c
 #include "ringb8.h"
 
 void ringb8_init(struct ringb8_t *self, uint_fast8_t *buffer, uint_fast16_t size)
