@@ -123,9 +123,9 @@ void loop()
 {
   print_line(F("void loop()"));
 
-  print_state(protothread1(&pt1), F("void loop():protothread1"));
-  print_state(protothread2(&pt2), F("void loop():protothread2"));
-  print_state(protothread3(&pt3), F("void loop():protothread3"));
+  print_state(F("protothread1"), protothread1(&pt1));
+  print_state(F("protothread2"), protothread2(&pt2));
+  print_state(F("protothread3"), protothread3(&pt3));
 
   delay(2000);
 }

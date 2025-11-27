@@ -14,26 +14,27 @@ void print_setup();
 void print_info(const char *msg);
 
 void print_state_ex(const ptstate_t s, const lc_t lc);
-void print_state(const ptstate_t s, const char *msg);
-void print_state(const ptstate_t s, const char * msg, const uint8_t value);
-void print_state(const ptstate_t s, const lc_t lc, const char * msg);
-void print_state(const ptstate_t s, const lc_t lc, const char *msg, const uint8_t value);
+void print_state(const char *msg, const ptstate_t s);
+void print_state(const char *msg, const ptstate_t s, const lc_t lc);
+void print_state(const char *msg, const ptstate_t s, const uint8_t value);
+void print_state(const char *msg, const ptstate_t s, const lc_t lc, const uint8_t value);
 
-void print_state(const ptstate_t s, const __FlashStringHelper *msg);
-void print_state(const ptstate_t s, const __FlashStringHelper *msg, const uint8_t value);
-void print_state(const ptstate_t s, const lc_t lc, const __FlashStringHelper *msg);
-void print_state(const ptstate_t s, const lc_t lc, const __FlashStringHelper *msg, const uint8_t value);
+void print_state(const __FlashStringHelper *msg, const ptstate_t s);
+void print_state(const __FlashStringHelper *msg, const ptstate_t s, const lc_t lc);
+void print_state(const __FlashStringHelper *msg, const ptstate_t s, const uint8_t value);
+void print_state(const __FlashStringHelper *msg, const ptstate_t s, const lc_t lc, const uint8_t value);
 
-void print_error(const char * str, uint8_t err);
+void print_line(const char *msg);
+void print_line(const char *msg, const lc_t lc);
+void print_line(const char *msg, uint8_t value);
+void print_line(const char *msg, const lc_t lc, uint8_t value);
 
-void print_line(const lc_t lc, const char *str);
-void print_line(const char *str);
-void print_line(const lc_t lc, const char *str, uint8_t value);
-void print_line(const char *str, uint8_t value);
+void print_line(const __FlashStringHelper *msg);
+void print_line(const __FlashStringHelper *msg, const lc_t lc);
+void print_line(const __FlashStringHelper *msg, uint8_t value);
+void print_line(const __FlashStringHelper *msg, const lc_t lc, uint8_t value);
 
-void print_line(const __FlashStringHelper *str);
-void print_line(const lc_t lc, const __FlashStringHelper *str);
-void print_line(const __FlashStringHelper *str, uint8_t value);
-void print_line(const lc_t lc, const __FlashStringHelper *str, uint8_t value);
+void print_error(const char *msg, uint8_t err);
+void print_error(const __FlashStringHelper *msg, uint8_t err);
 
 #endif

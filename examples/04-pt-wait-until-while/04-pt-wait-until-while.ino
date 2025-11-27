@@ -1,5 +1,5 @@
 /**
- * This example demonstrates the use of the PT_WAIT_UNTIL() and 
+ * This example demonstrates the use of the PT_WAIT_UNTIL() and
  * PT_WAIT_WHILE() macros.
  * Since each protothread contains a forever loop, this example
  * runs forever.
@@ -17,7 +17,7 @@
  * the code.
  */
 static ptstate_t protothread1(struct pt *pt)
-{  
+{
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(pt);
@@ -51,7 +51,7 @@ static ptstate_t protothread2(struct pt *pt)
 
     PT_WAIT_UNTIL(pt, ((print_count % 2) == 0));
   }
-  
+
   PT_END(pt);
 }
 
@@ -68,7 +68,7 @@ static ptstate_t protothread3(struct pt *pt)
     print_count++;
     print_line("Protothread 3 running; wait while (count % 3) != 0");
 
-    PT_WAIT_WHILE(pt, ((print_count % 3) != 0));    
+    PT_WAIT_WHILE(pt, ((print_count % 3) != 0));
   }
 
   PT_END(pt);
@@ -97,9 +97,9 @@ void loop()
 {
   print_line("void loop()");
 
-  print_state(protothread1(&pt1), "void loop():protothread1");
-  print_state(protothread2(&pt2), "void loop():protothread2");
-  print_state(protothread3(&pt3), "void loop():protothread3");
-  
+  print_state(F("protothread1"), protothread1(&pt1));
+  print_state(F("protothread2"), protothread2(&pt2));
+  print_state(F("protothread3"), protothread3(&pt3));
+
   delay(2000);
 }

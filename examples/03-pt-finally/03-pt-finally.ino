@@ -1,5 +1,5 @@
 /***
- * 
+ *
 */
 
 #include <protoduino.h>
@@ -35,7 +35,7 @@ static ptstate_t protothread1(struct pt *self)
   }
 
   PT_FINALLY(self)
-  
+
   print_line("PT_FINALLY() protothread1");
 
   PT_END(self);
@@ -58,20 +58,21 @@ void test1_run()
   PT_INIT(&pt1);
   while(PT_ISRUNNING(state = protothread1(&pt1)))
   {
-    print_state(state, "void test1_run()");
+    print_state(F("while PT_ISRUNNING(...) == TRUE"), state);
     delay(1000);
   }
-  print_state(state, "void test1_run()");
+  print_state(F("PT_ISRUNNING() == FALSE"), state);
   delay(1000);
 
   // set the protothread control structure to the finally control block
   PT_FINAL(&pt1);
   while(PT_ISRUNNING(state = protothread1(&pt1)))
   {
-    print_state(state, "void test1_run()");
-    delay(1000);  
+    print_state(F("while finally PT_ISRUNNING(...) == TRUE"), state);
+    delay(1000);
   }
-  print_state(state, "void test1_run()");
+
+  print_state(F("PT_RUNNING is finally done!"), state);
   delay(1000);
 
 }
@@ -81,5 +82,5 @@ void loop()
   test1_run();
   print_count++;
 
-  delay(2000);
+  delay(1000);
 }

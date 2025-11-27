@@ -33,6 +33,8 @@
  *
  * $Id: lc-switch.h,v 1.4 2006/06/03 11:29:43 adam Exp $
  * $Id: lc-switch.h,v 1.5 2022/11/04 14:55:17 joham Exp $
+ * $Id: lc-switch.h,v 2.0 2023/20/06 03:43:01 joham Exp $
+
  */
 
 /**
@@ -52,7 +54,7 @@
  *
  * @note This implementation borrows heavily from Simon Tatham's coroutines implementation in C.
  * http://www.chiark.greenend.org.uk/~sgtatham/coroutines.html
- * 
+ *
  * @warning lc implementation using switch() does not work if an LC_SET() is done within another switch() statement!
  */
 

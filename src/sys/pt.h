@@ -64,12 +64,12 @@ struct pt {
 
 typedef enum
 {
-  PT_WAITING   = 0,
-  PT_YIELDED   = 1,
-  PT_EXITED    = 2,
-  PT_ENDED     = 3,
+  PT_WAITING   = 0, // its doing something
+  PT_YIELDED   = 1, // as the caller we expect a value
+  PT_EXITED    = 2, // exited, but needs to be finalized
+  PT_ENDED     = 3, // ended, but needs to be finalized
   PT_ERROR     = 4, // any value >= 4 is an error
-  PT_FINALIZED = 255
+  PT_FINALIZED = 255 // this is the end, the thread will never start again
 } ptstate_t;
 
 /**
@@ -96,7 +96,7 @@ typedef enum
  *
  * A protothread should NEVER call PT_FINAL(). Setting the protothread
  * to an exit state must be done by the caller when a protothread exits
- * with PT_EXITED, PT_ENDED or any PT_ERROR state.
+ * with PT_EXITED, PT_ENDED or any PT_ERROR states.
  */
 #define PT_FINAL(child) LC_FINAL((child)->lc);
 
@@ -304,7 +304,7 @@ typedef enum
  * Declare the start of an exit handler
  *
  * This macro is trigger when a protothread exits with
- * PT_EXITED, PT_ENDED or PT_ERROR. It must be set by the caller
+ * PT_EXITED, PT_ENDED or any PT_ERROR. It must be set by the caller
  * in order to execute. If not manually started, a protothread
  * will never just flow into a finally block. It does not recover
  * any error code that was raised, catched or throwed.
@@ -409,6 +409,14 @@ typedef enum
  * @{
  */
 
+ /**
+  * Expression to check if the state is an error
+  *
+  * \param state the returned state of a protothread
+  *
+  */
+ #define PT_ISERROR(state) (state >= PT_ERROR && state != PT_FINALIZED)
+
 /**
  * Test if error occured after spawning a thread
  *
@@ -416,11 +424,11 @@ typedef enum
  * test for the error with this macro. Child threads are typically
  * run by PT_WAIT_THREAD, PT_SPAWN or PT_FOREACH.
  *
- * \param pt A pointer to the protothread
+ * \param state the returned state of a protothread
  *
  */
 #define PT_ONERROR(state) \
-    if (state >= PT_ERROR && state != PT_FINALIZED)
+    if (PT_ISERROR(state))
 
 
 /**
@@ -437,7 +445,7 @@ typedef enum
  */
 #define PT_THROW(pt, err) \
   do { \
-    LC_SET((pt)->lc) return (((err) < PT_ERROR || (err) >= PT_FINALIZED) ? PT_ERROR : (err)); \
+    LC_SET((pt)->lc) return (PT_ISERROR(err)?(err):PT_ERROR); \
   } while(0)
 
 /**

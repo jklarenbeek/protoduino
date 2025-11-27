@@ -11,13 +11,13 @@
  * This example illustrates the control flow within a protothread,
  * that contains a PT_CATCHANY clause.
  * Since no error is raised the PT_CATCHANY clause is never called.
- * 
+ *
  */
 
 static ptstate_t protothread1(struct pt * self)
 {
   PT_BEGIN(self);
-  
+
   print_line("PT_BEGIN() protothread1");
 
   PT_WAIT_ONE(self);
@@ -37,7 +37,7 @@ static ptstate_t protothread1(struct pt * self)
 static ptstate_t protothread2(struct pt * self)
 {
   PT_BEGIN(self);
-  
+
   print_line("PT_BEGIN() protothread2");
 
   PT_WAIT_ONE(self);
@@ -147,7 +147,7 @@ static ptstate_t iterator1(struct pt * self)
 
 /***
  * An example how to spawn a protothread and raise an exception if one is thrown by it.
- * 
+ *
 */
 static ptstate_t protothread4(struct pt * self)
 {
@@ -161,7 +161,7 @@ static ptstate_t protothread4(struct pt * self)
   PT_WAIT_THREAD(self, iterator1(&it1));
   PT_ONERROR(PT_ERROR_STATE)
   	PT_RAISE(self, PT_ERROR_STATE);
-  
+
   print_line("PT_ENDED protothread4");
 
   PT_CATCHANY(self)
@@ -176,18 +176,19 @@ static ptstate_t protothread4(struct pt * self)
 }
 
 /***
- * An example how to spawn a protothread and raise an exception if one is thrown by it.
- * 
+ * A shorter example of how to spawn a protothread and raise an exception if one is thrown by it.
+ *
 */
 static ptstate_t protothread5(struct pt * self)
 {
-  static struct pt it1;
-
   PT_BEGIN(self);
 
   print_line("PT_BEGIN() protothread5");
 
-  PT_SPAWN(self, &it1, iterator1(&it1));
+  do {
+    static struct pt it1;
+    PT_SPAWN(self, &it1, iterator1(&it1));
+  } while(0);
 
   print_line("PT_ENDED protothread5");
 
@@ -265,7 +266,7 @@ void loop()
   {
     // comment any of these lines out to omit running the test
     // all tests should run!
-    test_run(&pt1, protothread1); 
+    test_run(&pt1, protothread1);
     test_run(&pt1, protothread2);
     test_run(&pt1, protothread3);
     //test_run(&pt1, iterator1);

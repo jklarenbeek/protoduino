@@ -28,9 +28,9 @@ static ptstate_t protothread1(struct pt *pt)
 
   /* We do NOT loop forever here.
      This will make the protothread end at some point, and it will
-     NOT restart automagically. This is the responsibility of the 
+     NOT restart automagically. This is the responsibility of the
      schedular, and therefor breaks with Adam Dunkels on this point.
-     However, this should in general not pose a problem and only 
+     However, this should in general not pose a problem and only
      minor changes are needed in contiki and/or contiki-ng. */
 
   print_count++;
@@ -102,7 +102,7 @@ static struct pt pt1, pt2, pt3;
 void setup()
 {
   print_setup();
-  
+
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&pt1);
   PT_INIT(&pt2);
@@ -120,9 +120,9 @@ void loop()
 {
   print_line("void loop()");
 
-  print_state(protothread1(&pt1), "void loop():protothread1");
-  print_state(protothread2(&pt2), "void loop():protothread2");
-  print_state(protothread3(&pt3), "void loop():protothread3");
-  
+  print_state(F("protothread1"), protothread1(&pt1));
+  print_state(F("protothread2"), protothread2(&pt2));
+  print_state(F("protothread3"), protothread3(&pt3));
+
   delay(2000);
 }

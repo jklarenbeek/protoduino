@@ -18,7 +18,7 @@ Protothreads v2 is an enhanced version of the protothreads library, designed to 
 
 #### - **Enum-based State**
 
-Protothreads v2 wraps the returned state of a protothread into an enum called `ptstate_t`. Depending on the state of the protothread, it returns `PT_WAITING`, `PT_YIELDED`, `PT_EXITED`, `PT_ENDED`, which are also present in protothreads v1.4. In addition, protothreads v2 extends the state enumeration with `PT_ERROR` and `PT_FINALIZED`. 
+Protothreads v2 wraps the returned state of a protothread into an enum called `ptstate_t`. Depending on the state of the protothread, it returns `PT_WAITING`, `PT_YIELDED`, `PT_EXITED`, `PT_ENDED`, which are also present in protothreads v1.4. In addition, protothreads v2 extends the state enumeration with `PT_ERROR` and `PT_FINALIZED`.
 
 ```cpp
 enum ptstate_t : uint8_t
@@ -74,7 +74,7 @@ void setup()
 
 void loop()
 {
-  print_state(iterator(&it1), "void loop()");
+  print_state("void loop()", iterator(&it1));
   print_count++;
   delay(1000);
 }
@@ -109,7 +109,7 @@ void setup()
 
 void loop()
 {
-    print_state(protothread(&pt1), "< protothread");
+    print_state("< protothread", protothread(&pt1));
     print_count++;
     delay(2000);
 }
@@ -117,7 +117,7 @@ void loop()
 
 #### - **Finalizing Protothreads**
 
-Protothreads v2 introduces the `PT_FINALIZED` protothread state. This new state is member of the `ptstate_t` enum as an integral part of how v2 introduces new behaviour into the FSM of protothreads; when in v1.4 the end of a protothread is reached, using the `PT_END()` macro, a `PT_ENDED` state is returned to the caller. This is not the case with protothreads v2. Protothreads v2 returns at the `PT_END()` of a protothread, a `PT_FINALIZED` state. 
+Protothreads v2 introduces the `PT_FINALIZED` protothread state. This new state is member of the `ptstate_t` enum as an integral part of how v2 introduces new behaviour into the FSM of protothreads; when in v1.4 the end of a protothread is reached, using the `PT_END()` macro, a `PT_ENDED` state is returned to the caller. This is not the case with protothreads v2. Protothreads v2 returns at the `PT_END()` of a protothread, a `PT_FINALIZED` state.
 
 To intercept the control flow and its behaviour of a protothread and return a `PT_ENDED` state, protothreads v2 introduces the `PT_FINALLY()` control block.
 
@@ -153,10 +153,10 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state(state, pt1.lc, "< protothread");
+  print_state("< protothread", state, pt1.lc);
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
-  
+
   PT_FINAL(&pt1);
 }
 ```
@@ -206,10 +206,10 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state(state, pt1.lc, "< protothread");
+  print_state("< protothread", state, pt1.lc);
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
-  
+
   PT_FINAL(&pt1);
 }
 ```
@@ -220,7 +220,7 @@ For a more advanced example, see the `20-pt-basic-term.ino` sketch in the `examp
 
 #### - **Error Handling**
 
-When a spawned protothread using the `PT_SPAWN` or `PT_FOREACH` macros throw an error, the calling parent thread handles the error of the child protothread, using the `PT_ONERROR` macro and raises an exception automatically. The only macro that does not handle an error automatically is the `PT_WAIT_THREAD` macro. With this macro, the errors should be handled manually. The `PT_ONERROR` macro requires the returned state of a protothread to decide whether or not an error occured, which is by design stored in the local variable `PT_ERROR_STATE` and should be used in the majority of cases when using the `PT_ONERROR` macro. The `PT_ERROR_STATE` local variable replaces the local `PT_YIELD_FLAG` variable used in protothreads v1.4 and therefor doesn't add any overhead using error or exception handling. 
+When a spawned protothread using the `PT_SPAWN` or `PT_FOREACH` macros throw an error, the calling parent thread handles the error of the child protothread, using the `PT_ONERROR` macro and raises an exception automatically. The only macro that does not handle an error automatically is the `PT_WAIT_THREAD` macro. With this macro, the errors should be handled manually. The `PT_ONERROR` macro requires the returned state of a protothread to decide whether or not an error occured, which is by design stored in the local variable `PT_ERROR_STATE` and should be used in the majority of cases when using the `PT_ONERROR` macro. The `PT_ERROR_STATE` local variable replaces the local `PT_YIELD_FLAG` variable used in protothreads v1.4 and therefor doesn't add any overhead using error or exception handling.
 
 See the `08-pt-try-catch.ini` example for its usage:
 
@@ -231,7 +231,7 @@ See the `08-pt-try-catch.ini` example for its usage:
 static ptstate_t child(struct pt *self)
 {
   PT_BEGIN(self);
-  
+
   PT_WAIT_ONE(self);
 
   if (random(0, 2))
@@ -250,7 +250,7 @@ static ptstate_t protothread(struct pt *self)
   PT_WAIT_THREAD(self, child(&it1));
   PT_ONERROR(PT_ERROR_STATE)
     PT_RAISE(self, PT_ERROR_STATE);
-  
+
   PT_CATCHANY(self)
   {
     print_line("PT_CATCHANY() protothread");
@@ -277,10 +277,10 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state(state, pt1.lc, "< protothread");
+  print_state("< protothread", state, pt1.lc);
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
-  
+
   PT_FINAL(&pt1);
 }
 ```
@@ -294,7 +294,7 @@ This example shows the propper use of the PT_CATCHANY() and PT_FINALLY() control
 static ptstate_t child(struct pt *self)
 {
   PT_BEGIN(self);
-  
+
   PT_WAIT_ONE(self);
 
   if (random(0, 2))
@@ -310,7 +310,7 @@ static ptstate_t protothread(struct pt *self)
   PT_BEGIN(self);
 
   PT_SPAWN(self, &it1, child(&it1));
-  
+
   PT_CATCHANY(self)
   {
     print_line("PT_CATCHANY() protothread");
@@ -337,10 +337,10 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state(state, pt1.lc, "< protothread");
+  print_state("< protothread", state, pt1.lc);
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
-  
+
   PT_FINAL(&pt1);
 }
 ```
@@ -362,7 +362,7 @@ struct ptyield
 };
 
 static ptstate_t iterator(struct ptyield *self, uint8_t max)
-{  
+{
   PT_BEGIN(self);
 
   forever: while(1) {
@@ -375,7 +375,7 @@ static ptstate_t iterator(struct ptyield *self, uint8_t max)
 
     if (self->value >= max)
       PT_EXIT(self);
-    
+
   }
 
   PT_END(self);
@@ -412,10 +412,10 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state(state, pt1.lc, "< protothread");
+  print_state("< protothread", state, pt1.lc);
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
-  
+
   PT_FINAL(&pt1);
 }
 ```
@@ -439,7 +439,7 @@ static ptstate_t protothread(struct pt *self)
 
     if (random(0, 2))
       PT_WAIT_ONE(self);
-    
+
     if (random(0, 2))
       PT_THROW(self, PT_ERROR);
   }
@@ -452,11 +452,11 @@ static ptstate_t main_driver(struct pt *self)
   static struct pt pt1;
 
   PT_BEGIN(self);
-  
+
   PT_INIT(&pt1);
   while(PT_SCHEDULE(protothread(&pt1)))
   {
-    print_state(PT_ERROR_STATE, "< protothread 1");
+    print_state("< protothread 1", PT_ERROR_STATE);
     delay(1000);
   }
   PT_ONERROR(PT_ERROR_STATE)
@@ -481,7 +481,7 @@ void loop()
   PT_INIT(&pt1);
   while(PT_ISRUNNING(main_driver(&pt1)))
   {
-    print_state(state, pt1.lc, "main_driver ISRUNNING");
+    print_state("main_driver ISRUNNING", state, pt1.lc);
     delay(1000); // arduino delay a second
   }
   print_count++;
