@@ -6,11 +6,15 @@
 #include "errors.h"
 #include "serial.h" // C interface to serial0_ functions
 
+// #include <WString.h>
+
 // ---------------------------------------------------------------------------
 // Helper: Print a CC_PROGMEM string (F-macro style) using serial0_write8
 // ---------------------------------------------------------------------------
 static void print_P(const char *s)
 {
+    if (!s) return;
+
     char c;
     while ((c = pgm_read_byte(s++)) != '\0')
     {
@@ -26,8 +30,8 @@ static void print_P(const char *s)
 // ---------------------------------------------------------------------------
 static void print(const char *s)
 {
-    if (!s)
-        return;
+    if (!s) return;
+
     char c;
     while ((c = *s++) != '\0')
     {
@@ -53,7 +57,7 @@ PROCESS_THREAD(error_logger_process, ev, data)
 
     if (ev == PROCESS_EVENT_INIT)
     {
-        print_P(PSTR("[ErrorLogger] Ready\r\n"));
+        print_P(F("[ErrorLogger] Ready\r\n"));
         serial0_flush();
     }
 
@@ -101,7 +105,7 @@ PROCESS_THREAD(error_logger_process, ev, data)
             const char *msg = error_to_string(info->code);
             if (msg)
             {
-                print_P((const char *)msg); // error_to_string returns CC_PROGMEM pointer
+                print_P(msg); // error_to_string returns CC_PROGMEM pointer
             }
             else
             {

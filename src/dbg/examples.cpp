@@ -123,9 +123,10 @@ void print_error(const char *msg, uint8_t err)
   SerialLine.println(F(""));
 }
 
-void print_line(const __FlashStringHelper *msg, uint8_t err)
+void print_error(const __FlashStringHelper *msg, uint8_t err)
 {
-  print_line((const char *)msg, 0, value);
+  print_error_ex((const char *)msg, err);
+  SerialLine.println(F(""));
 }
 
 static void print_line_ex(const char *msg, const lc_t lc)
@@ -142,7 +143,7 @@ static void print_line_ex(const char *msg, const lc_t lc)
 
 void print_line(const char *msg)
 {
-  print_line(msg, 0);
+  print_line(msg, 0u);
 }
 
 void print_line(const char *msg, const lc_t lc)
@@ -165,7 +166,7 @@ void print_line(const char *msg, const lc_t lc, uint8_t value)
 
 void print_line(const __FlashStringHelper *msg)
 {
-  print_line((const char *)msg, 0);
+  print_line((const char *)msg, 0u);
 }
 
 void print_line(const __FlashStringHelper *msg, const lc_t lc)

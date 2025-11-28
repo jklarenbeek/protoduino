@@ -6,6 +6,6 @@
 #include "process.h"
 
 
-PROCESS_NAME(error_logger_process);
+PROCESS_EXTERN(error_logger_process);
 
 #endif /* LOGGER_H_ */
