@@ -241,7 +241,7 @@ extern "C" {
 /* ===========================================================================
  * RESERVED (255)
  * ===========================================================================*/
-#define PT_FINALIZED             255 /* Protothread Teardown Flag (Non-Error) */
+#define ERR_FINALIZED             255 /* Protothread Teardown Flag (Non-Error) */
 
 
 /**

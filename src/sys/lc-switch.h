@@ -1,3 +1,5 @@
+// file ./src/sys/lc-switch.h extends ./src/sys/lc.h
+
 /*
  * Copyright (c) 2004-2005, Swedish Institute of Computer Science.
  * All rights reserved.

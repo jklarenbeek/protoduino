@@ -404,6 +404,8 @@ typedef enum
 /** @} */
 
 
+#define PT_ISEXITING(state) (state == PT_EXITED || state == PT_ENDED || PT_ISERROR(state))
+
 /**
  * \name Error Handling
  * @{

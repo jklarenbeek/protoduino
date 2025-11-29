@@ -15,8 +15,6 @@
 #ifndef __CC_H__
 #define __CC_H__
 
-#include <avr/pgmspace.h>
-
 /**
  * @def CC_UNUSED
  * @brief Macro to mark a variable as unused
@@ -70,8 +68,6 @@
  * @param f The function definition
  */
 #define CC_WEAKFN(f) f __attribute__((weak))
-
-#define CC_PROGMEM PROGMEM
 
 /**
  * @def CC_CONCAT2EXT(s1, s2)
@@ -198,4 +194,23 @@
 #define CC_TMPL2_VAR(name) CC_CONCAT4(_,CC_TMPL2_PREFIX,_,name)
 #define CC_TMPL2_FN(method) CC_CONCAT3(CC_TMPL2_PREFIX,_,method)
 
-#endif
+/* Helper for ISR-safety and portability: you may override these macros */
+#if defined(__AVR__)
+#include <util/atomic.h>
+#include <avr/pgmspace.h>
+
+#define CC_PROGMEM PROGMEM
+
+#define CC_ATOMIC_RESTORE() ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+#define CC_ATOMIC_FORCEON() ATOMIC_BLOCK(ATOMIC_FORCEON)
+
+#else
+
+#define CC_PROGMEM
+
+#define CC_ATOMIC_RESTORE()
+#define CC_ATOMIC_FORCEON()
+
+#endif /* __AVR__ */
+
+#endif /* __CC_H_ */
