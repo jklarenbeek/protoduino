@@ -1,18 +1,18 @@
 
 
 #include "lc.h"
-#include "../utf/rune16.h"
+#include "../../utf/rune16.h"
 
-struct value_pt // struct value_pt<T> : pt
+struct value_pt
 {
     lc_t lc;
     uint8_t value; // T value
 }
 
-struct rune16_pt // : struct rune16_t : value_pt<rune16_t>
+struct rune16_pt
 {
     lc_t lc;
-    rune16_t value; 
+    rune16_t value;
 }
 
 struct buf8_pt

@@ -1,14 +1,14 @@
 // file: ./src/sys/ipc.c
-#define _POSIX_C_SOURCE 200809L /* snprintf */
+
 #include "ipc.h"
 #include <string.h>
 #include <stdio.h>   /* snprintf used only in debug helper */
 
 /* -------------------------------------------------------------------------
- * Pool implementation (fixed-block free-list). Deterministic & tiny.
+ * IPC pool implementation (fixed-block free-list). Deterministic & tiny.
  * All modifications to pool's free list are wrapped in CC_ATOMIC_RESTORE()
- * so they're safe across ISR/foreground boundaries on AVR when using
- * your CC_ATOMIC_RESTORE() macro that maps to ATOMIC_BLOCK(ATOMIC_RESTORESTATE).
+ * so they're safe across ISR/foreground boundaries on AVR when using the
+ * CC_ATOMIC_RESTORE() macro that maps to ATOMIC_BLOCK(ATOMIC_RESTORESTATE).
  * ----------------------------------------------------------------------*/
 
 int ipc_pool_init(struct ipc_pool *p, void *buffer, size_t block_size, uint16_t n_blocks)
@@ -185,7 +185,6 @@ size_t ipc_pipe_write(ipc_pipe_t *p, const uint8_t *src, size_t len)
 
     /* Notify reader if we transitioned empty->non-empty (call outside atomic block
      * is also okay; in our case we call after the atomic block; that's safe).
-     * If you prefer to call inside the atomic block, ensure wake_cb is ISR-safe.
      */
     if (was_empty && p->wake_cb) {
         p->wake_cb(p->wake_ctx);

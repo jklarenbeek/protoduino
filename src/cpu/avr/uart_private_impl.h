@@ -2,7 +2,7 @@
 
 #include <cc.h>
 #include <avr/interrupt.h>
-#include <util/atomic.h> <-- important!
+#include <util/atomic.h>
 
 static volatile uart_on_rx_complete_fn CC_TMPL_VAR(on_rx_complete) = 0;
 static volatile uart_on_rx_error_fn CC_TMPL_VAR(on_rx_error) = 0;

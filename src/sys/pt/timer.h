@@ -28,7 +28,7 @@
  *
  *
  * Author: Joham https://github.com/jklarenbeek
- * 
+ *
  * $Id: pt-timer.h,v 1.8 2022/11/04 14:55:17 joham Exp $
  */
 
@@ -45,8 +45,8 @@
 #ifndef __PT_TIMER_H__
 #define __PT_TIMER_H__
 
-#include "pt.h"
-#include "timer.h"
+#include "../pt.h"
+#include "../timer.h"
 
 /**
  * Puts a protostate in the WAITING state, until an

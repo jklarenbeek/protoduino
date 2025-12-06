@@ -1,261 +1,556 @@
-// file:./src/sys/errors.h
+#ifndef PROTODUINO_ERRORS_H
+#define PROTODUINO_ERRORS_H
 
-/*
- * Embedded Error Taxonomy v2.0
- * ----------------------------
- * Designed for Safety-Critical & Resource-Constrained Kernels
- *
- * This file merges PTv2 exception error codes and Process/Kernel/
- * IPC/Module/Resource errors into a single shared namespace.
- *
- * These errors are used with PT_RAISE(), PT_THROW(), and PT_RETHROW().
- * They represent exceptional conditions in protothread execution.
- *
- * RULES:
- *  - 0  = success
- *  - 1–3 are reserved by protothread state machine (WAITING, YIELDED, EXITED, ENDED)
- *  - 4–254 are error states for PT_RAISE() or PT_THROW()
- *  - The scheduler sends these codes via PROCESS_EVENT_ERROR
- *
- * PROTOTHREAD GUARANTEES:
- *  - PT_ERROR == 4
- *  - PT_FINALIZED == 255  (not an error)
- *
- * 1. STRUCTURAL ALIGNMENT (The "32-Block" Rule):
- *    Retained 32-value blocks for fast bitwise categorization (e.g., (err >> 5) gives the subsystem ID 0-7).
- *    - 000-031: Core/PT (Meta) – Expanded slightly with ERR_PT_TIMEOUT for consistency with original PT errors.
- *    - 032-063: System/POSIX (Standard errnos) – Added ERR_SYS_EFAULT for bad address (common in embedded pointer errors).
- *    - 064-095: Hardware I/O (Physical Layer) – Added ERR_IO_OVERRUN for buffer issues, common in UART/SPI.
- *    - 096-127: Storage & Data (Persistence & Parsing) – Merged checksum/CRC logically; added ERR_DATA_NULL for null ptr (POSIX-like).
- *    - 128-159: Network & IPC (Transport Layer) – Added ERR_NET_TIMEOUT for protocol timeouts.
- *    - 160-191: Security & Crypto (Auth & Integrity) – Added ERR_SEC_ACCESS for access control violations.
- *    - 192-223: Resource & Lifecycle (Dynamic Alloc/Loading) – Added ERR_RES_OWNERSHIP for ownership checks.
- *    - 224-254: Application (User Space) – Kept fully free.
- *
- * 2. POSIX COMPATIBILITY:
- *    Enhanced mappings (e.g., ERR_SYS_INVAL, ERR_SYS_NOMEM) based on Zephyr/FreeRTOS+POSIX usage for developer familiarity.
- *
- * 3. CRITICAL MISSING DOMAINS:
- *    Retained v2.0 additions (Power, Watchdog, Security, Filesystem); added a few high-frequency from audit (e.g., null ptr, overrun).
- *
- * 4. CONSOLIDATION & CLARITY:
- *    Eliminated any remaining overlaps (e.g., unified overflow/underflow in sys); ensured names are precise and non-ambiguous.
- *
- * 5. CONSTRAINTS:
- *    - Kept 0=Success, 1-3=PT States, 4=PT_ERROR, 255=PT_FINALIZED.
- *    - 31 app slots free.
- *    - Added <20 new codes total (net +8 after merges) to stay practical.
- */
-
-#ifndef __ERRORS_H__
-#define __ERRORS_H__
-
+#include "../lib/math/float32.h" // for very_fast_log2
+#include <math.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
+/* =========================================================================
+   RESERVED KERNEL CODES (0x00 - 0x03, 0xFF)
+   These are defined by the kernel state machine and listed here for reference.
+   ========================================================================= */
+// #define ERR_SUCCESS      0x00  // Operation completed successfully
+// #define ERR_YIELDED      0x01  // Process yielded control with value or waiting for event
+// #define ERR_EXITED       0x02  // Process exited externally
+// #define ERR_ENDED        0x03  // Process was terminated normally
+// #define ERR_FINALIZED    0xFF  // System finalized/Shutdown
+
+/* =========================================================================
+   DOMAIN 0x0X: KERNEL LIFECYCLE & FLOW
+   Desc: Fundamental execution flow issues, similar to errno EAGAIN/EINTR.
+   ========================================================================= */
+#define ERR_LIFECYCLE_GENERAL       0x04 // Generic lifecycle error
+#define ERR_LIFECYCLE_TIMEOUT       0x05 // Operation timed out
+#define ERR_LIFECYCLE_BUSY          0x06 // Resource is busy (EBUSY)
+#define ERR_LIFECYCLE_CANCELLED     0x07 // Operation cancelled by user
+#define ERR_LIFECYCLE_UNSUPPORTED   0x08 // Operation not supported
+#define ERR_LIFECYCLE_NOT_IMPLEMENTED 0x09 // Functionality missing
+#define ERR_LIFECYCLE_DEPRECATED    0x0A // Feature removed
+#define ERR_LIFECYCLE_TRY_AGAIN     0x0B // Temporary failure, retry (EAGAIN)
+#define ERR_LIFECYCLE_INTERRUPTED   0x0C // Signal/IRQ interrupted call
+#define ERR_LIFECYCLE_PENDING       0x0D // Async operation pending
+#define ERR_LIFECYCLE_STALLED       0x0E // Process stalled/hung
+#define ERR_LIFECYCLE_CRITICAL      0x0F // Unrecoverable kernel panic
+
+/* =========================================================================
+   DOMAIN 0x1X: MEMORY & RESOURCES
+   Desc: Heap, stack, and pointer management.
+   ========================================================================= */
+#define ERR_MEM_ALLOCATION          0x10 // General allocation failure
+#define ERR_MEM_FOUNDATION          0x11 // [FOUNDATION] Integrity Check Fail
+#define ERR_MEM_OUT_OF_MEMORY       0x12 // Heap exhausted (ENOMEM)
+#define ERR_MEM_STACK_OVERFLOW      0x13 // Stack limit reached
+#define ERR_MEM_NULL_POINTER        0x14 // Dereferenced NULL
+#define ERR_MEM_ALIGNMENT           0x15 // Invalid alignment access
+#define ERR_MEM_FRAGMENTATION       0x16 // Heap too fragmented to alloc
+#define ERR_MEM_DOUBLE_FREE         0x17 // Freed memory twice
+#define ERR_MEM_USE_AFTER_FREE      0x18 // Accessing freed memory
+#define ERR_MEM_BUFFER_OVERFLOW     0x19 // Write past end of buffer
+#define ERR_MEM_BUFFER_UNDERFLOW    0x1A // Read before start of buffer
+#define ERR_MEM_LEAK_DETECTED       0x1B // Debug: Memory leak found
+#define ERR_MEM_PROTECTED           0x1C // Write to read-only memory
+#define ERR_MEM_INVALID_HANDLE      0x1D // Invalid memory handle
+#define ERR_MEM_MAPPED_FAILED       0x1E // mmap failed
+#define ERR_MEM_CORRUPTION          0x1F // Heap corruption detected
+
+/* =========================================================================
+   DOMAIN 0x2X: SECURITY & ACCESS CONTROL
+   Desc: Auth, permissions, and cryptography.
+   ========================================================================= */
+#define ERR_SEC_GENERAL             0x20 // General security error
+#define ERR_SEC_UNAUTHORIZED        0x21 // Authentication required (401)
+#define ERR_SEC_FOUNDATION          0x22 // [FOUNDATION] Security Breach
+#define ERR_SEC_FORBIDDEN           0x23 // Authenticated but denied (403)
+#define ERR_SEC_ACCESS_DENIED       0x24 // Filesystem/Resource permission (EACCES)
+#define ERR_SEC_INVALID_TOKEN       0x25 // Bad auth token/session
+#define ERR_SEC_TOKEN_EXPIRED       0x26 // Token valid but old
+#define ERR_SEC_SIGNATURE_BAD       0x27 // Digital signature mismatch
+#define ERR_SEC_ENCRYPTION_FAILED   0x28 // Cipher operation failed
+#define ERR_SEC_DECRYPTION_FAILED   0x29 // Decipher operation failed
+#define ERR_SEC_WEAK_KEY            0x2A // Key strength insufficient
+#define ERR_SEC_NO_ENTROPY          0x2B // RNG failed/empty
+#define ERR_SEC_LOCKED              0x2C // Resource locked by another user
+#define ERR_SEC_TAMPER_DETECTED     0x2D // Integrity check failed
+#define ERR_SEC_BAD_CREDENTIALS     0x2E // Wrong username/password
+#define ERR_SEC_PRIVILEGE_LOW       0x2F // Root/Admin required
+
+/* =========================================================================
+   DOMAIN 0x3X: FILESYSTEM & STORAGE
+   Desc: Disk operations, paths, and mounting.
+   ========================================================================= */
+#define ERR_FS_GENERAL              0x30 // Generic IO error (EIO)
+#define ERR_FS_NOT_FOUND            0x31 // File not found (ENOENT)
+#define ERR_FS_PATH_INVALID         0x32 // Malformed path
+#define ERR_FS_FOUNDATION           0x33 // [FOUNDATION] Disk Failure
+#define ERR_FS_ALREADY_EXISTS       0x34 // Create failed, exists (EEXIST)
+#define ERR_FS_IS_DIRECTORY         0x35 // Expected file, got dir (EISDIR)
+#define ERR_FS_NOT_DIRECTORY        0x36 // Expected dir, got file (ENOTDIR)
+#define ERR_FS_NOT_EMPTY            0x37 // Directory not empty
+#define ERR_FS_TOO_MANY_OPEN        0x38 // File descriptor limit (EMFILE)
+#define ERR_FS_DISK_FULL            0x39 // No space left (ENOSPC)
+#define ERR_FS_READ_ONLY            0x3A // File system is read-only
+#define ERR_FS_MOUNT_FAILED         0x3B // Mount operation failed
+#define ERR_FS_UNMOUNT_FAILED       0x3C // Resource busy, cannot unmount
+#define ERR_FS_MEDIA_REMOVED        0x3D // SD/USB pulled out
+#define ERR_FS_BAD_DESCRIPTOR       0x3E // Bad FD (EBADF)
+#define ERR_FS_SEEK_ERROR           0x3F // Lseek failed (ESPIPE)
+
+/* =========================================================================
+   DOMAIN 0x4X: HARDWARE & DRIVERS
+   Desc: Low level IO, Buses (I2C/SPI), and GPIO.
+   ========================================================================= */
+#define ERR_HW_GENERAL              0x40 // Hardware fault
+#define ERR_HW_NOT_FOUND            0x41 // Device ID mismatch
+#define ERR_HW_NOT_READY            0x42 // Peripheral init incomplete
+#define ERR_HW_POWER_LOW            0x43 // Brownout/Battery low
+#define ERR_HW_FOUNDATION           0x44 // [FOUNDATION] Bus Lockup
+#define ERR_HW_GPIO_FAILURE         0x45 // Pin config error
+#define ERR_HW_ADC_ERROR            0x46 // Analog read fail
+#define ERR_HW_PWM_ERROR            0x47 // Timer/PWM fail
+#define ERR_HW_I2C_NACK             0x48 // I2C No Acknowledge
+#define ERR_HW_I2C_ARB_LOST         0x49 // I2C Bus contention
+#define ERR_HW_SPI_MODE_ERR         0x4A // SPI Polarity/Phase mismatch
+#define ERR_HW_UART_FRAMING         0x4B // UART Baud/Frame error
+#define ERR_HW_UART_PARITY          0x4C // UART Parity error
+#define ERR_HW_DMA_ERROR            0x4D // Direct Memory Access fail
+#define ERR_HW_OVERHEAT             0x4E // Thermal shutdown
+#define ERR_HW_SHORT_CIRCUIT        0x4F // Overcurrent detected
+
+/* =========================================================================
+   DOMAIN 0x5X: NETWORK & TRANSPORT
+   Desc: TCP/IP, Sockets, WiFi, Ethernet.
+   [ROOT] 0x55 is the Primordial Root of Connectivity.
+   ========================================================================= */
+#define ERR_NET_GENERAL             0x50 // Generic Net error
+#define ERR_NET_DISCONNECTED        0x51 // Physical link down
+#define ERR_NET_HOST_UNREACHABLE    0x52 // Routing failure
+#define ERR_NET_DNS_FAILED          0x53 // Name resolution failed
+#define ERR_NET_CONNECTION_REFUSED  0x54 // Port closed (ECONNREFUSED)
+#define ERR_NET_PRIMORDIAL          0x55 // [PRIMORDIAL] Connection Reset
+#define ERR_NET_CONNECTION_ABORTED  0x56 // Software caused abort
+#define ERR_NET_ADDRESS_IN_USE      0x57 // Bind failed (EADDRINUSE)
+#define ERR_NET_SOCKET_FAILED       0x58 // Socket creation error
+#define ERR_NET_BIND_FAILED         0x59 // Interface bind error
+#define ERR_NET_LISTEN_FAILED       0x5A // Passive open error
+#define ERR_NET_ACCEPT_FAILED       0x5B // Handshake failed
+#define ERR_NET_PACKET_TOO_BIG      0x5C // MTU exceeded
+#define ERR_NET_NO_ROUTE            0x5D // No gateway
+#define ERR_NET_LATENCY_LIMIT       0x5E // Ping/Ack too slow
+#define ERR_NET_INTERFACE_DOWN      0x5F // NIC disabled
+
+/* =========================================================================
+   DOMAIN 0x6X: PROTOCOLS & WEB
+   Desc: Higher level layers (HTTP, MQTT, FTP).
+   ========================================================================= */
+#define ERR_PROTO_GENERAL           0x60 // Protocol violation
+#define ERR_PROTO_BAD_REQUEST       0x61 // Malformed packet (HTTP 400)
+#define ERR_PROTO_VERSION_MISMATCH  0x62 // Unsupported version
+#define ERR_PROTO_METHOD_NOT_ALLOWED 0x63 // Wrong verb (HTTP 405)
+#define ERR_PROTO_HEADER_TOO_LARGE  0x64 // Metadata overflow
+#define ERR_PROTO_PAYLOAD_TOO_LARGE 0x65 // Body overflow (HTTP 413)
+#define ERR_PROTO_FOUNDATION        0x66 // [FOUNDATION] Parse Failure
+#define ERR_PROTO_UNSUPPORTED_TYPE  0x67 // Mime type error (HTTP 415)
+#define ERR_PROTO_MISSING_HEADER    0x68 // Required field missing
+#define ERR_PROTO_RATE_LIMITED      0x69 // Too many requests (HTTP 429)
+#define ERR_PROTO_SERVER_ERROR      0x6A // Remote side failed (HTTP 500)
+#define ERR_PROTO_GATEWAY_TIMEOUT   0x6B // Upstream timeout (HTTP 504)
+#define ERR_PROTO_HANDSHAKE_FAIL    0x6C // TLS/SSL Handshake
+#define ERR_PROTO_CERT_INVALID      0x6D // TLS Cert rejected
+#define ERR_PROTO_CRC_MISMATCH      0x6E // Checksum failure
+#define ERR_PROTO_UNKNOWN_CMD       0x6F // Command ID unknown
+
+/* =========================================================================
+   DOMAIN 0x7X: VALIDATION & DATA
+   Desc: Input sanitation, type checking.
+   ========================================================================= */
+#define ERR_VAL_GENERAL             0x70 // Validation failed
+#define ERR_VAL_INVALID_ARG         0x71 // Argument invalid (EINVAL)
+#define ERR_VAL_OUT_OF_RANGE        0x72 // Value bounds exceeded
+#define ERR_VAL_NULL_ARG            0x73 // Unexpected Null argument
+#define ERR_VAL_EMPTY               0x74 // Container empty
+#define ERR_VAL_TOO_SHORT           0x75 // String/Data too short
+#define ERR_VAL_TOO_LONG            0x76 // String/Data too long
+#define ERR_VAL_FOUNDATION          0x77 // [FOUNDATION] Integrity Lost
+#define ERR_VAL_PATTERN_MISMATCH    0x78 // Regex/Format mismatch
+#define ERR_VAL_INVALID_EMAIL       0x79 // Specific format error
+#define ERR_VAL_INVALID_DATE        0x7A // Date/Time logic error
+#define ERR_VAL_INVALID_IP          0x7B // IP string malformed
+#define ERR_VAL_INVALID_JSON        0x7C // JSON syntax error
+#define ERR_VAL_INVALID_XML         0x7D // XML/HTML syntax error
+#define ERR_VAL_INVALID_BASE64      0x7E // Decode error
+#define ERR_VAL_INVALID_UTF8        0x7F // Encoding error
+
+/* =========================================================================
+   DOMAIN 0x8X: STREAMING & IO
+   Desc: Pipes, Streams, Buffer manipulation.
+   ========================================================================= */
+#define ERR_IO_GENERAL              0x80 // General IO failure
+#define ERR_IO_EOF                  0x81 // End Of File hit
+#define ERR_IO_CLOSED               0x82 // Stream closed
+#define ERR_IO_NOT_OPEN             0x83 // Stream not open
+#define ERR_IO_WOULD_BLOCK          0x84 // Non-blocking wait
+#define ERR_IO_SYNC_FAILED          0x85 // fsync/flush failed
+#define ERR_IO_PIPE_BROKEN          0x86 // Writer disconnected (EPIPE)
+#define ERR_IO_READ_ERROR           0x87 // Physical read error
+#define ERR_IO_FOUNDATION           0x88 // [FOUNDATION] Stream Corruption
+#define ERR_IO_WRITE_ERROR          0x89 // Physical write error
+#define ERR_IO_SKIP_ERROR           0x8A // Seek/Skip failed
+#define ERR_IO_MARK_INVALID         0x8B // Reset to mark failed
+#define ERR_IO_COMPRESSION_ERR      0x8C // Gzip/Zlib fail
+#define ERR_IO_DECOMPRESSION_ERR    0x8D // Unzip fail
+#define ERR_IO_CHECKSUM_ERR         0x8E // Stream hash mismatch
+#define ERR_IO_TRUNCATED            0x8F // Unexpected end of data
+
+/* =========================================================================
+   DOMAIN 0x9X: PERIPHERAL & HMI
+   Desc: Display, Audio, Sensors, Human Interface.
+   ========================================================================= */
+#define ERR_PERIPH_GENERAL          0x90 // Device error
+#define ERR_PERIPH_DISPLAY_INIT     0x91 // LCD/OLED fail
+#define ERR_PERIPH_TOUCH_CALIB      0x92 // Touchscreen uncalibrated
+#define ERR_PERIPH_AUDIO_MUTE       0x93 // Codec muted/fail
+#define ERR_PERIPH_SENSOR_NO_DATA   0x94 // Sensor ready but empty
+#define ERR_PERIPH_MOTOR_STALL      0x95 // Stepper/Servo stalled
+#define ERR_PERIPH_BATTERY_CRIT     0x96 // Imminent shutdown
+#define ERR_PERIPH_KEYBOARD_ERR     0x97 // Matrix scan fail
+#define ERR_PERIPH_SD_NO_CARD       0x98 // Slot empty
+#define ERR_PERIPH_FOUNDATION       0x99 // [FOUNDATION] Device Halted
+#define ERR_PERIPH_CAMERA_INIT      0x9A // Sensor init fail
+#define ERR_PERIPH_GPS_NO_FIX       0x9B // No satellite lock
+#define ERR_PERIPH_RADIO_JAMMED     0x9C // RF interference
+#define ERR_PERIPH_LED_FAIL         0x9D // Indicator error
+#define ERR_PERIPH_BUTTON_STUCK     0x9E // Physical button stuck
+#define ERR_PERIPH_HAPTIC_FAIL      0x9F // Vibration motor fail
+
+/* =========================================================================
+   DOMAIN 0xAX: IPC & MESSAGING
+   Desc: Inter-Process Communication, Queues, PubSub.
+   [ROOT] 0xAA is the Primordial Inverse of Connectivity (Internal Link).
+   ========================================================================= */
+#define ERR_IPC_GENERAL             0xA0 // Generic IPC error
+#define ERR_IPC_QUEUE_FULL          0xA1 // Message dropped
+#define ERR_IPC_QUEUE_EMPTY         0xA2 // No messages
+#define ERR_IPC_MUTEX_LOCKED        0xA3 // Lock acquisition failed
+#define ERR_IPC_SEMAPHORE_LIMIT     0xA4 // Count exceeded
+#define ERR_IPC_SHARED_MEM_ERR      0xA5 // Shmem attach fail
+#define ERR_IPC_SUBSCRIBER_ERR      0xA6 // PubSub delivery fail
+#define ERR_IPC_TOPIC_INVALID       0xA7 // MQTT/Bus topic bad
+#define ERR_IPC_MESSAGE_CORRUPT     0xA8 // Payload integrity
+#define ERR_IPC_NO_RECEIVERS        0xA9 // Dead letter
+#define ERR_IPC_PRIMORDIAL          0xAA // [PRIMORDIAL] Link Broken
+#define ERR_IPC_RPC_FAILED          0xAB // Remote Procedure Call fail
+#define ERR_IPC_DESERIALIZE         0xAC // Struct packing error
+#define ERR_IPC_SERIALIZE           0xAD // Struct unpacking error
+#define ERR_IPC_CHANNEL_CLOSED      0xAE // Comm channel dead
+#define ERR_IPC_PRIORITY_INV        0xAF // Priority inversion
+
+/* =========================================================================
+   DOMAIN 0xBX: TIME & CHRONOLOGY
+   Desc: RTC, Timers, Scheduling logic.
+   ========================================================================= */
+#define ERR_TIME_GENERAL            0xB0 // Time error
+#define ERR_TIME_RTC_STOPPED        0xB1 // Oscillator dead
+#define ERR_TIME_NOT_SET            0xB2 // Time is 1970/1900
+#define ERR_TIME_SYNCHRONIZATION    0xB3 // NTP/PTP drift too high
+#define ERR_TIME_FUTURE_TIMESTAMP   0xB4 // Event from future
+#define ERR_TIME_PAST_TIMESTAMP     0xB5 // Event too old
+#define ERR_TIME_INVALID_TZ         0xB6 // Timezone bad
+#define ERR_TIME_LEAP_SECOND        0xB7 // Calculation error
+#define ERR_TIME_TIMER_EXPIRED      0xB8 // Watchdog/Soft timer
+#define ERR_TIME_FREQUENCY_ERR      0xB9 // Clock speed wrong
+#define ERR_TIME_SLEEP_FAIL         0xBA // Low power mode fail
+#define ERR_TIME_FOUNDATION         0xBB // [FOUNDATION] Chrono-Collapse
+#define ERR_TIME_WAKEUP_FAIL        0xBC // Resume fail
+#define ERR_TIME_CALENDAR_ERR       0xBD // Day/Month math fail
+#define ERR_TIME_TIMEOUT_SCALE      0xBE // Overflow in ms calc
+#define ERR_TIME_JITTER_EXCESS      0xBF // Real-time violation
+
+/* =========================================================================
+   DOMAIN 0xCX: MATH & LOGIC
+   Desc: Calculations, Floating point, Logic gates.
+   ========================================================================= */
+#define ERR_MATH_GENERAL            0xC0 // Math error (EDOM)
+#define ERR_MATH_DIV_BY_ZERO        0xC1 // Integer/Float div 0
+#define ERR_MATH_OVERFLOW           0xC2 // Int overflow
+#define ERR_MATH_UNDERFLOW          0xC3 // Int underflow
+#define ERR_MATH_NAN                0xC4 // Not a Number
+#define ERR_MATH_INFINITY           0xC5 // Positive/Negative Inf
+#define ERR_MATH_DOMAIN             0xC6 // Input outside domain
+#define ERR_MATH_RANGE              0xC7 // Result outside range
+#define ERR_MATH_PRECISION          0xC8 // Accuracy lost
+#define ERR_MATH_SINGULARITY        0xC9 // Matrix non-invertible
+#define ERR_MATH_CONVERGENCE        0xCA // Algorithm didn't settle
+#define ERR_MATH_DIMENSION          0xCB // Vector size mismatch
+#define ERR_MATH_FOUNDATION         0xCC // [FOUNDATION] Logic Contradiction
+#define ERR_MATH_SUBSCRIPT          0xCD // Array index logic err
+#define ERR_MATH_CAST_INVALID       0xCE // Type conversion loss
+#define ERR_MATH_UNINITIALIZED      0xCF // Variable used raw
+
+/* =========================================================================
+   DOMAIN 0xDX: DIAGNOSTICS & SYSTEM
+   Desc: Debugging, Trace, Assertions.
+   ========================================================================= */
+#define ERR_DBG_GENERAL             0xD0 // Unknown error
+#define ERR_DBG_ASSERTION           0xD1 // Assert(false)
+#define ERR_DBG_UNREACHABLE         0xD2 // Code flow error
+#define ERR_DBG_NOT_IMPLEMENTED     0xD3 // TODO marker
+#define ERR_DBG_STUB                0xD4 // Stub function called
+#define ERR_DBG_TEST_FAILED         0xD5 // Unit test fail
+#define ERR_DBG_TRACE_FULL          0xD6 // Log buffer wrap
+#define ERR_DBG_HOOK_FAILED         0xD7 // Debug hook error
+#define ERR_DBG_SYMBOL_MISSING      0xD8 // Linker error (dyn)
+#define ERR_DBG_CHECKSUM_ROM        0xD9 // Firmware corrupted
+#define ERR_DBG_WATCHDOG            0xDA // WDT reset occurred
+#define ERR_DBG_BROWNOUT            0xDB // BOD reset occurred
+#define ERR_DBG_POWER_ON            0xDC // Cold boot status
+#define ERR_DBG_FOUNDATION          0xDD // [FOUNDATION] System Panic
+#define ERR_DBG_STACK_DUMP          0xDE // Stack trace generated
+#define ERR_DBG_CORE_DUMP           0xDF // Memory dumped
+
+/* =========================================================================
+   DOMAINS 0xE0 - 0xFE: APPLICATION DEFINED
+   Desc: Reserved for User Logic. 31 Errors.
+   0xFF is ERR_FINALIZED (Reserved).
+   ========================================================================= */
+
+// Domain E (Application Space 1)
+#define ERR_APP_E0                  0xE0
+#define ERR_APP_E1                  0xE1
+#define ERR_APP_E2                  0xE2
+#define ERR_APP_E3                  0xE3
+#define ERR_APP_E4                  0xE4
+#define ERR_APP_E5                  0xE5
+#define ERR_APP_E6                  0xE6
+#define ERR_APP_E7                  0xE7
+#define ERR_APP_E8                  0xE8
+#define ERR_APP_E9                  0xE9
+#define ERR_APP_EA                  0xEA
+#define ERR_APP_EB                  0xEB
+#define ERR_APP_EC                  0xEC
+#define ERR_APP_ED                  0xED
+#define ERR_APP_FOUNDATION          0xEE // [FOUNDATION] App Critical
+#define ERR_APP_EF                  0xEF
+
+// Domain F (Application Space 2)
+#define ERR_APP_F0                  0xF0
+#define ERR_APP_F1                  0xF1
+#define ERR_APP_F2                  0xF2
+#define ERR_APP_F3                  0xF3
+#define ERR_APP_F4                  0xF4
+#define ERR_APP_F5                  0xF5
+#define ERR_APP_F6                  0xF6
+#define ERR_APP_F7                  0xF7
+#define ERR_APP_F8                  0xF8
+#define ERR_APP_F9                  0xF9
+#define ERR_APP_FA                  0xFA
+#define ERR_APP_FB                  0xFB
+#define ERR_APP_FC                  0xFC
+#define ERR_APP_FD                  0xFD
+#define ERR_APP_FE                  0xFE
+
+// ERR_FINALIZED is 0xFF (Reserved)
+
+/* =========================================================================
+   HELPER MACROS FOR ANALYSIS
+   ========================================================================= */
+
+// Reserved values used by the protoduino finite state machine
+#define ERR_IS_RESERVED(err) \
+    ((err) == 0 || (err) == 1 || (err) == 2 || (err) == 3 || (err) == 255)
+
+// Terminal roots
+#define ERR_ROOT_INIT      0x00  // 00000000 — genesis, void
+#define ERR_ROOT_RUN       0xFF  // 11111111 — saturation, terminal
+
+// Oscillatory roots
+#define ERR_ROOT_BEFORE    0x55  // 01010101 — oscillation origin
+#define ERR_ROOT_AFTER     0xAA  // 10101010 — oscillation inversion
+
+// Terminal roots: pure endpoints without internal structure
+#define ERR_IS_ABSTRACT(err) \
+    ((err) == ERR_ROOT_INIT || (err) == ERR_ROOT_RUN)
+
+// Oscillatory roots: structured alternating primitives
+#define ERR_IS_MOVEMENT(err) \
+    ((err) == ERR_ROOT_BEFORE || (err) == ERR_ROOT_AFTER)
+
+// The 4 primordial error classes of which every other error are its children.
+// 0 (00000000), 255 (11111111), 85 (01010101), 170 (10101010)
+#define ERR_IS_ROOT(err) \
+    (ERR_IS_ABSTRACT(err) || ERR_IS_MOVEMENT(err))
+
+// Direct 12 descendants of the primordial error classes
+#define ERR_IS_DOMAIN(err) (!ERR_IS_ROOT(err) && (ERR_IS_ROOT(err_op_center(err))))
+
+// The direct descendants of the DOMAIN error codes
+#define ERR_IS_ATOMIC(err) (!(ERR_IS_ROOT(err) || ERR_IS_DOMAIN(err)))
+
+// 8-bit Plane: Split into two 4-bit nibbles
+#define ERR_NIBBLE_LEFT(err) (((err) >> 4) & 0x0F)
+#define ERR_NIBBLE_RIGHT(err) ((err) & 0x0F)
+
+// Checks if the Left Nibble is equal to the Inverse of the Right Nibble
+#define ERR_IS_SHADOW(err) \
+    (ERR_NIBBLE_LEFT(err) == (~ERR_NIBBLE_RIGHT(err) & 0xF))
+
+// The first half of a cluster is 4bits and must equal the other 4bits
+// e.g. 0x00, 0x11, 0x22 ... 0xFF
+#define ERR_IS_TWIN(err) (ERR_NIBBLE_LEFT(err) == ERR_NIBBLE_RIGHT(err))
+
+// Balanced means half of the bits are set (4 out of 8)
+#define ERR_IS_BALANCED(err) (err_op_one_count(err) == 4)
+#define ERR_IS_UNBALANCED(err) (err_op_one_count(err) != 4)
+
+/**
+ * Symmetry Classes (8-bit Matrix of 16x16 byte error codes)
+ */
+
+// A balanced diagonal from right top to left bottom
+// results in error codes 0x55 (85) and 0xAA (170) => ERR_IS_MOVEMENT(err)
+#define ERR_IS_BALANCED_ROOT(err) (err_op_center(err) == err_op_inverse(err))
+
+// A balanced diagonal from right top to left bottom
+#define ERR_IS_BALANCED_SHADOW(err) (ERR_IS_BALANCED(err) && ERR_IS_SHADOW(err))
+
+// A balanced circle in the middle of the 16x16 matrix
+#define ERR_IS_BALANCED_EDGE(err) (!ERR_IS_BALANCED_ROOT(err) && ERR_IS_BALANCED(err) && !ERR_IS_SHADOW(err))
+
+// An unbalanced diagonal from left top to right bottom
+// Only 0x00 and 0xFF
+#define ERR_IS_UNBALANCED_ROOT(err) (ERR_IS_ABSTRACT(err) && ERR_IS_TWIN(err))
+
+// Diagonal from left top to right bottom (twin but not 00 or FF)
+#define ERR_IS_UNBALANCED_TWIN(err) (!ERR_IS_ABSTRACT(err) && ERR_IS_TWIN(err))
+
+// Extreme imbalance (1 or 7 one's). Outer edge cirlce of the 16x16 matrix.
+#define ERR_IS_UNBALANCED_EDGE(err) (err_op_one_count(err) == 1 || err_op_one_count(err) == 7)
+
+// Everything else unbalanced
+#define ERR_IS_UNBALANCED_OTHER(err) (!ERR_IS_BALANCED(err) && !ERR_IS_TWIN(err) && !ERR_IS_UNBALANCED_EDGE(err))
+
+CC_ALWAYS_INLINE uint8_t err_op_inverse(uint8_t err) {
+    // Inverse the cluster (EEEE DDDD)
+    // In 8-bit, we invert the whole byte.
+    return ~err;
+}
+
+CC_ALWAYS_INLINE uint8_t err_op_reverse(uint8_t err) {
+    // Reverse the cluster bits: 7-0
+    // Standard SWAR bit reversal for 8 bits
+    err = (err & 0xF0) >> 4 | (err & 0x0F) << 4;
+    err = (err & 0xCC) >> 2 | (err & 0x33) << 2;
+    err = (err & 0xAA) >> 1 | (err & 0x55) << 1;
+    return err;
+}
+
+CC_ALWAYS_INLINE uint8_t err_op_opposite(uint8_t err) {
+    // Swap the nibbles (Left <-> Right)
+    // (EEEE DDDD) -> (DDDD EEEE)
+    return (ERR_NIBBLE_RIGHT(err) << 4) | ERR_NIBBLE_LEFT(err);
+}
+
+CC_ALWAYS_INLINE uint8_t err_op_center(uint8_t err) {
+    // Nuclear transformation for 8 bits.
+    // Logic: Sliding window of size 4.
+    // Right Nibble becomes bits 1,2,3,4 (shifted to 0,1,2,3)
+    // Left Nibble becomes bits 3,4,5,6 (shifted to 4,5,6,7)
+    // ((err >> 1) & 0x0F) extracts 1,2,3,4 -> 0,1,2,3
+    // ((err << 1) & 0xF0) extracts 3,4,5,6 -> 4,5,6,7
+    return ((err << 1) & 0xF0) | ((err >> 1) & 0x0F);
+}
+
+CC_ALWAYS_INLINE uint8_t err_op_root(uint8_t err) {
+    // Convergence tree iteration
+    // Typically depth increases with bit width, 8-bit takes 4 steps max.
+    while (!ERR_IS_ROOT(err)) err = err_op_center(err);
+    return err;
+}
+
+/**
+ * Get the depth in the nuclear convergence tree.
+ * Returns how many center() operations needed to reach the root.
+ */
+CC_ALWAYS_INLINE uint8_t err_op_depth(uint8_t err) {
+  uint8_t d = 0;
+  while (!ERR_IS_ROOT(err)) {
+      err = err_op_center(err);
+      d++;
+  }
+  return d;
+}
+
+static inline uint8_t err_op_one_count(uint8_t err) {
+    // Hamming weight for 8 bits
+    // This is a SWAR algorithm (SIMD Within A Register) for 32-bit capable CPUs,
+    // adapted for 8-bit flow, or simply naive count if compiled without __builtin_popcount
+#if defined(__GNUC__) || defined(__clang__)
+    return __builtin_popcount(err);
+#else
+    err = (err & 0x55) + ((err >> 1) & 0x55);
+    err = (err & 0x33) + ((err >> 2) & 0x33);
+    return (err + (err >> 4)) & 0x0F;
 #endif
+}
 
-/* ---------------------------------------------------------------------------
- * GLOBAL CONSTANTS
- * ---------------------------------------------------------------------------*/
-#define ERR_SUCCESS              0
-#define ERR_FAILURE              4    /* Generic catch-all if specific code unavailable */
-
-/* Subsystem Bases (Aligned to 32 for fast bit-shifting) */
-#define ERR_BASE_PT              ERR_FAILURE
-#define ERR_BASE_SYS             32
-#define ERR_BASE_IO              64
-#define ERR_BASE_STORE           96
-#define ERR_BASE_NET             128
-#define ERR_BASE_SEC             160
-#define ERR_BASE_RES             192
-#define ERR_BASE_APP             224
-
-/* Helper: Get Subsystem ID (0-7) from error code */
-#define ERR_GET_SUBSYSTEM(e)     ((e) >> 5)
-
-/* ===========================================================================
- * 1. PROTOTHREAD & KERNEL CORE (04–31)
- *    Kernel Exceptions
- *    Reserved: 0-3 (Success/Waiting, Yielded, Exited, Ended).
- *    Range: 4-31.
- * ===========================================================================*/
-
-/* Kernel Exceptions */
-#define ERR_PT_ERROR             (ERR_BASE_PT + 0)   /* Standard PT_ERROR base */
-#define ERR_PT_YIELD             (ERR_BASE_PT + 1)   /* Forced yield (not error, but flow control) */
-#define ERR_PT_DETACHED          (ERR_BASE_PT + 2)   /* Thread detached/orphaned */
-#define ERR_PT_CORRUPT           (ERR_BASE_PT + 3)   /* Context/Stack corruption detected */
-#define ERR_PT_DEADLOCK          (ERR_BASE_PT + 4)   /* Schedular detected circular wait */
-#define ERR_PT_STALLED           (ERR_BASE_PT + 5)   /* Thread starved/stalled (WDT pre-warning) */
-#define ERR_PT_LIMIT             (ERR_BASE_PT + 6)   /* Number of process or thread limit reached */
-#define ERR_PT_SPAWN             (ERR_BASE_PT + 7)   /* Failed to fork/spawn */
-#define ERR_PT_OVERFLOW          (ERR_BASE_PT + 8)   /* Kernel message queue overflow */
-#define ERR_PT_NOT_FOUND         (ERR_BASE_PT + 9)   /* Process or thread not found */
-#define ERR_PT_ILLEGAL           (ERR_BASE_PT + 10)  /* Op not allowed in current context (ISR vs Thread) */
-#define ERR_PT_RECURSION         (ERR_BASE_PT + 11)  /* Stack overflow risk / Illegal recursion */
-#define ERR_PT_TIMEOUT           (ERR_BASE_PT + 12)  /* General PT timeout */
-#define ERR_PT_SEMAPHORE         (ERR_BASE_PT + 13)  /* Semaphore error */
-
-/* ===========================================================================
- * 2. SYSTEM & POSIX-COMPAT (32–63)
- *    General system health, parameters, and arithmetic.
- * ===========================================================================*/
-#define ERR_SYS_UNKNOWN          (ERR_BASE_SYS + 0)
-#define ERR_SYS_INVAL            (ERR_BASE_SYS + 1)  /* Invalid argument (EINVAL) */
-#define ERR_SYS_NOMEM            (ERR_BASE_SYS + 2)  /* Out of heap/memory (ENOMEM) */
-#define ERR_SYS_PERM             (ERR_BASE_SYS + 3)  /* Permission denied (EPERM) */
-#define ERR_SYS_BUSY             (ERR_BASE_SYS + 4)  /* Resource busy (EBUSY) */
-#define ERR_SYS_TIMEDOUT         (ERR_BASE_SYS + 5)  /* Operation timed out (ETIMEDOUT) */
-#define ERR_SYS_OVERFLOW         (ERR_BASE_SYS + 6)  /* Math/Buffer overflow (EOVERFLOW) */
-#define ERR_SYS_UNDERFLOW        (ERR_BASE_SYS + 7)  /* Math/Buffer underflow */
-#define ERR_SYS_NOSYS            (ERR_BASE_SYS + 8)  /* Not implemented/supported (ENOSYS) */
-#define ERR_SYS_AGAIN            (ERR_BASE_SYS + 9)  /* Try again later (EAGAIN) */
-#define ERR_SYS_CANCELED         (ERR_BASE_SYS + 10) /* Operation canceled (ECANCELED) */
-#define ERR_SYS_STATE            (ERR_BASE_SYS + 11) /* Invalid system state for op */
-#define ERR_SYS_POWER            (ERR_BASE_SYS + 12) /* Power failure / Low Battery */
-#define ERR_SYS_WATCHDOG         (ERR_BASE_SYS + 13) /* Watchdog reset occurred/imminent */
-#define ERR_SYS_HW_FAIL          (ERR_BASE_SYS + 14) /* Critical Hardware Failure */
-#define ERR_SYS_CLOCK            (ERR_BASE_SYS + 15) /* Clock/Crystal failure */
-#define ERR_SYS_FAULT            (ERR_BASE_SYS + 16) /* Bad address (EFAULT, added for pointer errors) */
-
-/* ===========================================================================
- * 3. HARDWARE I/O & DRIVERS (64–95)
- *    Physical Layer, Buses (I2C/SPI), GPIO.
- * ===========================================================================*/
-#define ERR_IO_GENERAL           (ERR_BASE_IO + 0)
-#define ERR_IO_DISCONNECTED      (ERR_BASE_IO + 1)  /* Cable unplugged / Phy down */
-#define ERR_IO_ABORT             (ERR_BASE_IO + 2)  /* Driver aborted transaction */
-#define ERR_IO_RETRY             (ERR_BASE_IO + 3)  /* Request retry (transient noise) */
-#define ERR_IO_SIZE              (ERR_BASE_IO + 4)  /* DMA/Buffer size mismatch */
-#define ERR_IO_ALIGN             (ERR_BASE_IO + 5)  /* DMA/Memory alignment error */
-#define ERR_IO_CRC               (ERR_BASE_IO + 6)  /* Hardware CRC mismatch */
-#define ERR_IO_ARBITRATION       (ERR_BASE_IO + 7)  /* I2C/CAN Arbitration lost */
-#define ERR_IO_NACK              (ERR_BASE_IO + 8)  /* I2C NACK / No response */
-#define ERR_IO_PIN_LOCK          (ERR_BASE_IO + 9)  /* Pin muxing/lock conflict */
-#define ERR_IO_ADC_RANGE         (ERR_BASE_IO + 10) /* Analog value out of range */
-#define ERR_IO_DMA               (ERR_BASE_IO + 11) /* DMA controller error */
-#define ERR_IO_INIT              (ERR_BASE_IO + 12) /* Peripheral init failed */
-#define ERR_IO_FRAME_ERROR       (ERR_BASE_IO + 13) /* UART framing error */
-#define ERR_IO_PARITY_ERROR      (ERR_BASE_IO + 14) /* UART parity error */
-#define ERR_IO_OVERRUN           (ERR_BASE_IO + 15) /* Buffer overrun (added for common UART/SPI errors) */
-
-/* ===========================================================================
- * 4. STORAGE & DATA PARSING (96–127)
- *    Flash, Filesystem, Buffers, Serialization (JSON/CBOR).
- * ===========================================================================*/
-#define ERR_STORE_GENERAL        (ERR_BASE_STORE + 0)
-#define ERR_STORE_MOUNT          (ERR_BASE_STORE + 1) /* FS Mount failed */
-#define ERR_STORE_NOENT          (ERR_BASE_STORE + 2) /* File/Key not found (ENOENT) */
-#define ERR_STORE_NOSPC          (ERR_BASE_STORE + 3) /* Disk/Flash full (ENOSPC) */
-#define ERR_STORE_LOCKED         (ERR_BASE_STORE + 4) /* File locked */
-#define ERR_STORE_CORRUPT        (ERR_BASE_STORE + 5) /* FS structure corrupt */
-#define ERR_STORE_WEAR           (ERR_BASE_STORE + 6) /* Flash wear limit reached */
-#define ERR_STORE_PROTECTED      (ERR_BASE_STORE + 7) /* Write protection active */
-
-#define ERR_DATA_FORMAT          (ERR_BASE_STORE + 8) /* Parse error (JSON/XML/CBOR/etc) */
-#define ERR_DATA_TRUNCATED       (ERR_BASE_STORE + 9) /* Buffer too small for payload */
-#define ERR_DATA_EMPTY           (ERR_BASE_STORE + 10)
-#define ERR_DATA_TYPE            (ERR_BASE_STORE + 11) /* Wrong type (Int vs String) */
-#define ERR_DATA_CHECKSUM        (ERR_BASE_STORE + 12) /* Logical checksum (LRC/CRC) */
-#define ERR_DATA_NULL            (ERR_BASE_STORE + 13) /* Null pointer (added for common data errors) */
-#define ERR_DATA_BAD_MESSAGE     (ERR_BASE_STORE + 14)
-#define ERR_DATA_BAD_HEADER      (ERR_BASE_STORE + 15)
-#define ERR_DATA_UNSUPPORTED     (ERR_BASE_STORE + 16)
-#define ERR_DATA_OVERFLOW        (ERR_BASE_STORE + 17)
-#define ERR_DATA_SEQUENCE        (ERR_BASE_STORE + 18)
-
-/* ===========================================================================
- * 5. NETWORK & TRANSPORT (128–159)
- *    Stacks (LwIP, Zephyr), Radio, Protocols (MQTT, CoAP).
- * ===========================================================================*/
-#define ERR_NET_GENERAL          (ERR_BASE_NET + 0)
-#define ERR_NET_DOWN             (ERR_BASE_NET + 1) /* Interface down */
-#define ERR_NET_UNREACHABLE      (ERR_BASE_NET + 2) /* No route to host */
-#define ERR_NET_RESOLVE          (ERR_BASE_NET + 3) /* DNS/Discovery failed */
-#define ERR_NET_CONN_REFUSED     (ERR_BASE_NET + 4) /* TCP/Connection refused */
-#define ERR_NET_CONN_LOST        (ERR_BASE_NET + 5) /* Connection reset/dropped */
-#define ERR_NET_PROTO            (ERR_BASE_NET + 6) /* Protocol violation */
-#define ERR_NET_PAYLOAD          (ERR_BASE_NET + 7) /* Invalid payload for proto */
-#define ERR_NET_AUTH             (ERR_BASE_NET + 8) /* Network-level auth failed */
-#define ERR_NET_BIND             (ERR_BASE_NET + 9) /* Port/Socket in use */
-#define ERR_NET_PACKET           (ERR_BASE_NET + 10) /* Malformed packet */
-#define ERR_NET_COLLISION        (ERR_BASE_NET + 11) /* Radio/Ethernet collision */
-#define ERR_NET_TIMEOUT          (ERR_BASE_NET + 12) /* Network/protocol timeout (added for completeness) */
-
-#define ERR_PIPE_CYCLE           (ERR_BASE_NET + 13) /* Cyclic pipe graph error */
-#define ERR_PIPE_BROKEN          (ERR_BASE_NET + 14) /* Closed/Unlinked */
-#define ERR_PIPE_OVERFLOW        (ERR_BASE_NET + 15)
-
-/* ===========================================================================
- * 6. SECURITY & CRYPTOGRAPHY (160–191)
- *    TLS, Keys, RNG, Access Control.
- * ===========================================================================*/
-#define ERR_SEC_GENERAL          (ERR_BASE_SEC + 0)
-#define ERR_SEC_INIT             (ERR_BASE_SEC + 1) /* Crypto engine init fail */
-#define ERR_SEC_ENTROPY          (ERR_BASE_SEC + 2) /* RNG empty / weak entropy */
-#define ERR_SEC_AUTH_FAIL        (ERR_BASE_SEC + 3) /* Credential validation failed */
-#define ERR_SEC_SIGNATURE        (ERR_BASE_SEC + 4) /* Invalid signature */
-#define ERR_SEC_KEY_INVALID      (ERR_BASE_SEC + 5) /* Bad key format */
-#define ERR_SEC_KEY_MISSING      (ERR_BASE_SEC + 6) /* Key slot empty */
-#define ERR_SEC_CERT_EXPIRED     (ERR_BASE_SEC + 7)
-#define ERR_SEC_CERT_REVOKED     (ERR_BASE_SEC + 8)
-#define ERR_SEC_HASH_MISMATCH    (ERR_BASE_SEC + 9)
-#define ERR_SEC_UNTRUSTED        (ERR_BASE_SEC + 10) /* Root of trust verify failed */
-#define ERR_SEC_LOCKED           (ERR_BASE_SEC + 11) /* Secure element locked */
-#define ERR_SEC_ACCESS           (ERR_BASE_SEC + 12) /* Access control violation */
-/* 173-191: Reserved for Security expansion */
-
-/* ===========================================================================
- * 7. RESOURCES & DYNAMIC MODULES (192–223)
- *    Handles, Allocators, Dynamic Loading, OTA.
- * ===========================================================================*/
-#define ERR_RES_GENERAL          (ERR_BASE_RES + 0)
-#define ERR_RES_EXHAUSTED        (ERR_BASE_RES + 1) /* Pool/Slots empty */
-#define ERR_RES_LEAK             (ERR_BASE_RES + 2) /* Leak detected */
-#define ERR_RES_INVALID_ID       (ERR_BASE_RES + 3) /* Bad Handle/ID */
-#define ERR_RES_OWNERSHIP        (ERR_BASE_RES + 4) /* Ownership violation */
-
-#define ERR_MOD_HEADER           (ERR_BASE_RES + 5) /* ELF/Image header bad */
-#define ERR_MOD_VERSION          (ERR_BASE_RES + 6) /* Version mismatch (OTA) */
-#define ERR_MOD_DEPENDENCY       (ERR_BASE_RES + 7) /* Symbol/Lib missing */
-#define ERR_MOD_COMPAT           (ERR_BASE_RES + 8) /* Arch/Platform mismatch */
-#define ERR_MOD_SIZE             (ERR_BASE_RES + 9) /* Image too large */
-#define ERR_MOD_RESTRICTED       (ERR_BASE_RES + 10)
-
-/* 203-223: Reserved for Resource expansion */
-
-/* ===========================================================================
- * 8. APPLICATION SPACE (224–254)
- *    Strictly for User/Business Logic.
- * ===========================================================================*/
+static inline uint8_t err_op_distance(uint8_t left, uint8_t right) {
+    return err_op_one_count(left ^ right);
+}
 
 /*
- * Applications should define their errors relative to this base:
- * #define ERR_MYAPP_BAD_CONFIG  (ERR_APP_BASE + 0)
- * ...
- * #define ERR_MYAPP_MAX         (ERR_APP_BASE + 30)
+ * Calculate entropy (Shannon information) of nibbles.
+ * Measures balance/chaos: 0 = pure, 1 = perfectly balanced.
+ *
+ * Formula based on N=8 lines.
  */
+CC_ALWAYS_INLINE float32_t err_op_entropy(uint8_t err) {
+  uint8_t ones = err_op_one_count(err);
+  uint8_t zeros = 8 - ones;
 
-/* ===========================================================================
- * RESERVED (255)
- * ===========================================================================*/
-#define ERR_FINALIZED             255 /* Protothread Teardown Flag (Non-Error) */
+  if (zeros == 0 || ones == 0) return 0.0f;
 
+  float32_t p_ones = ones / 8.0f;
+  float32_t p_zeros = zeros / 8.0f;
 
-/**
- * @brief Checks if an error code is critical (System or Hardware level)
- */
-#define ERR_IS_CRITICAL(e)       (((e) >= ERR_BASE_SYS) && ((e) < ERR_BASE_STORE))
-
-/**
- * @brief Convert error code to human-readable string (stored in Flash/RO).
- */
-const char *error_to_string(uint8_t err);
-
-#ifdef __cplusplus
+  return -(p_ones * very_fast_log2(p_ones) + p_zeros * very_fast_log2(p_zeros));
 }
-#endif
 
-#endif /* __ERRORS_H__ */
+/**
+ * Calculate balance ratio (one/total lines).
+ * Returns value from 0.0 to 1.0.
+ */
+CC_ALWAYS_INLINE float32_t err_op_balance(uint8_t err) {
+  return err_op_one_count(err) / 8.0f;
+}
+
+// Identifies which transformation relates two errors
+typedef enum {
+    ERR_RELATION_DEFAULT = 0,
+    ERR_RELATION_CENTER,
+    ERR_RELATION_OPPOSITE,
+    ERR_RELATION_REVERSED_EQUALS,
+    ERR_RELATION_REVERSED,
+    ERR_RELATION_INVERTED_EQUALS,
+    ERR_RELATION_INVERTED,
+} err_relation_t;
+
+err_relation_t err_op_relation(uint8_t left, uint8_t right) {
+  if (err_op_center(left) == right)
+    return ERR_RELATION_CENTER;
+  else if (err_op_opposite(left) == right)
+    return ERR_RELATION_OPPOSITE;
+  else if (err_op_reverse(left) == right) {
+    if (ERR_IS_TWIN(left))
+      return ERR_RELATION_REVERSED_EQUALS;
+    else
+      return ERR_RELATION_REVERSED;
+  }
+  else if (err_op_inverse(left) == right) {
+    if (ERR_IS_TWIN(left))
+      return ERR_RELATION_INVERTED_EQUALS;
+    else
+      return ERR_RELATION_INVERTED;
+  }
+  else return ERR_RELATION_DEFAULT;
+}
+
+#endif // PROTODUINO_ERRORS_H

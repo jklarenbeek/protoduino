@@ -30,18 +30,10 @@ extern "C" {
 #endif
 
 /* ---------------------------------------------------------------------------
- * Configuration knobs
- * -------------------------------------------------------------------------*/
-/* Maximum number of argv slots in ipc_msg_t. Keep small for AVR. */
-#ifndef IPC_MSG_MAX_ARGS
-#define IPC_MSG_MAX_ARGS 4
-#endif
-
-/* ---------------------------------------------------------------------------
  * Message (packet) API
  * -------------------------------------------------------------------------*/
 
-/* Small, fixed-argument IPC message. Use ipc_msg_alloc() to obtain from pool. */
+/* Small, fixed-argument IPC message. Use ipc_msg_alloc() to obtain from the ipc pool. */
 typedef struct ipc_msg {
     uint8_t type;                         /* application / subsystem message type */
     uint8_t argc;                         /* number of valid argv[] entries (0..IPC_MSG_MAX_ARGS) */
@@ -57,7 +49,7 @@ struct ipc_pool {
     uint16_t free_count;  /* number free */
 };
 
-/* Initialize a pool. buffer must be BLOCK_SIZE * N large.
+/* Initialize an ipc pool. buffer must be BLOCK_SIZE * N large.
  * Returns: ERR_SUCCESS or ERR_RES_EXHAUSTED/ERR_SYS_INVAL on bad args.
  */
 int ipc_pool_init(struct ipc_pool *p, void *buffer, size_t block_size, uint16_t n_blocks);
@@ -71,7 +63,7 @@ void ipc_pool_free(struct ipc_pool *p, void *blk);
 /* Number of free blocks currently available */
 uint16_t ipc_pool_count_free(struct ipc_pool *p);
 
-/* Message helpers using pool:
+/* Message helpers using the ipc pool:
  * - ipc_msg_alloc_from_pool(pool) returns ipc_msg_t* or NULL
  * - ipc_msg_free_to_pool(pool, msg)
  */
@@ -116,7 +108,8 @@ size_t ipc_pipe_space(const ipc_pipe_t *p);
 
 /* Write up to len bytes from src into pipe. Returns number of bytes written (may be 0).
  * If data transitions pipe from empty->non-empty, wake_cb (if set) is invoked
- * after the write (still within atomic region; ensure wake_cb is safe).
+ * after the write and *outside* the atomic block (to minimize ISR disable time).
+ * The wake callback (e.g., process_poll) must be safe to call from ISR.
  */
 size_t ipc_pipe_write(ipc_pipe_t *p, const uint8_t *src, size_t len);
 

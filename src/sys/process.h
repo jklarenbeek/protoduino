@@ -20,25 +20,6 @@
 #include "pt.h"         /* ptstate_t, PT_* macros */
 
 /* ------------------------------------------------------------------ */
-/* Configuration (override in protoduino_config.h)                    */
-/* ------------------------------------------------------------------ */
-#ifndef PROCESS_CONF_EVENT_QUEUE_SIZE
-#define PROCESS_CONF_EVENT_QUEUE_SIZE 8
-#endif
-
-#ifndef PROCESS_CONF_PER_PROCESS_INBOX
-#define PROCESS_CONF_PER_PROCESS_INBOX 0
-#endif
-
-#ifndef PROCESS_CONF_INBOX_SIZE
-#define PROCESS_CONF_INBOX_SIZE 4
-#endif
-
-#ifndef PROCESS_CONF_INBOX_POINTERS
-#define PROCESS_CONF_INBOX_POINTERS 0
-#endif
-
-/* ------------------------------------------------------------------ */
 /* Basic types & events                                               */
 /* ------------------------------------------------------------------ */
 typedef uint8_t process_event_t;
@@ -69,7 +50,8 @@ typedef enum {
 #define PROCESS_EVENT_POLL       53
 #define PROCESS_EVENT_ERROR      54
 #define PROCESS_EVENT_MSG        60  /* intended to carry ipc_msg_t* */
-#define PROCESS_EVENT_PIPE_CTRL  61
+#define PROCESS_EVENT_MSG_LEAK   61  /* A process exited while holding this message data (ipc_msg_t*) */
+#define PROCESS_EVENT_PIPE_CTRL  62
 
 /* Error information structure */
 

@@ -13,10 +13,8 @@
 #include <stddef.h>
 
 #include "cc.h"
-#include "sys/pt.h"
 #include "sys/errors.h"
-
-CC_EXTERN void protoduino_start(void);
+#include "sys/pt.h"
 
 
 #endif

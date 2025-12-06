@@ -27,8 +27,3 @@ CC_EXTERN uint_fast8_t CC_TMPL_FN(write24)(const uint_fast32_t data);
 CC_EXTERN uint_fast8_t CC_TMPL_FN(write32)(const uint_fast32_t data);
 
 CC_EXTERN uint_fast8_t CC_TMPL_FN(flush)(void);
-
-//#define serial0_peek() serial0_peek8(void)
-//#define serial0_read() serial0_read8(void)
-
-//#define serial0_write(data) _Generic((data), uint8_fast8_t: serial0_write8, uint_fast16_t: serial0_write16, uint_fast32_t: serial0_write32)(data)
