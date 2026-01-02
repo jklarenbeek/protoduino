@@ -82,6 +82,7 @@ static Serial0Class CSerial0 = Serial0Class();
 
 #else
 
+#include <Arduino.h>
 #define SerialLine Serial
 
 #endif

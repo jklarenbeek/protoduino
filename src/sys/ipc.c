@@ -109,7 +109,7 @@ int ipc_msg_set_arg(ipc_msg_t *m, uint8_t idx, void *arg)
 
 int ipc_pipe_init(ipc_pipe_t *p, void *buffer, size_t size, ipc_wake_cb_t wake_cb, void *wake_ctx)
 {
-    if (!p || !buffer || size < 2) return ERR_SYS_INVAL;
+    if (!p || !buffer || size < 2) return ERR_PROC_INVAL;
     p->buf = (uint8_t*)buffer;
     p->size = size;
     p->head = 0;

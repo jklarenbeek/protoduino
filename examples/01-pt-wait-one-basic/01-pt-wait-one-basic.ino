@@ -21,7 +21,7 @@
  * the code.
  *
  * Since a loop forever is used within each protothread, it behaves the
- * same as protothread 1.8 by Adam Dunkels.
+ * same as protothread 1.4 by Adam Dunkels.
  *
  */
 static ptstate_t protothread1(struct pt *pt)

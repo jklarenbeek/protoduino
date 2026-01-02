@@ -1,6 +1,7 @@
 // file: ./src/sys/errors.c
+#include <protoduino-config.h>
+#include <cc.h>
 #include "errors.h"
-#include "errors.conf.h"
 #include <stdint.h>
 
 /*
@@ -59,7 +60,7 @@ const char *error_to_string(uint8_t err)
         case ERR_PROC_CANCELLED:  return S("E_FORK", "Operation Cancelled");
         case ERR_PROC_ZOMBIE:     return S("E_ZOMBIE", "Process is Zombie");
         case ERR_PROC_ORPHAN:     return S("E_ORPHAN", "Parent Process Lost");
-        case ERR_PROC_BALANCED:   return S("E_AFFINITY", "Thread Balance/Affinity Error");
+        case ERR_PROC_INVAL:      return S("E_INVAL", "Invalid System Argument");
 
         // Section 1.4: Scheduling
         case ERR_SYS_SCHED:       return S("E_SCHED", "Scheduler Error");

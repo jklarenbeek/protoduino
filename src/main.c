@@ -1,7 +1,8 @@
 // file: ./src/main.c
 
 #include "main.h"
-#include "sys/logger.h"
+#include "sys/process.h"
+#include "sys/process/logger.h"
 
 #if PROCESS_CONF_AUTO_IPC_POOL
 // Define the static buffer and the global pool structure instance.
@@ -27,7 +28,7 @@ void protoduino_start() {
   // 2. Initialize the scheduler and link the error logger.
   // The error logger can now safely rely on g_sys_msg_pool if it handles leaks.
   struct process *logger = system_log_process = NULL
-    ? error_logger_process
+    ? &error_logger_process
     : system_log_process;
 
   process_init(&logger);

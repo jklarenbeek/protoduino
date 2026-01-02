@@ -470,13 +470,13 @@
 // Everything else unbalanced
 #define ERR_IS_UNBALANCED_OTHER(err) (ERR_IS_UNBALANCED(err) && !ERR_IS_TWIN(err) && !ERR_IS_UNBALANCED_EDGE(err))
 
-CC_ALWAYS_INLINE uint8_t err_op_inverse(uint8_t err) {
+static CC_ALWAYS_INLINE uint8_t err_op_inverse(uint8_t err) {
     // Inverse the cluster (EEEE DDDD)
     // In 8-bit, we invert the whole byte.
     return ~err;
 }
 
-CC_ALWAYS_INLINE uint8_t err_op_reverse(uint8_t err) {
+static CC_ALWAYS_INLINE uint8_t err_op_reverse(uint8_t err) {
     // Reverse the cluster bits: 7-0
     // Standard SWAR bit reversal for 8 bits
     err = (err & 0xF0) >> 4 | (err & 0x0F) << 4;
@@ -485,13 +485,13 @@ CC_ALWAYS_INLINE uint8_t err_op_reverse(uint8_t err) {
     return err;
 }
 
-CC_ALWAYS_INLINE uint8_t err_op_opposite(uint8_t err) {
+static CC_ALWAYS_INLINE uint8_t err_op_opposite(uint8_t err) {
     // Swap the nibbles (Left <-> Right)
     // (EEEE DDDD) -> (DDDD EEEE)
     return (ERR_NIBBLE_RIGHT(err) << 4) | ERR_NIBBLE_LEFT(err);
 }
 
-CC_ALWAYS_INLINE uint8_t err_op_center(uint8_t err) {
+static CC_ALWAYS_INLINE uint8_t err_op_center(uint8_t err) {
     // Nuclear transformation for 8 bits.
     // Logic: Sliding window of size 4.
     // Right Nibble becomes bits 1,2,3,4 (shifted to 0,1,2,3)
@@ -501,7 +501,7 @@ CC_ALWAYS_INLINE uint8_t err_op_center(uint8_t err) {
     return ((err << 1) & 0xF0) | ((err >> 1) & 0x0F);
 }
 
-CC_ALWAYS_INLINE uint8_t err_op_root(uint8_t err) {
+static CC_ALWAYS_INLINE uint8_t err_op_root(uint8_t err) {
     // Convergence tree iteration
     // Typically depth increases with bit width, 8-bit takes 4 steps max.
     while (!ERR_IS_ROOT(err)) err = err_op_center(err);
@@ -512,7 +512,7 @@ CC_ALWAYS_INLINE uint8_t err_op_root(uint8_t err) {
  * Get the depth in the nuclear convergence tree.
  * Returns how many center() operations needed to reach the root.
  */
-CC_ALWAYS_INLINE uint8_t err_op_depth(uint8_t err) {
+static CC_ALWAYS_INLINE uint8_t err_op_depth(uint8_t err) {
   uint8_t d = 0;
   while (!ERR_IS_ROOT(err)) {
       err = err_op_center(err);
@@ -521,7 +521,7 @@ CC_ALWAYS_INLINE uint8_t err_op_depth(uint8_t err) {
   return d;
 }
 
-CC_ALWAYS_INLINE uint8_t err_op_one_count(uint8_t err) {
+static CC_ALWAYS_INLINE uint8_t err_op_one_count(uint8_t err) {
     // Hamming weight for 8 bits
     // This is a SWAR algorithm (SIMD Within A Register) for 32-bit capable CPUs,
     // adapted for 8-bit flow, or simply naive count if compiled without __builtin_popcount
@@ -534,7 +534,7 @@ CC_ALWAYS_INLINE uint8_t err_op_one_count(uint8_t err) {
 #endif
 }
 
-CC_ALWAYS_INLINE uint8_t err_op_distance(uint8_t left, uint8_t right) {
+static CC_ALWAYS_INLINE uint8_t err_op_distance(uint8_t left, uint8_t right) {
     return err_op_one_count(left ^ right);
 }
 
@@ -550,7 +550,7 @@ static CC_ALWAYS_INLINE very_fast_log2(float val) {
  *
  * Formula based on N=8 lines.
  */
-CC_ALWAYS_INLINE float32_t err_op_entropy(uint8_t err) {
+static CC_ALWAYS_INLINE float32_t err_op_entropy(uint8_t err) {
   uint8_t ones = err_op_one_count(err);
   uint8_t zeros = 8 - ones;
 
@@ -566,7 +566,7 @@ CC_ALWAYS_INLINE float32_t err_op_entropy(uint8_t err) {
  * Calculate balance ratio (one/total lines).
  * Returns value from 0.0 to 1.0.
  */
-CC_ALWAYS_INLINE float32_t err_op_balance(uint8_t err) {
+static CC_ALWAYS_INLINE float32_t err_op_balance(uint8_t err) {
   return err_op_one_count(err) / 8.0f;
 }
 
@@ -581,7 +581,7 @@ typedef enum {
     ERR_RELATION_INVERTED,
 } err_relation_t;
 
-err_relation_t err_op_relation(uint8_t left, uint8_t right) {
+static err_relation_t err_op_relation(uint8_t left, uint8_t right) {
   if (err_op_center(left) == right)
     return ERR_RELATION_CENTER;
   else if (err_op_opposite(left) == right)
@@ -602,6 +602,6 @@ err_relation_t err_op_relation(uint8_t left, uint8_t right) {
 }
 
 
-EXTERN const char *error_to_string(uint8_t err)
+CC_EXTERN const char *error_to_string(uint8_t err);
 
 #endif // ERRORS_H

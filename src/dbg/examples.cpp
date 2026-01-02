@@ -1,6 +1,7 @@
 // file: ./src/dbg/examples.cpp
 
 #include "examples.h"
+#include "../sys/tmpl/SerialClass.hpp"
 
 int print_count = 0;
 

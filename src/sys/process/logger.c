@@ -1,8 +1,8 @@
 // file: ./src/sys/logger.c
 
 #include "logger.h"
-#include "ipc.h"
-#include "serial.h"
+#include "../ipc.h"
+#include "../serial.h"
 
 // ---------------------------------------------------------------------------
 // Process Implementation

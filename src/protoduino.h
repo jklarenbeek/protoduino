@@ -4,13 +4,10 @@
 #define __PROTODUINO_H__
 
 #include "protoduino-config.h"
-#ifdef USE_ARDUINO_HARDWARESERIAL
-#include <Arduino.h>
-#define SerialLine Serial
-#endif
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "cc.h"
 #include "sys/errors.h"

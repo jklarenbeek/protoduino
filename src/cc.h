@@ -199,6 +199,9 @@
 #include <util/atomic.h>
 #include <avr/pgmspace.h>
 
+typedef float float32_t;
+typedef double float64_t;
+
 #define CC_PROGMEM PROGMEM
 
 #define CC_ATOMIC_RESTORE() ATOMIC_BLOCK(ATOMIC_RESTORESTATE)

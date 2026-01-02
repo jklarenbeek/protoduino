@@ -1,7 +1,7 @@
 // file: ./src/cpu/avr/uart.h
 
-#ifndef __UART_H__
-#define __UART_H__
+#ifndef __AVR_UART_H__
+#define __AVR_UART_H__
 
 #include <protoduino-config.h>
 #include <cc.h>
@@ -62,4 +62,4 @@ typedef int_fast16_t (*uart_on_tx_complete_fn)(void);
 #include "uart_private_header.h"
 #endif
 
-#endif
+#endif /* __AVR_UART_H__ */

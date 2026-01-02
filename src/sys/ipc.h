@@ -22,7 +22,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#include "../cc.h"              /* contains CC_ATOMIC_RESTORE() macros */
+#include <protoduino-config.h>
+#include <cc.h>
 #include "errors.h"             /* error taxonomy (ERR_* defines) */
 
 #ifdef __cplusplus
@@ -50,7 +51,7 @@ struct ipc_pool {
 };
 
 /* Initialize an ipc pool. buffer must be BLOCK_SIZE * N large.
- * Returns: ERR_SUCCESS or ERR_RES_EXHAUSTED/ERR_SYS_INVAL on bad args.
+ * Returns: ERR_SUCCESS or ERR_RES_EXHAUSTED/ERR_PROC_INVAL on bad args.
  */
 int ipc_pool_init(struct ipc_pool *p, void *buffer, size_t block_size, uint16_t n_blocks);
 
@@ -96,7 +97,7 @@ typedef struct ipc_pipe {
 } ipc_pipe_t;
 
 /* Initialize a pipe. buffer must be `size` bytes. wake_cb may be NULL.
- * Returns ERR_SUCCESS or ERR_SYS_INVAL if args invalid.
+ * Returns ERR_SUCCESS or ERR_PROC_INVAL if args invalid.
  */
 int ipc_pipe_init(ipc_pipe_t *p, void *buffer, size_t size, ipc_wake_cb_t wake_cb, void *wake_ctx);
 

@@ -4,9 +4,7 @@
 #define __EXAMPLES_H__
 
 #include <protoduino.h>
-#ifndef USE_ARDUINO_HARDWARESERIAL
-#include "../sys/tmpl/SerialClass.hpp"
-#endif
+#include "Stream.h"
 
 extern int print_count;
 

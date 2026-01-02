@@ -7,7 +7,6 @@
 #include <cc.h>
 #include "errors.h"
 #include "uart.h"
-
 #include <stdbool.h>
 
 
@@ -48,8 +47,8 @@ CC_EXTERN typedef bool (*serial_onrecieved_fn)(uint_fast8_t);
 #include "tmpl/serial_private_header.h"
 #endif
 
-CC_EXTERN void print_P(const char *s)
-CC_EXTERN void print(const char *s)
-CC_EXTERN void print_dec(uint8_t val)
+CC_EXTERN void print_P(const char *s);
+CC_EXTERN void print(const char *s);
+CC_EXTERN void print_dec(uint8_t val);
 
 #endif /* __SERIAL_H__ */
