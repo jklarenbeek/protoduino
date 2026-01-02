@@ -11,8 +11,8 @@
 #include <stdbool.h>
 
 /**
- * \typedef rune16_t
- * \brief 16-bit Unicode character representation.
+ * @typedef rune16_t
+ * @brief 16-bit Unicode character representation.
  *
  * This typedef defines the type "rune16_t" as a 16-bit Unicode character representation.
  * It is used for storing Unicode characters with a maximum value of 0xFFFF (65535).

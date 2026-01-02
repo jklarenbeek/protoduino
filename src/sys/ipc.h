@@ -119,16 +119,6 @@ size_t ipc_pipe_read(ipc_pipe_t *p, uint8_t *dst, size_t len);
 /* Clear pipe (drop contents) */
 void ipc_pipe_clear(ipc_pipe_t *p);
 
-/* ---------------------------------------------------------------------------
- * Convenience helpers (errors & debug)
- * -------------------------------------------------------------------------*/
-
-/* Convert a ipc_msg_t to a textual description into user buffer.
- * Not intended for production on AVR but useful when debugging on host.
- * Returns ERR_SUCCESS or ERR_SYS_INVAL.
- */
-int ipc_msg_to_string(const ipc_msg_t *m, char *buf, size_t buflen);
-
 #ifdef __cplusplus
 }
 #endif

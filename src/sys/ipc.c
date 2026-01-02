@@ -13,7 +13,7 @@
 
 int ipc_pool_init(struct ipc_pool *p, void *buffer, size_t block_size, uint16_t n_blocks)
 {
-    if (!p || !buffer || n_blocks == 0) return ERR_SYS_INVAL;
+    if (!p || !buffer || n_blocks == 0) return ERR_HANDLE_NULL;
     if (block_size < sizeof(void*)) block_size = sizeof(void*);
     p->buffer = (uint8_t*)buffer;
     p->block_size = block_size;
@@ -77,8 +77,8 @@ void ipc_msg_free_to_pool(struct ipc_pool *pool, ipc_msg_t *m)
 
 int ipc_msg_init(ipc_msg_t *m, uint8_t type, uint8_t argc, void *argv[])
 {
-    if (!m) return ERR_SYS_INVAL;
-    if (argc > IPC_MSG_MAX_ARGS) return ERR_SYS_INVAL;
+    if (!m) return ERR_HANDLE_NULL;
+    if (argc > IPC_MSG_MAX_ARGS) return ERR_VAL_RANGE;
     m->type = type;
     m->argc = argc;
     /* copy pointers (no deep copy) */
@@ -90,30 +90,10 @@ int ipc_msg_init(ipc_msg_t *m, uint8_t type, uint8_t argc, void *argv[])
 
 int ipc_msg_set_arg(ipc_msg_t *m, uint8_t idx, void *arg)
 {
-    if (!m) return ERR_SYS_INVAL;
-    if (idx >= IPC_MSG_MAX_ARGS) return ERR_SYS_INVAL;
+    if (!m) return ERR_HANDLE_NULL;
+    if (idx >= IPC_MSG_MAX_ARGS) return ERR_VAL_RANGE;
     m->argv[idx] = arg;
     if (idx >= m->argc) m->argc = idx + 1;
-    return ERR_SUCCESS;
-}
-
-/* Convert a message into human-readable text (best-effort).
- * Only for debug; safe on platforms with snprintf.
- */
-int ipc_msg_to_string(const ipc_msg_t *m, char *buf, size_t buflen)
-{
-    if (!m || !buf || buflen == 0) return ERR_SYS_INVAL;
-    int pos = 0;
-    int n = snprintf(buf + pos, (pos < (int)buflen) ? buflen - pos : 0,
-                     "MSG(type=%u argc=%u)", (unsigned)m->type, (unsigned)m->argc);
-    if (n < 0) return ERR_FAILURE;
-    pos += n;
-    for (uint8_t i = 0; i < m->argc && pos < (int)buflen - 1; ++i) {
-        n = snprintf(buf + pos, buflen - pos, " [%u]=%p", (unsigned)i, m->argv[i]);
-        if (n < 0) break;
-        pos += n;
-    }
-    buf[(pos < (int)buflen) ? pos : (int)buflen - 1] = '\0';
     return ERR_SUCCESS;
 }
 

@@ -11,6 +11,17 @@
 #include <stdbool.h>
 
 
+/*
+ * compile-time selector: tiny (short) vs verbose messages.
+ */
+#ifndef S
+  #if ERRORS_CONF_VERBOSE_MESSAGES
+    #define S(tiny, verbose) (verbose)
+  #else
+    #define S(tiny, verbose) (tiny)
+  #endif
+#endif
+
 CC_EXTERN typedef bool (*serial_onrecieved_fn)(uint_fast8_t);
 
 #ifdef HAVE_HW_UART0

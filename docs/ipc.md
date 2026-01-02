@@ -480,17 +480,6 @@ void uart_rx_isr_push(const uint8_t *data, size_t len) {
 Note: process_poll_wake_cb() is a small wrapper you would implement in your glue code that simply calls process_poll(reader_proc) or process_post(reader_proc, PROCESS_EVENT_POLL, NULL). We purposely don't include process.h here so the IPC remains scheduler-agnostic.
 
 ---
-# 8. TODO: Debugging Aids
-
-`ipc_msg_to_string()` produces human-readable output:
-
-```
-MSG(type=3 argc=2) [0]=0x0042 [1]=0x1F20
-```
-
-Useful when debugging on host builds.
-
----
 
 # Conclusion
 

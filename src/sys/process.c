@@ -1,7 +1,6 @@
 // file: ./src/sys/process.c
-#define _POSIX_C_SOURCE 200809L
 #include "process.h"
-#include "ipc.h" /* optional: for PROCESS_EVENT_MSG consumer expectation */
+#include "ipc.h"
 #include <string.h>
 
 /* Internal event entry */
@@ -377,5 +376,3 @@ void process_report_error(struct process *src, uint8_t code)
   /* best-effort post */
   (void)process_post(process_error_logger, PROCESS_EVENT_ERROR, &error_pool[idx]);
 }
-
-/* EOF */

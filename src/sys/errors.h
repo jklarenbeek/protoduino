@@ -1,370 +1,401 @@
-#ifndef PROTODUINO_ERRORS_H
-#define PROTODUINO_ERRORS_H
+#ifndef ERRORS_H_
+#define ERRORS_H_
 
-#include "../lib/math/float32.h" // for very_fast_log2
+/*
+ * ONTOLOGICAL 8-BIT ERROR TAXONOMY v1.0
+ * -----------------------------------------------------------------------------
+ * Geometry:  16x16 Matrix (0..255) mapped to 4 Attractor Basins.
+ * Logic:     Convergence via ((Child << 1) & 0xF0) | ((Child >>> 1) & 0x0F)
+ * -----------------------------------------------------------------------------
+ */
+
 #include <math.h>
 #include <stdint.h>
 
-/* =========================================================================
-   RESERVED KERNEL CODES (0x00 - 0x03, 0xFF)
-   These are defined by the kernel state machine and listed here for reference.
-   ========================================================================= */
-// #define ERR_SUCCESS      0x00  // Operation completed successfully
-// #define ERR_YIELDED      0x01  // Process yielded control with value or waiting for event
-// #define ERR_EXITED       0x02  // Process exited externally
-// #define ERR_ENDED        0x03  // Process was terminated normally
-// #define ERR_FINALIZED    0xFF  // System finalized/Shutdown
+// =============================================================================
+// RESERVED KERNEL CODES (0x00 - 0x03, 0xFF)
+// These are defined by the kernel state machine and listed here for reference.
+// =============================================================================
+#define ERR_SUCCESS      0x00  // Operation completed successfully
+#define ERR_YIELDING     0x01  // Process yielded control with value or waiting for event
+#define ERR_EXITING      0x02  // Process exited externally
+#define ERR_ENDING       0x03  // Process was terminated normally
+#define ERR_FINALIZED    0xFF  // System finalized/Shutdown absolute stop!
 
-/* =========================================================================
-   DOMAIN 0x0X: KERNEL LIFECYCLE & FLOW
-   Desc: Fundamental execution flow issues, similar to errno EAGAIN/EINTR.
-   ========================================================================= */
-#define ERR_LIFECYCLE_GENERAL       0x04 // Generic lifecycle error
-#define ERR_LIFECYCLE_TIMEOUT       0x05 // Operation timed out
-#define ERR_LIFECYCLE_BUSY          0x06 // Resource is busy (EBUSY)
-#define ERR_LIFECYCLE_CANCELLED     0x07 // Operation cancelled by user
-#define ERR_LIFECYCLE_UNSUPPORTED   0x08 // Operation not supported
-#define ERR_LIFECYCLE_NOT_IMPLEMENTED 0x09 // Functionality missing
-#define ERR_LIFECYCLE_DEPRECATED    0x0A // Feature removed
-#define ERR_LIFECYCLE_TRY_AGAIN     0x0B // Temporary failure, retry (EAGAIN)
-#define ERR_LIFECYCLE_INTERRUPTED   0x0C // Signal/IRQ interrupted call
-#define ERR_LIFECYCLE_PENDING       0x0D // Async operation pending
-#define ERR_LIFECYCLE_STALLED       0x0E // Process stalled/hung
-#define ERR_LIFECYCLE_CRITICAL      0x0F // Unrecoverable kernel panic
+// =============================================================================
+// THE 4 PRIMORDIAL ERROR CLASSES
+// =============================================================================
 
-/* =========================================================================
-   DOMAIN 0x1X: MEMORY & RESOURCES
-   Desc: Heap, stack, and pointer management.
-   ========================================================================= */
-#define ERR_MEM_ALLOCATION          0x10 // General allocation failure
-#define ERR_MEM_FOUNDATION          0x11 // [FOUNDATION] Integrity Check Fail
-#define ERR_MEM_OUT_OF_MEMORY       0x12 // Heap exhausted (ENOMEM)
-#define ERR_MEM_STACK_OVERFLOW      0x13 // Stack limit reached
-#define ERR_MEM_NULL_POINTER        0x14 // Dereferenced NULL
-#define ERR_MEM_ALIGNMENT           0x15 // Invalid alignment access
-#define ERR_MEM_FRAGMENTATION       0x16 // Heap too fragmented to alloc
-#define ERR_MEM_DOUBLE_FREE         0x17 // Freed memory twice
-#define ERR_MEM_USE_AFTER_FREE      0x18 // Accessing freed memory
-#define ERR_MEM_BUFFER_OVERFLOW     0x19 // Write past end of buffer
-#define ERR_MEM_BUFFER_UNDERFLOW    0x1A // Read before start of buffer
-#define ERR_MEM_LEAK_DETECTED       0x1B // Debug: Memory leak found
-#define ERR_MEM_PROTECTED           0x1C // Write to read-only memory
-#define ERR_MEM_INVALID_HANDLE      0x1D // Invalid memory handle
-#define ERR_MEM_MAPPED_FAILED       0x1E // mmap failed
-#define ERR_MEM_CORRUPTION          0x1F // Heap corruption detected
+// Terminal roots
+#define ERR_ROOT_INIT     0x00 /* 0 dec, 00000000 — genesis, void  */
+#define ERR_ROOT_RUN      0xFF /* 255 dec, 11111111 — saturation, terminal */
 
-/* =========================================================================
-   DOMAIN 0x2X: SECURITY & ACCESS CONTROL
-   Desc: Auth, permissions, and cryptography.
-   ========================================================================= */
-#define ERR_SEC_GENERAL             0x20 // General security error
-#define ERR_SEC_UNAUTHORIZED        0x21 // Authentication required (401)
-#define ERR_SEC_FOUNDATION          0x22 // [FOUNDATION] Security Breach
-#define ERR_SEC_FORBIDDEN           0x23 // Authenticated but denied (403)
-#define ERR_SEC_ACCESS_DENIED       0x24 // Filesystem/Resource permission (EACCES)
-#define ERR_SEC_INVALID_TOKEN       0x25 // Bad auth token/session
-#define ERR_SEC_TOKEN_EXPIRED       0x26 // Token valid but old
-#define ERR_SEC_SIGNATURE_BAD       0x27 // Digital signature mismatch
-#define ERR_SEC_ENCRYPTION_FAILED   0x28 // Cipher operation failed
-#define ERR_SEC_DECRYPTION_FAILED   0x29 // Decipher operation failed
-#define ERR_SEC_WEAK_KEY            0x2A // Key strength insufficient
-#define ERR_SEC_NO_ENTROPY          0x2B // RNG failed/empty
-#define ERR_SEC_LOCKED              0x2C // Resource locked by another user
-#define ERR_SEC_TAMPER_DETECTED     0x2D // Integrity check failed
-#define ERR_SEC_BAD_CREDENTIALS     0x2E // Wrong username/password
-#define ERR_SEC_PRIVILEGE_LOW       0x2F // Root/Admin required
+// Oscillatory roots
+#define ERR_ROOT_BEFORE   0x55 /* 85 dec, 01010101 — oscillation origin */
+#define ERR_ROOT_AFTER    0xAA /* 170 dec, 10101010 — oscillation inversion */
 
-/* =========================================================================
-   DOMAIN 0x3X: FILESYSTEM & STORAGE
-   Desc: Disk operations, paths, and mounting.
-   ========================================================================= */
-#define ERR_FS_GENERAL              0x30 // Generic IO error (EIO)
-#define ERR_FS_NOT_FOUND            0x31 // File not found (ENOENT)
-#define ERR_FS_PATH_INVALID         0x32 // Malformed path
-#define ERR_FS_FOUNDATION           0x33 // [FOUNDATION] Disk Failure
-#define ERR_FS_ALREADY_EXISTS       0x34 // Create failed, exists (EEXIST)
-#define ERR_FS_IS_DIRECTORY         0x35 // Expected file, got dir (EISDIR)
-#define ERR_FS_NOT_DIRECTORY        0x36 // Expected dir, got file (ENOTDIR)
-#define ERR_FS_NOT_EMPTY            0x37 // Directory not empty
-#define ERR_FS_TOO_MANY_OPEN        0x38 // File descriptor limit (EMFILE)
-#define ERR_FS_DISK_FULL            0x39 // No space left (ENOSPC)
-#define ERR_FS_READ_ONLY            0x3A // File system is read-only
-#define ERR_FS_MOUNT_FAILED         0x3B // Mount operation failed
-#define ERR_FS_UNMOUNT_FAILED       0x3C // Resource busy, cannot unmount
-#define ERR_FS_MEDIA_REMOVED        0x3D // SD/USB pulled out
-#define ERR_FS_BAD_DESCRIPTOR       0x3E // Bad FD (EBADF)
-#define ERR_FS_SEEK_ERROR           0x3F // Lseek failed (ESPIPE)
+// =============================================================================
+// QUADRANT 1: INIT / LIFECYCLE / SYSTEM STATE
+// ROOT: 0x00 (The Void / Success / Origins)
+// =============================================================================
 
-/* =========================================================================
-   DOMAIN 0x4X: HARDWARE & DRIVERS
-   Desc: Low level IO, Buses (I2C/SPI), and GPIO.
-   ========================================================================= */
-#define ERR_HW_GENERAL              0x40 // Hardware fault
-#define ERR_HW_NOT_FOUND            0x41 // Device ID mismatch
-#define ERR_HW_NOT_READY            0x42 // Peripheral init incomplete
-#define ERR_HW_POWER_LOW            0x43 // Brownout/Battery low
-#define ERR_HW_FOUNDATION           0x44 // [FOUNDATION] Bus Lockup
-#define ERR_HW_GPIO_FAILURE         0x45 // Pin config error
-#define ERR_HW_ADC_ERROR            0x46 // Analog read fail
-#define ERR_HW_PWM_ERROR            0x47 // Timer/PWM fail
-#define ERR_HW_I2C_NACK             0x48 // I2C No Acknowledge
-#define ERR_HW_I2C_ARB_LOST         0x49 // I2C Bus contention
-#define ERR_HW_SPI_MODE_ERR         0x4A // SPI Polarity/Phase mismatch
-#define ERR_HW_UART_FRAMING         0x4B // UART Baud/Frame error
-#define ERR_HW_UART_PARITY          0x4C // UART Parity error
-#define ERR_HW_DMA_ERROR            0x4D // Direct Memory Access fail
-#define ERR_HW_OVERHEAT             0x4E // Thermal shutdown
-#define ERR_HW_SHORT_CIRCUIT        0x4F // Overcurrent detected
+// ROOT: 0x00
+#define ERR_OK                          ERR_SUCCESS // UNBALANCED_ROOT [Init] Success / No Error
 
-/* =========================================================================
-   DOMAIN 0x5X: NETWORK & TRANSPORT
-   Desc: TCP/IP, Sockets, WiFi, Ethernet.
-   [ROOT] 0x55 is the Primordial Root of Connectivity.
-   ========================================================================= */
-#define ERR_NET_GENERAL             0x50 // Generic Net error
-#define ERR_NET_DISCONNECTED        0x51 // Physical link down
-#define ERR_NET_HOST_UNREACHABLE    0x52 // Routing failure
-#define ERR_NET_DNS_FAILED          0x53 // Name resolution failed
-#define ERR_NET_CONNECTION_REFUSED  0x54 // Port closed (ECONNREFUSED)
-#define ERR_NET_PRIMORDIAL          0x55 // [PRIMORDIAL] Connection Reset
-#define ERR_NET_CONNECTION_ABORTED  0x56 // Software caused abort
-#define ERR_NET_ADDRESS_IN_USE      0x57 // Bind failed (EADDRINUSE)
-#define ERR_NET_SOCKET_FAILED       0x58 // Socket creation error
-#define ERR_NET_BIND_FAILED         0x59 // Interface bind error
-#define ERR_NET_LISTEN_FAILED       0x5A // Passive open error
-#define ERR_NET_ACCEPT_FAILED       0x5B // Handshake failed
-#define ERR_NET_PACKET_TOO_BIG      0x5C // MTU exceeded
-#define ERR_NET_NO_ROUTE            0x5D // No gateway
-#define ERR_NET_LATENCY_LIMIT       0x5E // Ping/Ack too slow
-#define ERR_NET_INTERFACE_DOWN      0x5F // NIC disabled
+// DOMAIN 1: SYSTEM STATE & PERMISSIONS (Root 0x00 -> Center 0x00)
+#define ERR_SYS_STATE                   ERR_YIELDING // UNBALANCED_EDGE [Domain] General System State
+// -- Section 1.1: Access Control
+#define ERR_SYS_ACCESS                  ERR_EXITING // UNBALANCED_EDGE [Section] Permission Denied
+#define ERR_ACCESS_READ                 0x04 // UNBALANCED_EDGE [Leaf] Read Access Forbidden
+#define ERR_ACCESS_WRITE                0x05 // UNBALANCED_OTHER [Leaf] Write Access Forbidden
+#define ERR_ACCESS_EXEC                 0x84 // UNBALANCED_OTHER [Leaf] Execute Access Forbidden
+#define ERR_ACCESS_OWNER                0x85 // UNBALANCED_OTHER [Leaf] Ownership Mismatch
+// -- Section 1.2: Handles & Descriptors
+#define ERR_SYS_HANDLE                  ERR_ENDING // UNBALANCED_OTHER [Section] Invalid Handle/Descriptor
+#define ERR_HANDLE_NULL                 0x06 // UNBALANCED_OTHER [Leaf] Null Pointer/Handle
+#define ERR_HANDLE_CLOSED               0x07 // UNBALANCED_OTHER [Leaf] Handle Already Closed
+#define ERR_HANDLE_TYPE                 0x86 // UNBALANCED_OTHER [Leaf] Handle Type Mismatch
+#define ERR_HANDLE_SHADOW               0x87 // BALANCED_SHADOW  [Leaf] Ghost Handle / Stale Ref
+// -- Section 1.3: Processes & Threads
+#define ERR_SYS_PROC                    0x82 // UNBALANCED_OTHER [Section] Process/Thread Error
+#define ERR_PROC_CANCELLED              0x44 // UNBALANCED_TWIN  [Leaf] Operation Cancelled
+#define ERR_PROC_ZOMBIE                 0x45 // UNBALANCED_OTHER [Leaf] Process is Zombie
+#define ERR_PROC_ORPHAN                 0xC4 // UNBALANCED_OTHER [Leaf] Parent Process Lost
+#define ERR_PROC_INVAL                  0xC5 // BALANCED_EDGE    [Leaf] Invalid System Argument
+// -- Section 1.4: Scheduling
+#define ERR_SYS_SCHED                   0x83 // UNBALANCED_OTHER [Section] Scheduler/Priority
+#define ERR_SCHED_YIELD                 0x46 // UNBALANCED_OTHER [Leaf] Yield Failed
+#define ERR_SCHED_PRIORITY              0x47 // BALANCED_EDGE    [Leaf] Priority Inversion
+#define ERR_SCHED_QUANTUM               0xC6 // BALANCED_EDGE    [Leaf] Time Slice Expired
+#define ERR_SCHED_STARVE                0xC7 // UNBALANCED_OTHER [Leaf] Thread Starvation
 
-/* =========================================================================
-   DOMAIN 0x6X: PROTOCOLS & WEB
-   Desc: Higher level layers (HTTP, MQTT, FTP).
-   ========================================================================= */
-#define ERR_PROTO_GENERAL           0x60 // Protocol violation
-#define ERR_PROTO_BAD_REQUEST       0x61 // Malformed packet (HTTP 400)
-#define ERR_PROTO_VERSION_MISMATCH  0x62 // Unsupported version
-#define ERR_PROTO_METHOD_NOT_ALLOWED 0x63 // Wrong verb (HTTP 405)
-#define ERR_PROTO_HEADER_TOO_LARGE  0x64 // Metadata overflow
-#define ERR_PROTO_PAYLOAD_TOO_LARGE 0x65 // Body overflow (HTTP 413)
-#define ERR_PROTO_FOUNDATION        0x66 // [FOUNDATION] Parse Failure
-#define ERR_PROTO_UNSUPPORTED_TYPE  0x67 // Mime type error (HTTP 415)
-#define ERR_PROTO_MISSING_HEADER    0x68 // Required field missing
-#define ERR_PROTO_RATE_LIMITED      0x69 // Too many requests (HTTP 429)
-#define ERR_PROTO_SERVER_ERROR      0x6A // Remote side failed (HTTP 500)
-#define ERR_PROTO_GATEWAY_TIMEOUT   0x6B // Upstream timeout (HTTP 504)
-#define ERR_PROTO_HANDSHAKE_FAIL    0x6C // TLS/SSL Handshake
-#define ERR_PROTO_CERT_INVALID      0x6D // TLS Cert rejected
-#define ERR_PROTO_CRC_MISMATCH      0x6E // Checksum failure
-#define ERR_PROTO_UNKNOWN_CMD       0x6F // Command ID unknown
+// DOMAIN 2: MEMORY & RESOURCES (Root 0x00 -> Center 0x00 -> High Bit)
+#define ERR_MEM_DOM                     0x80 // UNBALANCED_EDGE [Domain] Memory Subsystem
+// -- Section 2.1: Allocation (Heap)
+#define ERR_MEM_ALLOC                   0x40 // UNBALANCED_EDGE [Section] Allocation Failure
+#define ERR_HEAP_OOM                    0x20 // UNBALANCED_EDGE [Leaf] Out of Memory
+#define ERR_HEAP_FRAGMENT               0x21 // UNBALANCED_OTHER [Leaf] Heap Fragmented
+#define ERR_HEAP_CORRUPT                0xA0 // UNBALANCED_OTHER [Leaf] Heap Metadata Corrupt
+#define ERR_HEAP_FREE                   0xA1 // UNBALANCED_OTHER [Leaf] Double Free
+// -- Section 2.2: Stack & Bounds
+#define ERR_MEM_BOUNDS                  0x41 // UNBALANCED_OTHER [Section] Boundary Violation
+#define ERR_STACK_OVER                  0x22 // UNBALANCED_TWIN  [Leaf] Stack Overflow
+#define ERR_STACK_UNDER                 0x23 // UNBALANCED_OTHER [Leaf] Stack Underflow
+#define ERR_BOUNDS_LOWER                0xA2 // UNBALANCED_OTHER [Leaf] Lower Bound Violation
+#define ERR_BOUNDS_UPPER                0xA3 // BALANCED_EDGE    [Leaf] Upper Bound Violation
+// -- Section 2.3: Paging & Virtual Mem
+#define ERR_MEM_VIRT                    0xC0 // UNBALANCED_OTHER [Section] Virtual Memory
+#define ERR_PAGE_FAULT                  0x60 // UNBALANCED_OTHER [Leaf] Page Fault
+#define ERR_PAGE_NOT_PRESENT            0x61 // UNBALANCED_OTHER [Leaf] Page Not Present
+#define ERR_PAGE_PROTECT                0xE0 // UNBALANCED_OTHER [Leaf] Page Protection Violation
+#define ERR_PAGE_SHADOW                 0xE1 // BALANCED_SHADOW  [Leaf] Shadow Page Error
+// -- Section 2.4: Alignment & Mapping
+#define ERR_MEM_MAP                     0xC1 // UNBALANCED_OTHER [Section] Mapping/Alignment
+#define ERR_MAP_FAILED                  0x62 // UNBALANCED_OTHER [Leaf] mmap Failed
+#define ERR_ALIGN_ADDR                  0x63 // BALANCED_EDGE    [Leaf] Address Misalignment
+#define ERR_ALIGN_BUS                   0xE2 // BALANCED_EDGE    [Leaf] Bus Alignment Error
+#define ERR_ALIGN_SIZE                  0xE3 // UNBALANCED_OTHER [Leaf] Size Misalignment
 
-/* =========================================================================
-   DOMAIN 0x7X: VALIDATION & DATA
-   Desc: Input sanitation, type checking.
-   ========================================================================= */
-#define ERR_VAL_GENERAL             0x70 // Validation failed
-#define ERR_VAL_INVALID_ARG         0x71 // Argument invalid (EINVAL)
-#define ERR_VAL_OUT_OF_RANGE        0x72 // Value bounds exceeded
-#define ERR_VAL_NULL_ARG            0x73 // Unexpected Null argument
-#define ERR_VAL_EMPTY               0x74 // Container empty
-#define ERR_VAL_TOO_SHORT           0x75 // String/Data too short
-#define ERR_VAL_TOO_LONG            0x76 // String/Data too long
-#define ERR_VAL_FOUNDATION          0x77 // [FOUNDATION] Integrity Lost
-#define ERR_VAL_PATTERN_MISMATCH    0x78 // Regex/Format mismatch
-#define ERR_VAL_INVALID_EMAIL       0x79 // Specific format error
-#define ERR_VAL_INVALID_DATE        0x7A // Date/Time logic error
-#define ERR_VAL_INVALID_IP          0x7B // IP string malformed
-#define ERR_VAL_INVALID_JSON        0x7C // JSON syntax error
-#define ERR_VAL_INVALID_XML         0x7D // XML/HTML syntax error
-#define ERR_VAL_INVALID_BASE64      0x7E // Decode error
-#define ERR_VAL_INVALID_UTF8        0x7F // Encoding error
+// DOMAIN 3: LIFECYCLE & REFLECTION (Root 0x00 -> Center 0x00 -> Mirror)
+#define ERR_LIFE_DOM                    0x81 // UNBALANCED_OTHER [Domain] Object Lifecycle
+// -- Section 3.1: Initialization
+#define ERR_LIFE_INIT                   0x42 // UNBALANCED_OTHER [Section] Initialization
+#define ERR_INIT_TIMEOUT                0x24 // UNBALANCED_OTHER [Leaf] Init Timeout
+#define ERR_INIT_DEPENDENCY             0x25 // UNBALANCED_OTHER [Leaf] Dependency Missing
+#define ERR_INIT_PREMATURE              0xA4 // UNBALANCED_OTHER [Leaf] Premature Initialization
+#define ERR_NOT_SUPPORTED               0xA5 // BALANCED_SHADOW  [Leaf] Not Supported
+// -- Section 3.2: States
+#define ERR_LIFE_STATE                  0x43 // UNBALANCED_OTHER [Section] Invalid State Transition
+#define ERR_STATE_UNK                   0x26 // UNBALANCED_OTHER [Leaf] Unknown State
+#define ERR_STATE_BALANCED              0x27 // BALANCED_EDGE    [Leaf] Balanced State Violation
+#define ERR_STATE_LOCKED                0xA6 // BALANCED_EDGE    [Leaf] Object Locked
+#define ERR_STATE_FROZEN                0xA7 // UNBALANCED_OTHER [Leaf] Object Frozen
+// -- Section 3.3: Reference Counting
+#define ERR_LIFE_REF                    0xC2 // UNBALANCED_OTHER [Section] Reference Counting
+#define ERR_REF_ZERO                    0x64 // UNBALANCED_OTHER [Leaf] Ref Count Zero
+#define ERR_REF_MAX                     0x65 // BALANCED_EDGE    [Leaf] Ref Count Max
+#define ERR_REF_LEAK                    0xE4 // BALANCED_EDGE    [Leaf] Potential Leak
+#define ERR_REF_DANGLING                0xE5 // UNBALANCED_OTHER [Leaf] Dangling Pointer
+// -- Section 3.4: Garbage Collection
+#define ERR_LIFE_GC                     0xC3 // BALANCED_SHADOW  [Section] GC / Cleanup
+#define ERR_GC_ROOT                     0x66 // BALANCED_EDGE    [Leaf] Root Not Found
+#define ERR_GC_SWEEP                    0x67 // UNBALANCED_OTHER [Leaf] Sweep Failure
+#define ERR_GC_COMPACT                  0xE6 // UNBALANCED_OTHER [Leaf] Compaction Failure
+#define ERR_GC_MIRROR                   0xE7 // UNBALANCED_OTHER [Leaf] Mirror Object Error
 
-/* =========================================================================
-   DOMAIN 0x8X: STREAMING & IO
-   Desc: Pipes, Streams, Buffer manipulation.
-   ========================================================================= */
-#define ERR_IO_GENERAL              0x80 // General IO failure
-#define ERR_IO_EOF                  0x81 // End Of File hit
-#define ERR_IO_CLOSED               0x82 // Stream closed
-#define ERR_IO_NOT_OPEN             0x83 // Stream not open
-#define ERR_IO_WOULD_BLOCK          0x84 // Non-blocking wait
-#define ERR_IO_SYNC_FAILED          0x85 // fsync/flush failed
-#define ERR_IO_PIPE_BROKEN          0x86 // Writer disconnected (EPIPE)
-#define ERR_IO_READ_ERROR           0x87 // Physical read error
-#define ERR_IO_FOUNDATION           0x88 // [FOUNDATION] Stream Corruption
-#define ERR_IO_WRITE_ERROR          0x89 // Physical write error
-#define ERR_IO_SKIP_ERROR           0x8A // Seek/Skip failed
-#define ERR_IO_MARK_INVALID         0x8B // Reset to mark failed
-#define ERR_IO_COMPRESSION_ERR      0x8C // Gzip/Zlib fail
-#define ERR_IO_DECOMPRESSION_ERR    0x8D // Unzip fail
-#define ERR_IO_CHECKSUM_ERR         0x8E // Stream hash mismatch
-#define ERR_IO_TRUNCATED            0x8F // Unexpected end of data
+// =============================================================================
+// QUADRANT 2: BEFORE / EXTERNAL I/O / HARDWARE
+// ROOT: 0x55 (The Oscillation / The Wave / The Wire)
+// =============================================================================
 
-/* =========================================================================
-   DOMAIN 0x9X: PERIPHERAL & HMI
-   Desc: Display, Audio, Sensors, Human Interface.
-   ========================================================================= */
-#define ERR_PERIPH_GENERAL          0x90 // Device error
-#define ERR_PERIPH_DISPLAY_INIT     0x91 // LCD/OLED fail
-#define ERR_PERIPH_TOUCH_CALIB      0x92 // Touchscreen uncalibrated
-#define ERR_PERIPH_AUDIO_MUTE       0x93 // Codec muted/fail
-#define ERR_PERIPH_SENSOR_NO_DATA   0x94 // Sensor ready but empty
-#define ERR_PERIPH_MOTOR_STALL      0x95 // Stepper/Servo stalled
-#define ERR_PERIPH_BATTERY_CRIT     0x96 // Imminent shutdown
-#define ERR_PERIPH_KEYBOARD_ERR     0x97 // Matrix scan fail
-#define ERR_PERIPH_SD_NO_CARD       0x98 // Slot empty
-#define ERR_PERIPH_FOUNDATION       0x99 // [FOUNDATION] Device Halted
-#define ERR_PERIPH_CAMERA_INIT      0x9A // Sensor init fail
-#define ERR_PERIPH_GPS_NO_FIX       0x9B // No satellite lock
-#define ERR_PERIPH_RADIO_JAMMED     0x9C // RF interference
-#define ERR_PERIPH_LED_FAIL         0x9D // Indicator error
-#define ERR_PERIPH_BUTTON_STUCK     0x9E // Physical button stuck
-#define ERR_PERIPH_HAPTIC_FAIL      0x9F // Vibration motor fail
+// ROOT: 0x55
+#define ERR_IO_BUSY                     0x55 // BALANCED_ROOT    [Root] Resource Busy / Retry
 
-/* =========================================================================
-   DOMAIN 0xAX: IPC & MESSAGING
-   Desc: Inter-Process Communication, Queues, PubSub.
-   [ROOT] 0xAA is the Primordial Inverse of Connectivity (Internal Link).
-   ========================================================================= */
-#define ERR_IPC_GENERAL             0xA0 // Generic IPC error
-#define ERR_IPC_QUEUE_FULL          0xA1 // Message dropped
-#define ERR_IPC_QUEUE_EMPTY         0xA2 // No messages
-#define ERR_IPC_MUTEX_LOCKED        0xA3 // Lock acquisition failed
-#define ERR_IPC_SEMAPHORE_LIMIT     0xA4 // Count exceeded
-#define ERR_IPC_SHARED_MEM_ERR      0xA5 // Shmem attach fail
-#define ERR_IPC_SUBSCRIBER_ERR      0xA6 // PubSub delivery fail
-#define ERR_IPC_TOPIC_INVALID       0xA7 // MQTT/Bus topic bad
-#define ERR_IPC_MESSAGE_CORRUPT     0xA8 // Payload integrity
-#define ERR_IPC_NO_RECEIVERS        0xA9 // Dead letter
-#define ERR_IPC_PRIMORDIAL          0xAA // [PRIMORDIAL] Link Broken
-#define ERR_IPC_RPC_FAILED          0xAB // Remote Procedure Call fail
-#define ERR_IPC_DESERIALIZE         0xAC // Struct packing error
-#define ERR_IPC_SERIALIZE           0xAD // Struct unpacking error
-#define ERR_IPC_CHANNEL_CLOSED      0xAE // Comm channel dead
-#define ERR_IPC_PRIORITY_INV        0xAF // Priority inversion
+// DOMAIN 1: NETWORK & CONNECTIVITY (Root 0x55 -> Center 0x85 (which is Q2 logic))
+#define ERR_NET_DOM                     0x2A // UNBALANCED_OTHER [Domain] Networking
+// -- Section 1.1: Sockets
+#define ERR_NET_SOCK                    0x14 // UNBALANCED_OTHER [Section] Socket Error
+#define ERR_SOCK_BIND                   0x08 // UNBALANCED_EDGE  [Leaf] Bind Failed
+#define ERR_SOCK_LISTEN                 0x09 // UNBALANCED_OTHER [Leaf] Listen Failed
+#define ERR_SOCK_ACCEPT                 0x88 // UNBALANCED_TWIN  [Leaf] Accept Failed
+#define ERR_SOCK_CONNECT                0x89 // UNBALANCED_OTHER [Leaf] Connect Failed
+// -- Section 1.2: DNS & Resolution
+#define ERR_NET_DNS                     0x15 // UNBALANCED_OTHER [Section] DNS/Naming
+#define ERR_DNS_NXDOMAIN                0x0A // UNBALANCED_OTHER [Leaf] Domain Not Found
+#define ERR_DNS_TIMEOUT                 0x0B // UNBALANCED_OTHER [Leaf] Resolution Timeout
+#define ERR_DNS_SERVFAIL                0x8A // UNBALANCED_OTHER [Leaf] Server Failure
+#define ERR_DNS_BALANCED                0x8B // BALANCED_EDGE    [Leaf] Load Balancer Error
+// -- Section 1.3: Transport (TCP/UDP)
+#define ERR_NET_TRANS                   0x94 // UNBALANCED_OTHER [Section] Transport Layer
+#define ERR_TRANS_RESET                   0x48 // UNBALANCED_OTHER [Leaf] Connection Reset
+#define ERR_TRANS_CLOSED                  0x49 // UNBALANCED_OTHER [Leaf] Connection Closed
+#define ERR_TRANS_DROP                    0xC8 // UNBALANCED_OTHER [Leaf] Packet Dropped
+#define ERR_TRANS_CONGEST                 0xC9 // BALANCED_EDGE    [Leaf] Congestion
+// -- Section 1.4: Protocol (HTTP/MQTT)
+#define ERR_NET_PROTO                   0x95 // BALANCED_EDGE    [Section] Application Protocol
+#define ERR_PROTO_BAD                     0x4A // UNBALANCED_OTHER [Leaf] Bad Request
+#define ERR_PROTO_PROXY                   0x4B // BALANCED_SHADOW  [Leaf] Proxy Error
+#define ERR_PROTO_SUB                     0xCA // BALANCED_EDGE    [Leaf] Subscription Failed
+#define ERR_PROTO_PUB                     0xCB // UNBALANCED_OTHER [Leaf] Publish Failed
 
-/* =========================================================================
-   DOMAIN 0xBX: TIME & CHRONOLOGY
-   Desc: RTC, Timers, Scheduling logic.
-   ========================================================================= */
-#define ERR_TIME_GENERAL            0xB0 // Time error
-#define ERR_TIME_RTC_STOPPED        0xB1 // Oscillator dead
-#define ERR_TIME_NOT_SET            0xB2 // Time is 1970/1900
-#define ERR_TIME_SYNCHRONIZATION    0xB3 // NTP/PTP drift too high
-#define ERR_TIME_FUTURE_TIMESTAMP   0xB4 // Event from future
-#define ERR_TIME_PAST_TIMESTAMP     0xB5 // Event too old
-#define ERR_TIME_INVALID_TZ         0xB6 // Timezone bad
-#define ERR_TIME_LEAP_SECOND        0xB7 // Calculation error
-#define ERR_TIME_TIMER_EXPIRED      0xB8 // Watchdog/Soft timer
-#define ERR_TIME_FREQUENCY_ERR      0xB9 // Clock speed wrong
-#define ERR_TIME_SLEEP_FAIL         0xBA // Low power mode fail
-#define ERR_TIME_FOUNDATION         0xBB // [FOUNDATION] Chrono-Collapse
-#define ERR_TIME_WAKEUP_FAIL        0xBC // Resume fail
-#define ERR_TIME_CALENDAR_ERR       0xBD // Day/Month math fail
-#define ERR_TIME_TIMEOUT_SCALE      0xBE // Overflow in ms calc
-#define ERR_TIME_JITTER_EXCESS      0xBF // Real-time violation
+// DOMAIN 2: SIGNALS & TIMING (Root 0x55 -> Balanced Edge)
+#define ERR_TIME_DOM                    0x2B // BALANCED_EDGE    [Domain] Timing & Signals
+// -- Section 2.1: Interrupts
+#define ERR_TIME_IRQ                    0x16 // UNBALANCED_OTHER [Section] Interrupts
+#define ERR_IRQ_MASKED                  0x0C // UNBALANCED_OTHER [Leaf] IRQ Masked
+#define ERR_IRQ_INTR                    0x0D // UNBALANCED_OTHER [Leaf] Interrupted
+#define ERR_IRQ_NESTED                  0x8C // UNBALANCED_OTHER [Leaf] Nested Depth Exceeded
+#define ERR_IRQ_BALANCE                 0x8D // BALANCED_EDGE    [Leaf] IRQ Load Balance
+// -- Section 2.2: Clocks & Timers
+#define ERR_TIME_CLOCK                  0x17 // BALANCED_EDGE    [Section] Clocks
+#define ERR_CLK_SKEW                    0x0E // UNBALANCED_OTHER [Leaf] Clock Skew
+#define ERR_CLK_JITTER                  0x0F // BALANCED_SHADOW  [Leaf] High Jitter
+#define ERR_CLK_EXPIRED                 0x8E // BALANCED_EDGE    [Leaf] Timer Expired
+#define ERR_CLK_DRIFT                   0x8F // UNBALANCED_OTHER [Leaf] Clock Drift
+// -- Section 2.3: Synchronization
+#define ERR_TIME_SYNC                   0x96 // BALANCED_SHADOW  [Section] Sync Primitives
+#define ERR_SYNC_WAIT                   0x4C // UNBALANCED_OTHER [Leaf] Wait Failed
+#define ERR_SYNC_BARRIER                0x4D // BALANCED_EDGE    [Leaf] Barrier Broken
+#define ERR_SYNC_SEM                    0xCC // BALANCED_EDGE    [Leaf] Semaphore Split
+#define ERR_SYNC_MUTEX                  0xCD // UNBALANCED_OTHER [Leaf] Mutex Error
+// -- Section 2.4: Watchdogs
+#define ERR_TIME_WDT                    0x97 // UNBALANCED_OTHER [Section] Watchdog
+#define ERR_WDT_BARK                    0x4E // BALANCED_EDGE    [Leaf] Watchdog Warning
+#define ERR_WDT_BITE                    0x4F // UNBALANCED_OTHER [Leaf] Watchdog Reset
+#define ERR_WDT_EARLY                   0xCE // UNBALANCED_OTHER [Leaf] Kick Too Early
+#define ERR_WDT_LATE                    0xCF // UNBALANCED_OTHER [Leaf] Kick Too Late
 
-/* =========================================================================
-   DOMAIN 0xCX: MATH & LOGIC
-   Desc: Calculations, Floating point, Logic gates.
-   ========================================================================= */
-#define ERR_MATH_GENERAL            0xC0 // Math error (EDOM)
-#define ERR_MATH_DIV_BY_ZERO        0xC1 // Integer/Float div 0
-#define ERR_MATH_OVERFLOW           0xC2 // Int overflow
-#define ERR_MATH_UNDERFLOW          0xC3 // Int underflow
-#define ERR_MATH_NAN                0xC4 // Not a Number
-#define ERR_MATH_INFINITY           0xC5 // Positive/Negative Inf
-#define ERR_MATH_DOMAIN             0xC6 // Input outside domain
-#define ERR_MATH_RANGE              0xC7 // Result outside range
-#define ERR_MATH_PRECISION          0xC8 // Accuracy lost
-#define ERR_MATH_SINGULARITY        0xC9 // Matrix non-invertible
-#define ERR_MATH_CONVERGENCE        0xCA // Algorithm didn't settle
-#define ERR_MATH_DIMENSION          0xCB // Vector size mismatch
-#define ERR_MATH_FOUNDATION         0xCC // [FOUNDATION] Logic Contradiction
-#define ERR_MATH_SUBSCRIPT          0xCD // Array index logic err
-#define ERR_MATH_CAST_INVALID       0xCE // Type conversion loss
-#define ERR_MATH_UNINITIALIZED      0xCF // Variable used raw
+// DOMAIN 3: PERIPHERALS & DRIVERS (Root 0x55 -> Unbalanced Other)
+#define ERR_IO_DOM                      0xAB // UNBALANCED_OTHER [Domain] I/O Subsystem
+// -- Section 3.1: Serial (UART/USB)
+#define ERR_IO_SERIAL                   0x56 // BALANCED_EDGE    [Section] Serial Bus
+#define ERR_SRL_BAUD                    0x2C // UNBALANCED_OTHER [Leaf] Baud Rate Mismatch
+#define ERR_SRL_FRAME                   0x2D // BALANCED_SHADOW  [Leaf] Frame Error
+#define ERR_SRL_PARITY                  0xAC // BALANCED_EDGE    [Leaf] Parity Fail
+#define ERR_SRL_BREAK                   0xAD // UNBALANCED_OTHER [Leaf] Break Condition
+// -- Section 3.2: Bus (I2C/SPI)
+#define ERR_IO_BUS                      0x57 // UNBALANCED_OTHER [Section] Sync Bus
+#define ERR_BUS_NACK                    0x2E // BALANCED_EDGE    [Leaf] I2C NACK
+#define ERR_BUS_ARB                     0x2F // UNBALANCED_OTHER [Leaf] Arbitration Lost
+#define ERR_BUS_MODE                    0xAE // UNBALANCED_OTHER [Leaf] SPI Mode Mismatch
+#define ERR_BUS_OVER                    0xAF // UNBALANCED_OTHER [Leaf] SPI Overrun
+// -- Section 3.3: Analog (ADC/DAC)
+#define ERR_IO_SIGNAL                   0xD6 // UNBALANCED_OTHER [Section] Analog IO
+#define ERR_SIGN_HIGH                   0x6C // BALANCED_EDGE    [Leaf] Saturation High
+#define ERR_SIGN_LOW                    0x6D // UNBALANCED_OTHER [Leaf] Saturation Low
+#define ERR_SIGN_UNDERRUN               0xEC // UNBALANCED_OTHER [Leaf] DAC Underrun
+#define ERR_SIGN_REF                    0xED // UNBALANCED_OTHER [Leaf] Voltage Ref Error
+// -- Section 3.4: GPIO & Pin Control
+#define ERR_DRV_GPIO                    0xD7 // UNBALANCED_OTHER [Section] GPIO
+#define ERR_GPIO_DIR                    0x6E // UNBALANCED_OTHER [Leaf] Direction Error
+#define ERR_GPIO_MUX                    0x6F // UNBALANCED_OTHER [Leaf] Muxing Error
+#define ERR_GPIO_DEBOUNCE               0xEE // UNBALANCED_TWIN  [Leaf] Debounce Fail
+#define ERR_GPIO_LOCKED                 0xEF // UNBALANCED_EDGE  [Leaf] Pin Locked
 
-/* =========================================================================
-   DOMAIN 0xDX: DIAGNOSTICS & SYSTEM
-   Desc: Debugging, Trace, Assertions.
-   ========================================================================= */
-#define ERR_DBG_GENERAL             0xD0 // Unknown error
-#define ERR_DBG_ASSERTION           0xD1 // Assert(false)
-#define ERR_DBG_UNREACHABLE         0xD2 // Code flow error
-#define ERR_DBG_NOT_IMPLEMENTED     0xD3 // TODO marker
-#define ERR_DBG_STUB                0xD4 // Stub function called
-#define ERR_DBG_TEST_FAILED         0xD5 // Unit test fail
-#define ERR_DBG_TRACE_FULL          0xD6 // Log buffer wrap
-#define ERR_DBG_HOOK_FAILED         0xD7 // Debug hook error
-#define ERR_DBG_SYMBOL_MISSING      0xD8 // Linker error (dyn)
-#define ERR_DBG_CHECKSUM_ROM        0xD9 // Firmware corrupted
-#define ERR_DBG_WATCHDOG            0xDA // WDT reset occurred
-#define ERR_DBG_BROWNOUT            0xDB // BOD reset occurred
-#define ERR_DBG_POWER_ON            0xDC // Cold boot status
-#define ERR_DBG_FOUNDATION          0xDD // [FOUNDATION] System Panic
-#define ERR_DBG_STACK_DUMP          0xDE // Stack trace generated
-#define ERR_DBG_CORE_DUMP           0xDF // Memory dumped
+// =============================================================================
+// QUADRANT 3: AFTER / DATA / LOGIC
+// ROOT: 0xAA (The Pattern / The Math / Internal)
+// =============================================================================
 
-/* =========================================================================
-   DOMAINS 0xE0 - 0xFE: APPLICATION DEFINED
-   Desc: Reserved for User Logic. 31 Errors.
-   0xFF is ERR_FINALIZED (Reserved).
-   ========================================================================= */
+// ROOT: 0xAA
+#define ERR_DATA_ROOT                   0xAA // BALANCED_ROOT    [Root] Data Integrity Error
 
-// Domain E (Application Space 1)
-#define ERR_APP_E0                  0xE0
-#define ERR_APP_E1                  0xE1
-#define ERR_APP_E2                  0xE2
-#define ERR_APP_E3                  0xE3
-#define ERR_APP_E4                  0xE4
-#define ERR_APP_E5                  0xE5
-#define ERR_APP_E6                  0xE6
-#define ERR_APP_E7                  0xE7
-#define ERR_APP_E8                  0xE8
-#define ERR_APP_E9                  0xE9
-#define ERR_APP_EA                  0xEA
-#define ERR_APP_EB                  0xEB
-#define ERR_APP_EC                  0xEC
-#define ERR_APP_ED                  0xED
-#define ERR_APP_FOUNDATION          0xEE // [FOUNDATION] App Critical
-#define ERR_APP_EF                  0xEF
+// DOMAIN 1: ENCODING & FORMATS (Root 0xAA -> 0x54)
+#define ERR_FMT_DOM                     0x54 // UNBALANCED_OTHER [Domain] Formats
+// -- Section 1.1: Text & Strings
+#define ERR_FMT_TEXT                    0x28 // UNBALANCED_OTHER [Section] String Encoding
+#define ERR_TEXT_ENCODING               0x10 // UNBALANCED_EDGE  [Leaf] Encoding Error
+#define ERR_TEXT_EMPTY                  0x11 // UNBALANCED_TWIN  [Leaf] Empty String
+#define ERR_TEXT_TRUNC                  0x90 // UNBALANCED_OTHER [Leaf] Truncated
+#define ERR_TEXT_FORMAT                 0x91 // UNBALANCED_OTHER [Leaf] Text Format Error
+// -- Section 1.2: Structured Data (JSON/XML)
+#define ERR_FMT_STRUCT                  0x29 // UNBALANCED_OTHER [Section] Structured Data
+#define ERR_STRUCT_PARSE                0x12 // UNBALANCED_OTHER [Leaf] Parse/Syntax Error
+#define ERR_STRUCT_TYPE                 0x13 // UNBALANCED_OTHER [Leaf] Type Mismatch
+#define ERR_STRUCT_TAG                  0x92 // UNBALANCED_OTHER [Leaf] Tag Mismatch
+#define ERR_STRUCT_ATTR                 0x93 // BALANCED_EDGE    [Leaf] Attribute Error
+// -- Section 1.3: Binary Formats
+#define ERR_FMT_MEDIA                   0xA8 // UNBALANCED_OTHER [Section] Binary Parsing
+#define ERR_MEDIA_HEADER                0x50 // UNBALANCED_OTHER [Leaf] Invalid Header
+#define ERR_MEDIA_DEPTH                 0x51 // UNBALANCED_OTHER [Leaf] Unsupported Bit Depth
+#define ERR_MEDIA_RATE                  0xD0 // UNBALANCED_OTHER [Leaf] Unsupported Sample Rate
+#define ERR_MEDIA_CKSUM                 0xD1 // BALANCED_EDGE    [Leaf] Checksum Fail
+// -- Section 1.4: Validation
+#define ERR_FMT_VALID                   0xA9 // BALANCED_EDGE    [Section] Validation Error
+#define ERR_VAL_SCHEMA                  0x52 // UNBALANCED_OTHER [Leaf] Schema Violation
+#define ERR_VAL_RANGE                   0x53 // BALANCED_EDGE    [Leaf] Value Out of Range
+#define ERR_VAL_PATTERN                 0xD2 // BALANCED_SHADOW  [Leaf] Pattern Mismatch
+#define ERR_VAL_REQ                     0xD3 // UNBALANCED_OTHER [Leaf] Required Field Missing
 
-// Domain F (Application Space 2)
-#define ERR_APP_F0                  0xF0
-#define ERR_APP_F1                  0xF1
-#define ERR_APP_F2                  0xF2
-#define ERR_APP_F3                  0xF3
-#define ERR_APP_F4                  0xF4
-#define ERR_APP_F5                  0xF5
-#define ERR_APP_F6                  0xF6
-#define ERR_APP_F7                  0xF7
-#define ERR_APP_F8                  0xF8
-#define ERR_APP_F9                  0xF9
-#define ERR_APP_FA                  0xFA
-#define ERR_APP_FB                  0xFB
-#define ERR_APP_FC                  0xFC
-#define ERR_APP_FD                  0xFD
-#define ERR_APP_FE                  0xFE
+// DOMAIN 2: MATH & LOGIC (Root 0xAA -> 0xD4)
+#define ERR_MATH_DOM                    0xD4 // BALANCED_EDGE    [Domain] Computation
+// -- Section 2.1: Arithmetic
+#define ERR_MATH_CALC                  0x68 // UNBALANCED_OTHER [Section] Arithmetic
+#define ERR_CALC_DIV0                   0x30 // UNBALANCED_OTHER [Leaf] Division by Zero
+#define ERR_CALC_OVERFLOW               0x31 // UNBALANCED_OTHER [Leaf] Int Overflow
+#define ERR_CALC_UNDERFLOW              0xB0 // UNBALANCED_OTHER [Leaf] Int Underflow
+#define ERR_CALC_NAN                    0xB1 // BALANCED_EDGE    [Leaf] Result is NaN
+// -- Section 2.2: Floating Point
+#define ERR_MATH_FP                     0x69 // BALANCED_SHADOW  [Section] Floating Point
+#define ERR_FP_INF                      0x32 // UNBALANCED_OTHER [Leaf] Infinity
+#define ERR_FP_DENORM                   0x33 // BALANCED_EDGE    [Leaf] Denormalized
+#define ERR_FP_PRECISION                0xB2 // BALANCED_EDGE    [Leaf] Precision Loss
+#define ERR_FP_ROUND                    0xB3 // UNBALANCED_OTHER [Leaf] Rounding Error
+// -- Section 2.3: Cryptographic Math
+#define ERR_MATH_CRYPTO                 0xE8 // BALANCED_EDGE    [Section] Crypto Primitives
+#define ERR_CRYPTO_CURVE                0x70 // UNBALANCED_OTHER [Leaf] Curve Point Invalid
+#define ERR_CRYPTO_PRIME                0x71 // BALANCED_EDGE    [Leaf] Not Prime
+#define ERR_CRYPTO_SHADOW_KEY           0xF0 // BALANCED_SHADOW  [Leaf] Weak Key
+#define ERR_CRYPTO_PADDING              0xF1 // UNBALANCED_OTHER [Leaf] Padding Error
+// -- Section 2.4: Logic Logic
+#define ERR_MATH_LOGIC                  0xE9 // UNBALANCED_OTHER [Section] Logic Gates
+#define ERR_LOGIC_ASSERT                0x72 // BALANCED_EDGE    [Leaf] Assertion Failed
+#define ERR_LOGIC_INVARIANT             0x73 // UNBALANCED_OTHER [Leaf] Invariant Broken
+#define ERR_LOGIC_REACH                 0xF2 // UNBALANCED_OTHER [Leaf] Unreachable Code Reached
+#define ERR_LOGIC_STATE                 0xF3 // UNBALANCED_OTHER [Leaf] Impossible Logic State
 
-// ERR_FINALIZED is 0xFF (Reserved)
+// DOMAIN 3: STORAGE & FILESYSTEM (Root 0xAA -> 0xD5)
+#define ERR_STORAGE_DOM                 0xD5 // UNBALANCED_OTHER [Domain] File System
+// -- Section 3.1: File Access
+#define ERR_STORE_FS                    0x6A // BALANCED_EDGE    [Section] Filesystem Error
+#define ERR_FS_NOENT                    0x34 // UNBALANCED_OTHER [Leaf] File Not Found
+#define ERR_FS_EXIST                    0x35 // BALANCED_EDGE    [Leaf] File Exists
+#define ERR_FS_PERM                     0xB4 // BALANCED_SHADOW  [Leaf] File Locked
+#define ERR_FS_FULL                     0xB5 // UNBALANCED_OTHER [Leaf] File Busy
+// -- Section 3.2: Attributes
+#define ERR_STORE_ATTR                  0x6B // UNBALANCED_OTHER [Section] Inodes/Attrs
+#define ERR_ATTR_RO                     0x36 // BALANCED_EDGE    [Leaf] Read Only
+#define ERR_ATTR_HIDDEN                 0x37 // UNBALANCED_OTHER [Leaf] Hidden
+#define ERR_ATTR_SYMLINK                0xB6 // UNBALANCED_OTHER [Leaf] Symlink Loop
+#define ERR_ATTR_NO_SPACE               0xB7 // UNBALANCED_OTHER [Leaf] No Device Space
+// -- Section 3.3: Block Device
+#define ERR_STORE_BLOCK                 0xEA // UNBALANCED_OTHER [Section] Block Layer
+#define ERR_BLK_READ                    0x74 // BALANCED_EDGE    [Leaf] Block Read Error
+#define ERR_BLK_WRITE                   0x75 // UNBALANCED_OTHER [Leaf] Block Write Error
+#define ERR_BLK_SECTOR                  0xF4 // UNBALANCED_OTHER [Leaf] Bad Sector
+#define ERR_BLK_GEOMETRY                0xF5 // UNBALANCED_OTHER [Leaf] Bad Geometry
+// -- Section 3.4: Volumes
+#define ERR_STORE_VOLUME                0xEB // UNBALANCED_OTHER [Section] Volume Integrity
+#define ERR_VOL_DIRTY                   0x76 // UNBALANCED_OTHER [Leaf] Volume Dirty
+#define ERR_VOL_MOUNT                   0x77 // UNBALANCED_TWIN  [Leaf] Double Mount
+#define ERR_VOL_UNMOUNT                 0xF6 // UNBALANCED_OTHER [Leaf] Unmount Fail
+#define ERR_VOL_UNKNOWN                 0xF7 // UNBALANCED_EDGE  [Leaf] Unknown FS
+
+// =============================================================================
+// QUADRANT 4: RUN / FATAL / SECURITY / CRITICAL
+// ROOT: 0xFF (The End / Saturation / Panic)
+// =============================================================================
+
+// ROOT: 0xFF
+#define ERR_FATAL                       ERR_FINALIZED // UNBALANCED_ROOT  [Root] Fatal System Failure
+
+// DOMAIN 1: SECURITY & AUTH (Root 0xFF -> 0x7E)
+#define ERR_SEC_DOM                     0x7E // UNBALANCED_OTHER [Domain] Security
+// -- Section 1.1: Authentication
+#define ERR_SEC_AUTH                    0x3C // BALANCED_SHADOW  [Section] Auth Failure
+#define ERR_AUTH_FAIL                   0x18 // UNBALANCED_OTHER [Leaf] Login Failed
+#define ERR_AUTH_EXPIRED                0x19 // UNBALANCED_OTHER [Leaf] Token Expired
+#define ERR_AUTH_SCOPE                  0x98 // UNBALANCED_OTHER [Leaf] Scope Invalid
+#define ERR_AUTH_MATCH                  0x99 // BALANCED_EDGE    [Leaf] Credential Replay
+// -- Section 1.2: Encryption
+#define ERR_SEC_CRYPT                   0x3D // UNBALANCED_OTHER [Section] Encryption
+#define ERR_CRYPT_ALGO                  0x1A // UNBALANCED_OTHER [Leaf] Algo Not Supported
+#define ERR_CRYPT_KEY                   0x1B // BALANCED_EDGE    [Leaf] Invalid Key
+#define ERR_CRYPT_IV                    0x9A // BALANCED_EDGE    [Leaf] Invalid IV
+#define ERR_CRYPT_TAG                   0x9B // UNBALANCED_OTHER [Leaf] Tag Mismatch
+// -- Section 1.3: Policy
+#define ERR_SEC_POLICY                  0xBC // UNBALANCED_OTHER [Section] Policy Violation
+#define ERR_POL_DENY                    0x58 // UNBALANCED_OTHER [Leaf] Explicit Deny
+#define ERR_POL_QUOTA                   0x59 // BALANCED_EDGE    [Leaf] Quota Exceeded
+#define ERR_POL_TIME                    0xD8 // BALANCED_EDGE    [Leaf] Access Time Violation
+#define ERR_POL_REJECT                  0xD9 // UNBALANCED_OTHER [Leaf] Access Rejected
+// -- Section 1.4: Auditing
+#define ERR_SEC_AUDIT                   0xBD // UNBALANCED_OTHER [Section] Audit Failure
+#define ERR_AUDIT_LOG                   0x5A // BALANCED_SHADOW  [Leaf] Log Write Failed
+#define ERR_AUDIT_FULL                  0x5B // UNBALANCED_OTHER [Leaf] Audit Log Full
+#define ERR_AUDIT_TAMPER                0xDA // UNBALANCED_OTHER [Leaf] Tampering Detected
+#define ERR_AUDIT_FAIL                  0xDB // UNBALANCED_OTHER [Leaf] Audit System Fail
+
+// DOMAIN 2: DEADLOCK & CONCURRENCY FATAL (Root 0xFF -> 0x7F)
+#define ERR_LOCK_DOM                    0x7F // UNBALANCED_EDGE  [Domain] Concurrency Fatal
+// -- Section 2.1: Locks
+#define ERR_ATOM_LOCK                   0x3E // UNBALANCED_OTHER [Section] Lock Error
+#define ERR_LOCK_BUSY                   0x1C // UNBALANCED_OTHER [Leaf] Lock Busy
+#define ERR_LOCK_OWNER                  0x1D // BALANCED_EDGE    [Leaf] Not Owner
+#define ERR_LOCK_DEAD                   0x9C // BALANCED_EDGE    [Leaf] Deadlock Detected
+#define ERR_LOCK_MAX                    0x9D // UNBALANCED_OTHER [Leaf] Max Recursion
+// -- Section 2.2: IPC Pipes
+#define ERR_ATOM_IPC                    0x3F // UNBALANCED_OTHER [Section] Pipe/Queue
+#define ERR_PIPE_BROKEN                 0x1E // BALANCED_SHADOW  [Leaf] Broken Pipe
+#define ERR_PIPE_FULL                   0x1F // UNBALANCED_OTHER [Leaf] Pipe Full
+#define ERR_MSG_SIZE                    0x9E // UNBALANCED_OTHER [Leaf] Message Too Large
+#define ERR_MSG_QUEUE                   0x9F // UNBALANCED_OTHER [Leaf] Queue Destroyed
+// -- Section 2.3: Atomic Ops
+#define ERR_ATOM_ORDER                  0xBE // UNBALANCED_OTHER [Section] Atomics
+#define ERR_ORDER_ACQ                   0x5C // BALANCED_EDGE    [Leaf] Acquire Fail
+#define ERR_ORDER_REL                   0x5D // UNBALANCED_OTHER [Leaf] Release Fail
+#define ERR_ORDER_BARRIER               0xDC // UNBALANCED_OTHER [Leaf] Barrier Violation
+#define ERR_ORDER_RACE                  0xDD // UNBALANCED_TWIN  [Leaf] Race Condition
+// -- Section 2.4: Critical Sections
+#define ERR_LOCK_CRIT                   0xBF // UNBALANCED_EDGE  [Section] Critical Area
+#define ERR_CRIT_ENTER                  0x5E // UNBALANCED_OTHER [Leaf] Enter Fail
+#define ERR_CRIT_LEAVE                  0x5F // UNBALANCED_OTHER [Leaf] Leave Fail
+#define ERR_CRIT_TIMEOUT                0xDE // UNBALANCED_OTHER [Leaf] Critical Timeout
+#define ERR_CRIT_BAIL                   0xDF // UNBALANCED_EDGE  [Leaf] Emergency Bail
+
+// DOMAIN 3: HARDWARE FATAL / PANIC (Root 0xFF -> 0xFE)
+#define ERR_HW_DOM                      0xFE // UNBALANCED_EDGE  [Domain] Hardware Panic
+// -- Section 3.1: CPU/Core
+#define ERR_HW_CPU                      0x7C // UNBALANCED_OTHER [Section] CPU Exception
+#define ERR_CPU_ILL                     0x38 // UNBALANCED_OTHER [Leaf] Illegal Instruction
+#define ERR_CPU_BUS                     0x39 // BALANCED_EDGE    [Leaf] Bus Error
+#define ERR_CPU_TRAP                    0xB8 // BALANCED_EDGE    [Leaf] Trap
+#define ERR_CPU_HALT                    0xB9 // UNBALANCED_OTHER [Leaf] Core Halted
+// -- Section 3.2: Power
+#define ERR_HW_PWR                      0x7D // UNBALANCED_OTHER [Section] Power
+#define ERR_PWR_BOR                     0x3A // BALANCED_EDGE    [Leaf] Brownout
+#define ERR_PWR_LOW                     0x3B // UNBALANCED_OTHER [Leaf] Voltage Low
+#define ERR_PWR_HIGH                    0xBA // UNBALANCED_OTHER [Leaf] Voltage High
+#define ERR_PWR_BATT                    0xBB // UNBALANCED_TWIN  [Leaf] Battery Critical
+// -- Section 3.3: Memory Hardware
+#define ERR_HW_RAM                      0xFC // UNBALANCED_OTHER [Section] RAM/Flash
+#define ERR_RAM_ECC                     0x78 // BALANCED_SHADOW  [Leaf] Uncorrectable ECC
+#define ERR_RAM_PARITY                  0x79 // UNBALANCED_OTHER [Leaf] RAM Parity
+#define ERR_RAM_FAIL                    0xF8 // UNBALANCED_OTHER [Leaf] RAM Test Failed
+#define ERR_RAM_LINE                    0xF9 // UNBALANCED_OTHER [Leaf] Address Line Stuck
+// -- Section 3.4: System Integrity
+#define ERR_SYS_PANIC                   0xFD // UNBALANCED_EDGE  [Section] Kernel Panic
+#define ERR_PANIC_GENERAL               0x7A // UNBALANCED_OTHER [Leaf] General Panic
+#define ERR_PANIC_STACK                 0x7B // UNBALANCED_OTHER [Leaf] Stack Smashed
+#define ERR_PANIC_ASSERT                0xFA // UNBALANCED_OTHER [Leaf] Kernel Assert
+#define ERR_PANIC_ABORT                 0xFB // UNBALANCED_EDGE  [Leaf] System Abort
 
 /* =========================================================================
    HELPER MACROS FOR ANALYSIS
    ========================================================================= */
 
-// Reserved values used by the protoduino finite state machine
 #define ERR_IS_RESERVED(err) \
-    ((err) == 0 || (err) == 1 || (err) == 2 || (err) == 3 || (err) == 255)
-
-// Terminal roots
-#define ERR_ROOT_INIT      0x00  // 00000000 — genesis, void
-#define ERR_ROOT_RUN       0xFF  // 11111111 — saturation, terminal
-
-// Oscillatory roots
-#define ERR_ROOT_BEFORE    0x55  // 01010101 — oscillation origin
-#define ERR_ROOT_AFTER     0xAA  // 10101010 — oscillation inversion
+    ((err) == ERR_SUCCESS || (err) == ERR_YIELDING || (err) == ERR_EXITING || (err) == ERR_ENDING || (err) == ERR_FINALIZED)
 
 // Terminal roots: pure endpoints without internal structure
 #define ERR_IS_ABSTRACT(err) \
@@ -373,17 +404,6 @@
 // Oscillatory roots: structured alternating primitives
 #define ERR_IS_MOVEMENT(err) \
     ((err) == ERR_ROOT_BEFORE || (err) == ERR_ROOT_AFTER)
-
-// The 4 primordial error classes of which every other error are its children.
-// 0 (00000000), 255 (11111111), 85 (01010101), 170 (10101010)
-#define ERR_IS_ROOT(err) \
-    (ERR_IS_ABSTRACT(err) || ERR_IS_MOVEMENT(err))
-
-// Direct 12 descendants of the primordial error classes
-#define ERR_IS_DOMAIN(err) (!ERR_IS_ROOT(err) && (ERR_IS_ROOT(err_op_center(err))))
-
-// The direct descendants of the DOMAIN error codes
-#define ERR_IS_ATOMIC(err) (!(ERR_IS_ROOT(err) || ERR_IS_DOMAIN(err)))
 
 // 8-bit Plane: Split into two 4-bit nibbles
 #define ERR_NIBBLE_LEFT(err) (((err) >> 4) & 0x0F)
@@ -397,13 +417,35 @@
 // e.g. 0x00, 0x11, 0x22 ... 0xFF
 #define ERR_IS_TWIN(err) (ERR_NIBBLE_LEFT(err) == ERR_NIBBLE_RIGHT(err))
 
+#define ERR_IS_MIRROR(err) (err_op_reverse(err) == ((err) & 0xFF))
+
+/**
+ *  HIERARCHY FUNCTIONS
+ *
+ */
+
+// The 4 primordial error classes of which every other error are its children.
+// 0 (00000000), 255 (11111111), 85 (01010101), 170 (10101010)
+#define ERR_IS_ROOT(err) \
+    (ERR_IS_ABSTRACT(err) || ERR_IS_MOVEMENT(err))
+
+// Direct 12 descendants of the primordial error classes
+#define ERR_IS_DOMAIN(err) (!ERR_IS_ROOT(err) && (ERR_IS_ROOT(err_op_center(err))))
+
+// Each domain has 4 sections and 12 per root
+#define ERR_IS_SECTION(err) (err_op_depth(err) == 2)
+
+// The direct descendants of the DOMAIN error codes
+#define ERR_IS_LEAF(err) (err_op_depth(err) == 3)
+
+/**
+ * SYMMETRY CLASSES
+ * 8-bit Matrix of 16x16 byte error codes
+ */
+
 // Balanced means half of the bits are set (4 out of 8)
 #define ERR_IS_BALANCED(err) (err_op_one_count(err) == 4)
 #define ERR_IS_UNBALANCED(err) (err_op_one_count(err) != 4)
-
-/**
- * Symmetry Classes (8-bit Matrix of 16x16 byte error codes)
- */
 
 // A balanced diagonal from right top to left bottom
 // results in error codes 0x55 (85) and 0xAA (170) => ERR_IS_MOVEMENT(err)
@@ -417,16 +459,16 @@
 
 // An unbalanced diagonal from left top to right bottom
 // Only 0x00 and 0xFF
-#define ERR_IS_UNBALANCED_ROOT(err) (ERR_IS_ABSTRACT(err) && ERR_IS_TWIN(err))
+#define ERR_IS_UNBALANCED_ROOT(err) (ERR_IS_ABSTRACT(err))
 
 // Diagonal from left top to right bottom (twin but not 00 or FF)
-#define ERR_IS_UNBALANCED_TWIN(err) (!ERR_IS_ABSTRACT(err) && ERR_IS_TWIN(err))
+#define ERR_IS_UNBALANCED_TWIN(err) ((!ERR_IS_ABSTRACT(err)) && ERR_IS_UNBALANCED(err) && ERR_IS_TWIN(err))
 
 // Extreme imbalance (1 or 7 one's). Outer edge cirlce of the 16x16 matrix.
 #define ERR_IS_UNBALANCED_EDGE(err) (err_op_one_count(err) == 1 || err_op_one_count(err) == 7)
 
 // Everything else unbalanced
-#define ERR_IS_UNBALANCED_OTHER(err) (!ERR_IS_BALANCED(err) && !ERR_IS_TWIN(err) && !ERR_IS_UNBALANCED_EDGE(err))
+#define ERR_IS_UNBALANCED_OTHER(err) (ERR_IS_UNBALANCED(err) && !ERR_IS_TWIN(err) && !ERR_IS_UNBALANCED_EDGE(err))
 
 CC_ALWAYS_INLINE uint8_t err_op_inverse(uint8_t err) {
     // Inverse the cluster (EEEE DDDD)
@@ -479,7 +521,7 @@ CC_ALWAYS_INLINE uint8_t err_op_depth(uint8_t err) {
   return d;
 }
 
-static inline uint8_t err_op_one_count(uint8_t err) {
+CC_ALWAYS_INLINE uint8_t err_op_one_count(uint8_t err) {
     // Hamming weight for 8 bits
     // This is a SWAR algorithm (SIMD Within A Register) for 32-bit capable CPUs,
     // adapted for 8-bit flow, or simply naive count if compiled without __builtin_popcount
@@ -492,8 +534,14 @@ static inline uint8_t err_op_one_count(uint8_t err) {
 #endif
 }
 
-static inline uint8_t err_op_distance(uint8_t left, uint8_t right) {
+CC_ALWAYS_INLINE uint8_t err_op_distance(uint8_t left, uint8_t right) {
     return err_op_one_count(left ^ right);
+}
+
+static CC_ALWAYS_INLINE very_fast_log2(float val) {
+  union { float f; uint32_t i; } convert;
+  convert.f = val;
+  return (float)((convert.i >> 23) - 127);   // only integer part, error up to ~1
 }
 
 /*
@@ -553,4 +601,7 @@ err_relation_t err_op_relation(uint8_t left, uint8_t right) {
   else return ERR_RELATION_DEFAULT;
 }
 
-#endif // PROTODUINO_ERRORS_H
+
+EXTERN const char *error_to_string(uint8_t err)
+
+#endif // ERRORS_H
