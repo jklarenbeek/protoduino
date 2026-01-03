@@ -27,11 +27,11 @@ void protoduino_start() {
 
   // 2. Initialize the scheduler and link the error logger.
   // The error logger can now safely rely on g_sys_msg_pool if it handles leaks.
-  struct process *logger = system_log_process = NULL
+  struct process *logger = system_log_process == NULL
     ? &error_logger_process
     : system_log_process;
 
-  process_init(&logger);
+  process_init(logger);
 
   procinit_init();           // starts processes defined with PROCINIT
   autostart_start();          // starts processes defined with AUTOSTART_PROCESSES

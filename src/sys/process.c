@@ -317,8 +317,9 @@ void process_exit(struct process *p)
 void process_run(void)
 {
   /* game-loop: run polls first (if requested), else one event */
-  if (do_poll())
-    return;
+  //if (do_poll())
+  //  return;
+  (void)do_poll(); // stop event starvation
   (void)do_event();
 }
 
