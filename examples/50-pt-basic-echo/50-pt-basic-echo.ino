@@ -5,9 +5,9 @@
  *	SimulIde also has a problem with flushing/sending its buffer in the same way as a real arduino does.
  */
 #include <protoduino.h>
-#include <dbg/print.h>
-#include <utf/vt100.h>
-#include <utf/utf8-stream.h>
+#include <sys/tmpl/SerialClass.hpp>
+#include <lib/utf/vt100.h>
+#include <lib/utf/utf8-stream.h>
 
 static int count = 0;
 
@@ -56,7 +56,7 @@ static ptstate_t getch(struct echo_pt *self)
         rune = vt_escape_match(self->buf, self->idx);
         if (rune == UTF8_DECODE_ERROR)
         {
-          PT_THROW(self, ERR_FILE_NOT_FOUND); // escape sequence not found.
+          PT_THROW(self, ERR_FS_NOENT); // escape sequence not found.
         }
 
         self->value = rune; // we found the keycode.
@@ -66,10 +66,10 @@ static ptstate_t getch(struct echo_pt *self)
       {
         if (ret == VT_ERR_INVALID_INPUT)
         {
-          PT_THROW(self, ERR_BAD_ARGUMENTS);
+          PT_THROW(self, ERR_PROC_INVAL);
         }
 
-        PT_THROW(self, ERR_BUFFER_OVERFLOW);
+        PT_THROW(self, ERR_STACK_OVER);
       }
     }
   }

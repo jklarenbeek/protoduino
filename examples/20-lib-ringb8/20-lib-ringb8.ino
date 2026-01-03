@@ -11,31 +11,32 @@ char nextchar()
 
 void print_size(void)
 {
-  SerialLine.print("count:");
-  SerialLine.print(RINGB8_COUNT(rbuf));
-  SerialLine.print(" ,available:");
-  SerialLine.print(RINGB8_AVAILABLE(rbuf));
-  SerialLine.print(" ,head:");
-  SerialLine.print(VAR_RINGB8(rbuf).head);
-  SerialLine.print(" ,tail:");
-  SerialLine.println(VAR_RINGB8(rbuf).tail);
+  print_P(PSTR("count:"));
+  print_dec(RINGB8_COUNT(rbuf));
+  print_P(PSTR(" ,available:"));
+  print_dec(RINGB8_AVAILABLE(rbuf));
+  print_P(PSTR(" ,head:"));
+  print_dec(VAR_RINGB8(rbuf).head);
+  print_P(PSTR(" ,tail:"));
+  print_dec(VAR_RINGB8(rbuf).tail);
+  println();
 }
 
 void print_buf(void)
 {
     while(RINGB8_COUNT(rbuf) > 0)
-        SerialLine.print((char)RINGB8_GET(rbuf));
+        printchar((char)RINGB8_GET(rbuf));
 
-    SerialLine.println(" -> done");
+    println_P(PSTR(" -> done"));
 }
 
 void setup()
 {
-  SerialLine.begin(9600);
+  print_setup();
   RINGB8_PUT(rbuf, nextchar());
   RINGB8_PUT(rbuf, nextchar());
   RINGB8_PUT(rbuf, nextchar());
-  SerialLine.print("starting:");
+  print_P(PSTR("starting:"));
   print_size();
   delay(1000);
 }
@@ -47,7 +48,7 @@ void loop()
 
   if (RINGB8_AVAILABLE(rbuf) == 0)
   {
-    SerialLine.print("printing buffer:");
+    print_P(PSTR("printing buffer:"));
     print_buf();
     print_size();
   }

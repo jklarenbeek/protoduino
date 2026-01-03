@@ -47,7 +47,12 @@ CC_EXTERN typedef bool (*serial_onrecieved_fn)(uint_fast8_t);
 #include "tmpl/serial_private_header.h"
 #endif
 
+CC_EXTERN void printchar(uint_fast8_t c);
+CC_EXTERN void println(void);
+
 CC_EXTERN void print_P(const char *s);
+CC_EXTERN void println_P(const char *s);
+
 CC_EXTERN void print(const char *s);
 CC_EXTERN void print_dec(uint8_t val);
 

@@ -4,6 +4,7 @@
 #define __DBG_PRINT_H__
 
 #include <protoduino.h>
+#include <sys/serial.h>
 
 extern int print_count;
 

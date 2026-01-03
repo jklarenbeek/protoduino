@@ -8,7 +8,7 @@ void printchar(uint_fast8_t c)
     }
 }
 
-void println() {
+void println(void) {
     printchar((uint_fast8_t)'\n');
 }
 

@@ -225,7 +225,7 @@
 // -- Section 1.1: Text & Strings
 #define ERR_FMT_TEXT                    0x28 // UNBALANCED_OTHER [Section] String Encoding
 #define ERR_TEXT_ENCODING               0x10 // UNBALANCED_EDGE  [Leaf] Encoding Error
-#define ERR_TEXT_EMPTY                  0x11 // UNBALANCED_TWIN  [Leaf] Empty String
+#define ERR_TEXT_DECODING               0x11 // UNBALANCED_TWIN  [Leaf] Decoding Error
 #define ERR_TEXT_TRUNC                  0x90 // UNBALANCED_OTHER [Leaf] Truncated
 #define ERR_TEXT_FORMAT                 0x91 // UNBALANCED_OTHER [Leaf] Text Format Error
 // -- Section 1.2: Structured Data (JSON/XML)

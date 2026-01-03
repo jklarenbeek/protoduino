@@ -250,7 +250,7 @@ const char *error_to_string(uint8_t err)
         // Section 1.1: Text & Strings
         case ERR_FMT_TEXT:        return S("E_TEXT", "String Encoding");
         case ERR_TEXT_ENCODING:   return S("E_ENC", "Encoding Error (UTF-8)");
-        case ERR_TEXT_EMPTY:      return S("E_EMPTY", "Empty String");
+        case ERR_TEXT_DECODING:   return S("E_DEC", "Decoding Error");
         case ERR_TEXT_TRUNC:      return S("E_TRUNC", "String Truncated");
         case ERR_TEXT_FORMAT:     return S("E_FMT", "Text Format Error");
 

@@ -39,9 +39,9 @@ static ptstate_t protothread2(struct pt *self)
 
   PT_WAIT_ONE(self);
 
-  print_line_P(PSTR("protothread2: PT_RAISE(ERR_SYS_UNKNOWN)"));
+  print_line_P(PSTR("protothread2: PT_RAISE(ERR_PROC_INVAL)"));
 
-  PT_RAISE(self, ERR_SYS_UNKNOWN);
+  PT_RAISE(self, ERR_PROC_INVAL);
 
   print_line_P(PSTR("protothread2: PT_ENDED"));
 
@@ -65,9 +65,9 @@ static ptstate_t protothread3(struct pt *self)
 
   PT_WAIT_ONE(self);
 
-  print_line_P(PSTR("protothread3: PT_THROW(ERR_SYS_INVAL)"));
+  print_line_P(PSTR("protothread3: PT_THROW(ERR_PROC_INVAL)"));
 
-  PT_THROW(self, ERR_SYS_INVAL);
+  PT_THROW(self, ERR_PROC_INVAL);
 
   print_line_P(PSTR("protothread3: PT_ENDED"));
 
@@ -91,9 +91,9 @@ static ptstate_t protothread4(struct pt *self)
 
   PT_WAIT_ONE(self);
 
-  print_line_P(PSTR("protothread4: PT_THROW(ERR_SYS_INVAL)"));
+  print_line_P(PSTR("protothread4: PT_THROW(ERR_PROC_INVAL)"));
 
-  PT_THROW(self, ERR_SYS_INVAL);
+  PT_THROW(self, ERR_PROC_INVAL);
 
   print_line_P(PSTR("protothread4: PT_ENDED"));
 

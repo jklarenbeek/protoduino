@@ -1,6 +1,6 @@
 
 #include <protoduino.h>
-#include <sys/pt-timer.h>
+#include <sys/pt/timer.h>
 #include <dbg/print.h>
 
 struct timer_pt

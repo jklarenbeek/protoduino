@@ -91,7 +91,6 @@ void loop()
         }
     }
     
-    //printb(&VAR_RINGB8(echo_rx));
     flush();
   }
   

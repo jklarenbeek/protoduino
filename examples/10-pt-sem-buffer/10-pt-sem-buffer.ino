@@ -59,7 +59,7 @@
  */
 
 #include <protoduino.h>
-#include <sys/pt-sem.h>
+#include <sys/pt/sem.h>
 #include <dbg/print.h>
 
 #define NUM_ITEMS 32
@@ -92,9 +92,9 @@ static int produce_item(void)
 
 static void consume_item(int item)
 {
-  SerialLine.print("Item ");
-  SerialLine.print(item);
-  SerialLine.println(" consumed");
+  print_P(PSTR("Item "));
+  print_dec(item);
+  println_P(PSTR(" consumed"));
 }
 
 static struct pt_sem full, empty;
