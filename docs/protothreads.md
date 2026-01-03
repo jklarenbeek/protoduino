@@ -24,7 +24,7 @@ Because of the state extensions in protothreads v2, we now have the capability t
 
 ```cpp
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 static ptstate_t iterator(struct pt * self)
 {
@@ -62,7 +62,7 @@ void setup()
 
 void loop()
 {
-  print_state("void loop()", iterator(&it1));
+  print_state_P(PSTR("void loop()"), iterator(&it1));
   print_count++;
   delay(1000);
 }
@@ -76,7 +76,7 @@ The next example show's what that means for the state of a protothread:
 
 ```cpp
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -97,7 +97,7 @@ void setup()
 
 void loop()
 {
-    print_state("< protothread", protothread(&pt1));
+    print_state_P(PSTR("< protothread"), protothread(&pt1));
     print_count++;
     delay(2000);
 }
@@ -111,7 +111,7 @@ To intercept the control flow and its behaviour of a protothread and return a `P
 
 ```cpp
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -122,7 +122,7 @@ static ptstate_t protothread(struct pt *self)
 
   PT_FINALLY(self) // returns PT_ENDED
   {
-    print_line("PT_FINALLY() protothread");
+    print_line_P(PSTR("PT_FINALLY() protothread"));
   }
   PT_END(self); // returns PT_FINALIZED
 }
@@ -141,7 +141,7 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state("< protothread", state, pt1.lc);
+  print_state_lc_P(PSTR("< protothread"), state, pt1.lc);
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
 
@@ -160,7 +160,7 @@ Protothreads v2 introduces native exception handling capabilities. It's a little
 
 ```cpp
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -171,11 +171,11 @@ static ptstate_t protothread(struct pt *self)
 
   PT_RAISE(self, (PT_ERROR + random(0, 63)));
 
-  print_line("UNREACHABLE protothread");
+  print_line_P(PSTR("UNREACHABLE protothread"));
 
   PT_CATCHANY(self)
   {
-    print_error("PT_CATCHANY() protothread", PT_ERROR_STATE);
+    print_error_P(PSTR("PT_CATCHANY() protothread"), PT_ERROR_STATE);
   }
   PT_END(self); // returns PT_FINALIZED
 }
@@ -194,7 +194,7 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state("< protothread", state, pt1.lc);
+  print_state_lc_P(PSTR("< protothread"), state, pt1.lc);
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
 
@@ -214,7 +214,7 @@ See the `08-pt-try-catch.ini` example for its usage:
 
 ```cpp
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 static ptstate_t child(struct pt *self)
 {
@@ -241,11 +241,11 @@ static ptstate_t protothread(struct pt *self)
 
   PT_CATCHANY(self)
   {
-    print_line("PT_CATCHANY() protothread");
+    print_line_P(PSTR("PT_CATCHANY() protothread"));
   }
   PT_FINALLY(self)
   {
-    print_line("PT_FINALLY() protothread");
+    print_line_P(PSTR("PT_FINALLY() protothread"));
   }
 
   PT_END(self);
@@ -265,7 +265,7 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state("< protothread", state, pt1.lc);
+  print_state_lc_P(PSTR("< protothread"), state, pt1.lc);
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
 
@@ -277,7 +277,7 @@ This example shows the propper use of the PT_CATCHANY() and PT_FINALLY() control
 
 ```cpp
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 static ptstate_t child(struct pt *self)
 {
@@ -301,11 +301,11 @@ static ptstate_t protothread(struct pt *self)
 
   PT_CATCHANY(self)
   {
-    print_line("PT_CATCHANY() protothread");
+    print_line_P(PSTR("PT_CATCHANY() protothread"));
   }
   PT_FINALLY(self)
   {
-    print_line("PT_FINALLY() protothread");
+    print_line_P(PSTR("PT_FINALLY() protothread"));
   }
 
   PT_END(self);
@@ -325,7 +325,7 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state("< protothread", state, pt1.lc);
+  print_state_lc_P(PSTR("< protothread", state, pt1.lc));
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
 
@@ -341,7 +341,7 @@ See the `07-pt-yield-foreach.ino` example for its usage:
 
 ```cpp
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 struct ptyield
 {
@@ -377,7 +377,7 @@ static ptstate_t protothread(struct pt *self)
 
   PT_FOREACH(self, &it1, iterator(&it1, 240))
   {
-    print_line("Iterator yielded value:", it1.value);
+    print_line_val_P(PSTR("Iterator yielded value:"), it1.value);
 
     PT_WAIT_ONE(self);
   }
@@ -400,7 +400,7 @@ void loop()
   delay(1000);
 
   ptstate_t state = protothread(&pt1);
-  print_state("< protothread", state, pt1.lc);
+  print_state_lc_P(PSTR("< protothread", state, pt1.lc));
   if (state == PT_FINALIZED || PT_ISRUNNING(state))
     return;
 
@@ -414,7 +414,7 @@ The `PT_SCHEDULE` macro in protothreads v2, sets the local `PT_ERROR_STATE` vari
 
 ```cpp
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 static ptstate_t protothread(struct pt *self)
 {
@@ -422,7 +422,7 @@ static ptstate_t protothread(struct pt *self)
 
   forever: while(1)
   {
-    print_line("forever: protothread");
+    print_line_P(PSTR("forever: protothread"));
     delay(1000);
 
     if (random(0, 2))
@@ -444,12 +444,12 @@ static ptstate_t main_driver(struct pt *self)
   PT_INIT(&pt1);
   while(PT_SCHEDULE(protothread(&pt1)))
   {
-    print_state("< protothread 1", PT_ERROR_STATE);
+    print_state_val_P(PSTR("< protothread 1"), PT_ERROR_STATE);
     delay(1000);
   }
   PT_ONERROR(PT_ERROR_STATE)
   {
-    print_error("protothread ONERROR", PT_ERROR_STATE);
+    print_error_P(PSTR("protothread ONERROR"), PT_ERROR_STATE);
     PT_EXIT(self);
   }
 
@@ -469,7 +469,7 @@ void loop()
   PT_INIT(&pt1);
   while(PT_ISRUNNING(main_driver(&pt1)))
   {
-    print_state("main_driver ISRUNNING", state, pt1.lc);
+    print_state_lc_P(PSTR("main_driver ISRUNNING"), state, pt1.lc);
     delay(1000); // arduino delay a second
   }
   print_count++;

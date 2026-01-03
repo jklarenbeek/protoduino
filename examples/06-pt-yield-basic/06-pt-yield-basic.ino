@@ -4,7 +4,7 @@
  * number is greater then 191) the instance will exit. The proto
  * pump driving the protothread instances will remain active until
  * both instances have exited or ended.
- * 
+ *
  * This shows a clear departure from the protothread 1.x library in
  * that the protothread instance will not reset its state on exit.
  * Instead it will remain in that state until we manually reset
@@ -13,7 +13,7 @@
  */
 
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 /**
  * the protothread state structure is extended to hold
@@ -31,29 +31,32 @@ struct yield_pt {
 
 static void print_waitone(const struct yield_pt *p)
 {
-  SerialLine.print(print_count);
-  SerialLine.print(" - instance ");
-  SerialLine.print(p->node);
-  SerialLine.print(" wait one @");
-  SerialLine.println(p->idx);
+  print_dec(print_count);
+  print_P(PSTR(" - instance "));
+  print_dec(p->node);
+  print_P(PSTR(" wait one @"));
+  print_dec(p->idx);
+  println();
 }
 
 static void print_yield(const struct yield_pt *p)
 {
-    SerialLine.print(print_count);
-    SerialLine.print(" - instance ");
-    SerialLine.print(p->node);
-    SerialLine.print(" yield random(0, 255) = ");
-    SerialLine.println(p->value);
+    print_dec(print_count);
+    print_P(PSTR(" - instance "));
+    print_dec(p->node);
+    print_P(PSTR(" yield random(0, 255) = "));
+    print_P(p->value);
+    println();
 
 }
 
 static void print_thread(const ptstate_t s, const struct yield_pt *p)
 {
-  print_state_ex(s, p->lc);
-  SerialLine.print(p->node);
-  SerialLine.print(" value: ");
-  SerialLine.println(p->value);
+  print_state_ex_P(s, p->lc);
+  print_dec(p->node);
+  print_P(PSTR(" value: "));
+  print_dec(p->value);
+  println();
 }
 
 /**
@@ -63,12 +66,12 @@ static void print_thread(const ptstate_t s, const struct yield_pt *p)
  * the protothread to hold its variable structure.
  */
 static ptstate_t protothread(struct yield_pt *self)
-{  
+{
   PT_BEGIN(self);
 
   // we loop 5 times, in order to reach a PT_ENDED state.
   // if we reach the threshold we set the state to PT_EXITED.
-  for(self->idx = 0; self->idx < 5; self->idx++) 
+  for(self->idx = 0; self->idx < 5; self->idx++)
   {
     // increase to global counter so we can see some interesting behaviour.
     print_count++;
@@ -89,7 +92,7 @@ static ptstate_t protothread(struct yield_pt *self)
     // we reached the treshold so exit.
     if (self->value > 191)
       PT_EXIT(self);
-    
+
   }
 
   PT_END(self);
@@ -130,12 +133,12 @@ void init_pt(struct yield_pt * p, uint8_t node)
  * When a protothread has exited or ended, the protothread
  * stays block in its state; as is the designed behaviour
  * of the protothread 2.x library. Therefor we can savely
- * cycle through the protothread instances without changing 
+ * cycle through the protothread instances without changing
  * a exited or ended state.
  */
-bool run_once() 
+bool run_once()
 {
-  print_line(" - protopump is_running()");
+  print_line_P(PSTR(" - protopump is_running()"));
 
   bool running = false;
   if (PT_ISRUNNING(st1 = protothread(&pt1)))
@@ -145,15 +148,15 @@ bool run_once()
 
   if (running == false)
   {
-    print_line(" - end of protopump");
+    print_line_P(PSTR(" - end of protopump"));
   }
-  
+
   return running;
 }
 
 void loop()
 {
-  print_line("void loop()");
+  print_line_P(PSTR("void loop()"));
 
   /* Initialize the protothread state variables. */
   init_pt(&pt1,1);

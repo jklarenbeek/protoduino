@@ -6,7 +6,7 @@
  */
 
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 /**
  * The first protothread function. A protothread function must always
@@ -34,7 +34,7 @@ static ptstate_t protothread1(struct pt *pt)
      minor changes are needed in contiki and/or contiki-ng. */
 
   print_count++;
-  print_line("Protothread 1 running");
+  print_line_P(PSTR("Protothread 1 running"));
 
   PT_WAIT_ONE(pt);
 
@@ -52,12 +52,12 @@ static ptstate_t protothread2(struct pt *pt)
   PT_BEGIN(pt);
 
   print_count++;
-  print_line("Protothread 2 runnning");
+  print_line_P(PSTR("Protothread 2 runnning"));
 
   PT_WAIT_ONE(pt);
 
   print_count++;
-  print_line("Protothread 2 continue 1");
+  print_line_P(PSTR("Protothread 2 continue 1"));
 
   PT_WAIT_ONE(pt);
 
@@ -73,17 +73,17 @@ static ptstate_t protothread3(struct pt *pt)
   PT_BEGIN(pt);
 
   print_count++;
-  print_line("Protothread 3 running");
+  print_line_P(PSTR("Protothread 3 running"));
 
   PT_WAIT_ONE(pt);
 
   print_count++;
-  print_line("Protothread 3 continue 1");
+  print_line_P(PSTR("Protothread 3 continue 1"));
 
   PT_WAIT_ONE(pt);
 
   print_count++;
-  print_line("Protothread 3 continue 2");
+  print_line_P(PSTR("Protothread 3 continue 2"));
 
   PT_WAIT_ONE(pt);
 
@@ -118,11 +118,11 @@ void setup()
 */
 void loop()
 {
-  print_line("void loop()");
+  print_line_P(PSTR("void loop()"));
 
-  print_state(F("protothread1"), protothread1(&pt1));
-  print_state(F("protothread2"), protothread2(&pt2));
-  print_state(F("protothread3"), protothread3(&pt3));
+  print_state_P(PSTR("protothread1"), protothread1(&pt1));
+  print_state_P(PSTR("protothread2"), protothread2(&pt2));
+  print_state_P(PSTR("protothread3"), protothread3(&pt3));
 
   delay(2000);
 }

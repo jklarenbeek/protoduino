@@ -3,9 +3,9 @@
  *
  *	This demo will not work correctly on SimulIde, since it appears not to support unicode in its serial monitor.
  *	SimulIde also has a problem with flushing/sending its buffer in the same way as a real arduino does.
- */ 
+ */
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 #include <utf/vt100.h>
 #include <utf/utf8-stream.h>
 
@@ -35,7 +35,7 @@ static ptstate_t getch(struct echo_pt *self)
       PT_YIELD(self);
     }
     else
-    { 
+    {
       uint8_t ret;
       rune16_t rune;
       self->idx = 0;
@@ -68,7 +68,7 @@ static ptstate_t getch(struct echo_pt *self)
         {
           PT_THROW(self, ERR_BAD_ARGUMENTS);
         }
-        
+
         PT_THROW(self, ERR_BUFFER_OVERFLOW);
       }
     }
@@ -83,7 +83,7 @@ static ptstate_t getch(struct echo_pt *self)
 static struct echo_pt pt1;
 
 static ptstate_t main_driver(struct pt *self, Stream *stream)
-{  
+{
   PT_BEGIN(self);
 
   pt1.stream = stream;
@@ -94,7 +94,7 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
 
     stream->print("echo '");
     stream->flush();
-    
+
     PT_PUTR(self, pt1);
 
     stream->flush();
@@ -110,7 +110,7 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
 void setup()
 {
   SerialLine.begin(9600);
-  
+
   // if analog input pin 0 is unconnected, random analog
   // noise will cause the call to randomSeed() to generate
   // different seed numbers each time the sketch runs.
@@ -147,6 +147,6 @@ void loop()
   {
     ++count;
   }
-  
+
 }
 

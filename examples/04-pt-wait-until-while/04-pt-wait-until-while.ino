@@ -6,7 +6,7 @@
  */
 
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 /**
  * The first protothread function. A protothread function must always
@@ -26,7 +26,7 @@ static ptstate_t protothread1(struct pt *pt)
   forever: while(1) {
 
     print_count++;
-    print_line("Protothread 1 running; wait one");
+    print_line_P(PSTR("Protothread 1 running; wait one"));
 
     PT_WAIT_ONE(pt);
   }
@@ -47,7 +47,7 @@ static ptstate_t protothread2(struct pt *pt)
   forever: while(1)
   {
     print_count++;
-    print_line("Protothread 2 running; wait until (count % 2) == 0");
+    print_line_P(PSTR("Protothread 2 running; wait until (count % 2) == 0"));
 
     PT_WAIT_UNTIL(pt, ((print_count % 2) == 0));
   }
@@ -66,7 +66,7 @@ static ptstate_t protothread3(struct pt *pt)
   forever: while(1)
   {
     print_count++;
-    print_line("Protothread 3 running; wait while (count % 3) != 0");
+    print_line_P(PSTR("Protothread 3 running; wait while (count % 3) != 0"));
 
     PT_WAIT_WHILE(pt, ((print_count % 3) != 0));
   }
@@ -95,11 +95,11 @@ void setup()
 
 void loop()
 {
-  print_line("void loop()");
+  print_line_P(PSTR("void loop()"));
 
-  print_state(F("protothread1"), protothread1(&pt1));
-  print_state(F("protothread2"), protothread2(&pt2));
-  print_state(F("protothread3"), protothread3(&pt3));
+  print_state_P(PSTR("protothread1"), protothread1(&pt1));
+  print_state_P(PSTR("protothread2"), protothread2(&pt2));
+  print_state_P(PSTR("protothread3"), protothread3(&pt3));
 
   delay(2000);
 }

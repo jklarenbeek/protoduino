@@ -1,21 +1,21 @@
 /**
- * This example demonstrates the use of the PT_FOREACH() and 
+ * This example demonstrates the use of the PT_FOREACH() and
  * PT_ENDEACH() macro. The PT_FOREACH() macro works like the
  * PT_SPAWN() macro and accepts the same arguments. The
  * PT_FOREACH() differs when it recieves a PT_YIELDED return
  * state from its child protothread. It will then flow into
  * the next code block like the well known for(;;) and
- * while() structures. The example also demonstrates that it 
+ * while() structures. The example also demonstrates that it
  * is save to nest PT_FOREACH() structures within a single
  * protothread.
  *
  * Note that like the PT_SPAWN() macro, the PT_FOREACH() macro
  * also reinitializes the child protothread.
- * 
+ *
  */
 
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 
 /**
  * Although an iterator doesn't need to return a value, this example
@@ -32,14 +32,14 @@ struct yield_pt {
 
 static void print_iterator(struct yield_pt *it)
 {
-    SerialLine.print(print_count);
-    SerialLine.print(" - iterator ");
-    SerialLine.print(it->node);
-    SerialLine.print(" (");
-    SerialLine.print(it->lc);
-    SerialLine.print(") ");
-    SerialLine.print(" yielded value: ");
-    SerialLine.println((it->value));
+    print_dec(print_count);
+    print_P(PSTR(" - iterator "));
+    print_dec(it->node);
+    print_P(PSTR(" ("));
+    print_dec(it->lc);
+    print_P(PSTR(") yielded value: "));
+    print_dec((it->value));
+    println();
 }
 
 /**
@@ -49,7 +49,7 @@ static void print_iterator(struct yield_pt *it)
  * protothread further down in the code.
  */
 static ptstate_t iterator1(struct yield_pt *self, uint8_t max)
-{  
+{
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(self);
@@ -65,12 +65,12 @@ static ptstate_t iterator1(struct yield_pt *self, uint8_t max)
 
     /**
      * The PT_FOREACH caller macro is non blocking
-     * on the yielded protothread. Blocking is the 
+     * on the yielded protothread. Blocking is the
      * responsibility of the called or calling protothread.
      * In this case the responsibility of the iterator1
-     * protothread. Try commenting the next line out to 
+     * protothread. Try commenting the next line out to
      * see the counter increment less frequently.
-     */ 
+     */
     PT_WAIT_ONE(self);
   }
 
@@ -88,7 +88,7 @@ static ptstate_t iterator1(struct yield_pt *self, uint8_t max)
  * protothread further down in the code.
  */
 static ptstate_t iterator2(struct yield_pt *self, uint8_t max)
-{  
+{
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(self);
@@ -121,7 +121,7 @@ static ptstate_t iterator2(struct yield_pt *self, uint8_t max)
      */
     if (self->value >= max)
       PT_EXIT(self);
-    
+
     /* And we loop. */
   }
 
@@ -144,11 +144,11 @@ static ptstate_t main_driver(struct pt *pt)
 
   PT_BEGIN(pt);
 
-  print_line("PT_THREAD(main-driver)");
+  print_line_P(PSTR("PT_THREAD(main-driver)"));
 
   it1.node = 1;
   it2.node = 2;
-  
+
   PT_FOREACH(pt, &it1, iterator1(&it1, 16))
   {
     print_iterator(&it1);
@@ -177,7 +177,7 @@ void setup()
 
 void loop()
 {
-  print_line("void loop()");
+  print_line_P(PSTR("void loop()"));
 
   /* Initialize the protothread state variables. */
   PT_INIT(&pt1);

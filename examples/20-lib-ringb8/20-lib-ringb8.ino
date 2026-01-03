@@ -1,5 +1,5 @@
 #include <protoduino.h>
-#include <dbg/examples.h>
+#include <dbg/print.h>
 #include <lib/ringb8.h>
 
 RINGB8(rbuf, 8);
@@ -25,7 +25,7 @@ void print_buf(void)
 {
     while(RINGB8_COUNT(rbuf) > 0)
         SerialLine.print((char)RINGB8_GET(rbuf));
-        
+
     SerialLine.println(" -> done");
 }
 
@@ -41,7 +41,7 @@ void setup()
 }
 
 void loop()
-{    
+{
   RINGB8_PUT(rbuf, nextchar());
   print_size();
 
@@ -50,7 +50,7 @@ void loop()
     SerialLine.print("printing buffer:");
     print_buf();
     print_size();
-  } 
+  }
   delay(1000);
 }
 
