@@ -1,4 +1,4 @@
-// file: ./src/sys/tmpl/serial_private_header.h
+// file: ./src/sys/serial/serial_private_header.h
 
 #include <cc.h>
 

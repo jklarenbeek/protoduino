@@ -5,7 +5,7 @@
  *	SimulIde also has a problem with flushing/sending its buffer in the same way as a real arduino does.
  */
 #include <protoduino.h>
-#include <sys/tmpl/SerialClass.hpp>
+#include <sys/serial/SerialClass.hpp>
 #include <lib/utf/vt100.h>
 #include <lib/utf/utf8-stream.h>
 

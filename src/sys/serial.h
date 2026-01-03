@@ -26,25 +26,25 @@ CC_EXTERN typedef bool (*serial_onrecieved_fn)(uint_fast8_t);
 #ifdef HAVE_HW_UART0
 #undef CC_TMPL_PREFIX
 #define CC_TMPL_PREFIX serial0
-#include "tmpl/serial_private_header.h"
+#include "serial/serial_private_header.h"
 #endif
 
 #ifdef HAVE_HW_UART1
 #undef CC_TMPL_PREFIX
 #define CC_TMPL_PREFIX serial1
-#include "tmpl/serial_private_header.h"
+#include "serial/serial_private_header.h"
 #endif
 
 #ifdef HAVE_HW_UART2
 #undef CC_TMPL_PREFIX
 #define CC_TMPL_PREFIX serial2
-#include "tmpl/serial_private_header.h"
+#include "serial/serial_private_header.h"
 #endif
 
 #ifdef HAVE_HW_UART3
 #undef CC_TMPL_PREFIX
 #define CC_TMPL_PREFIX serial3
-#include "tmpl/serial_private_header.h"
+#include "serial/serial_private_header.h"
 #endif
 
 CC_EXTERN void printchar(uint_fast8_t c);

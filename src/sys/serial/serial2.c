@@ -1,4 +1,4 @@
-// file: ./src/sys/tmpl/serial2.c
+// file: ./src/sys/serial/serial2.c
 
 #include "../serial.h"
 

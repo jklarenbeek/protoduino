@@ -1,4 +1,4 @@
-// file: ./src/sys/tmpl/SerialClass.hpp
+// file: ./src/sys/serial/SerialClass.hpp
 
 #ifndef __SerialClass_HPP__
 #define __SerialClass_HPP__
