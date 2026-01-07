@@ -320,7 +320,7 @@ Protoduino is released under an open-source license. See LICENSE file for detail
 - **GitHub Repository**: https://github.com/jklarenbeek/protoduino
 - **Original Protothreads**: http://dunkels.com/adam/pt/about.html
 - **Plan9Port (UTF-8 library source)**: https://github.com/9fans/plan9port
-- **Contiki-OS**: Related embedded OS using protothreads
+- **Contiki-OS**: https://github.com/contiki-os/contiki
 
 ---
 

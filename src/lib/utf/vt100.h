@@ -3,6 +3,7 @@
 
 #include <cc.h>
 #include <stdint.h>
+#include <lib/utf/rune16.h>
 
 // key codes for rune16_t between 0x80-0x9F (size == 32)
 // https://www.gnu.org/software/guile-ncurses/manual/html_node/Getting-characters-from-the-keyboard.html

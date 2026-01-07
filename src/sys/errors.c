@@ -30,106 +30,106 @@ const char *error_to_string(uint8_t err)
 
         // --- ROOT ---
         case ERR_ROOT_INIT:       return S("P_OK", "Success (Void)");
-        // ERR_ROOT_INIT is 0x00, which is also ERR_SUCCESS
-        // case ERR_SUCCESS:      (Duplicate of ERR_ROOT_INIT)
+        // ERR_SUCCESS is 0x00, duplicate of ERR_ROOT_INIT
+        // ERR_OK is 0x00, duplicate of ERR_ROOT_INIT
 
         // --- KERNEL FLOW STATES (Reserved) ---
-        case ERR_YIELDING:        return S("P_YIELD", "Process Yielded / Waiting");
-        case ERR_EXITING:         return S("P_EXIT", "Process Exiting");
-        case ERR_ENDING:          return S("P_END", "Process Terminated Normally");
+        // case ERR_YIELDING:        return S("P_YIELD", "Process Yielded / Waiting");
+        // case ERR_EXITING:         return S("P_EXIT", "Process Exiting");
+        // case ERR_ENDING:          return S("P_END", "Process Terminated Normally");
 
-        // --- DOMAIN 1: SYSTEM STATE (0x01) ---
-        // case ERR_SYS_STATE:    (Duplicate of ERR_YIELDING 0x01)
+        // --- DOMAIN 1.1: SYSTEM STATE (0x01) ---
+        case ERR_SYS_STATE:       return S("E_SYS", "System State Subsystem");
 
-        // Section 1.1: Access Control
-        // case ERR_SYS_ACCESS:   (Duplicate of ERR_EXITING 0x02)
-        case ERR_ACCESS_READ:     return S("E_READ", "Read Access Forbidden");
-        case ERR_ACCESS_WRITE:    return S("E_WRITE", "Write Access Forbidden");
-        case ERR_ACCESS_EXEC:     return S("E_EXEC", "Execute Access Forbidden");
-        case ERR_ACCESS_OWNER:    return S("E_OWNER", "Ownership Mismatch");
+        // Section 1.1.1: Access Control
+        case ERR_SYS_ACCESS:      return S("E_ACCESS", "Access Control Error");
+        case ERR_ACCESS_DENIED:   return S("E_DENIED", "Access Denied");
+        case ERR_ACCESS_READONLY: return S("E_RO", "Read Only");
+        case ERR_ACCESS_LOCKED:   return S("E_LOCKED", "Access Locked");
+        case ERR_ACCESS_FORBIDDEN:return S("E_FORBIDDEN", "Forbidden Operation");
 
-        // Section 1.2: Handles & Descriptors
-        // case ERR_SYS_HANDLE:   (Duplicate of ERR_ENDING 0x03)
-        case ERR_HANDLE_NULL:     return S("E_NULL", "Null Pointer/Handle");
-        case ERR_HANDLE_CLOSED:   return S("E_CLOSED", "Handle Already Closed");
-        case ERR_HANDLE_TYPE:     return S("E_TYPE", "Handle Type Mismatch");
-        case ERR_HANDLE_SHADOW:   return S("E_SHADOW", "Stale Handle Reference");
+        // Section 1.1.2: Handles & Descriptors
+        case ERR_SYS_HANDLE:      return S("E_HANDLE", "Handle Error");
+        case ERR_HANDLE_INVALID:  return S("E_INVHANDLE", "Invalid Handle");
+        case ERR_HANDLE_CLOSED:   return S("E_CLOSED", "Handle Closed");
+        case ERR_HANDLE_TYPE:     return S("E_HTYPE", "Handle Type Mismatch");
+        case ERR_HANDLE_SHADOW:   return S("E_HSHADOW", "Stale Handle");
 
-        // Section 1.3: Processes & Threads
-        case ERR_SYS_PROC:        return S("E_PROC", "Process Subsystem Error");
-        case ERR_PROC_CANCELLED:  return S("E_FORK", "Operation Cancelled");
-        case ERR_PROC_ZOMBIE:     return S("E_ZOMBIE", "Process is Zombie");
-        case ERR_PROC_ORPHAN:     return S("E_ORPHAN", "Parent Process Lost");
-        case ERR_PROC_INVAL:      return S("E_INVAL", "Invalid System Argument");
+        // Section 1.1.3: Processes & Threads
+        case ERR_SYS_PROC:        return S("E_PROC", "Process Error");
+        case ERR_PROC_CANCELLED:  return S("E_CANCEL", "Cancelled");
+        case ERR_PROC_KILLED:     return S("E_KILL", "Process Killed");
+        case ERR_PROC_ORPHAN:     return S("E_ORPHAN", "Orphaned Process");
+        case ERR_PROC_ZOMBIE:     return S("E_ZOMBIE", "Zombie Process");
 
-        // Section 1.4: Scheduling
-        case ERR_SYS_SCHED:       return S("E_SCHED", "Scheduler Error");
-        case ERR_SCHED_YIELD:     return S("E_YIELD", "Yield Failed");
-        case ERR_SCHED_PRIORITY:  return S("E_PRIO", "Priority Inversion");
-        case ERR_SCHED_QUANTUM:   return S("E_QUANTUM", "Time Slice Expired");
-        case ERR_SCHED_STARVE:    return S("E_STARVE", "Thread Starvation");
+        // Section 1.1.4: Arguments & Validation
+        case ERR_SYS_ARGUMENT:    return S("E_ARG", "Argument Error");
+        case ERR_ARG_NULL:        return S("E_NULL", "Null Argument");
+        case ERR_ARG_INVALID:     return S("E_INVAL", "Invalid Argument");
+        case ERR_ARG_RANGE:       return S("E_RANGE", "Argument Out of Range");
+        case ERR_ARG_TYPE:        return S("E_ATYPE", "Argument Type Mismatch");
 
-        // --- DOMAIN 2: MEMORY & RESOURCES (0x80) ---
+        // --- DOMAIN 1.2: MEMORY & RESOURCES (0x80) ---
         case ERR_MEM_DOM:         return S("E_MEM", "Memory Subsystem");
 
-        // Section 2.1: Allocation (Heap)
-        case ERR_MEM_ALLOC:       return S("E_ALLOC", "Allocation Failure");
+        // Section 1.2.1: Allocation (Heap)
+        case ERR_MEM_HEAP:        return S("E_HEAP", "Heap Error");
         case ERR_HEAP_OOM:        return S("E_OOM", "Out of Memory");
         case ERR_HEAP_FRAGMENT:   return S("E_FRAG", "Heap Fragmented");
-        case ERR_HEAP_CORRUPT:    return S("E_CORRUPT", "Heap Metadata Corrupt");
-        case ERR_HEAP_FREE:       return S("E_DBLFREE", "Double Free Detected");
+        case ERR_HEAP_CORRUPT:    return S("E_HCORRUPT", "Heap Corrupted");
+        case ERR_HEAP_DOUBLE_FREE:return S("E_DBLFREE", "Double Free");
 
-        // Section 2.2: Stack & Bounds
-        case ERR_MEM_BOUNDS:      return S("E_BOUNDS", "Memory Boundary Violation");
-        case ERR_STACK_OVER:      return S("E_OVER", "Stack Overflow");
-        case ERR_STACK_UNDER:     return S("E_UNDER", "Stack Underflow");
-        case ERR_BOUNDS_LOWER:    return S("E_LOWER", "Lower Bound Violation");
-        case ERR_BOUNDS_UPPER:    return S("E_UPPER", "Upper Bound Violation");
+        // Section 1.2.2: Stack & Bounds
+        case ERR_MEM_BOUNDS:      return S("E_BOUNDS", "Bounds Error");
+        case ERR_STACK_OVERFLOW:  return S("E_STKOVF", "Stack Overflow");
+        case ERR_STACK_UNDERFLOW: return S("E_STKUDF", "Stack Underflow");
+        case ERR_BOUNDS_LOWER:    return S("E_BLOW", "Lower Bound Violation");
+        case ERR_BOUNDS_UPPER:    return S("E_BUP", "Upper Bound Violation");
 
-        // Section 2.3: Paging & Virtual Mem
-        case ERR_MEM_VIRT:        return S("E_VIRT", "Virtual Memory Error");
-        case ERR_PAGE_FAULT:      return S("E_FAULT", "Page Fault");
-        case ERR_PAGE_NOT_PRESENT:return S("E_MISS", "Page Not Present");
-        case ERR_PAGE_PROTECT:    return S("E_PROT", "Page Protection Violation");
-        case ERR_PAGE_SHADOW:     return S("E_PAGE", "Shadow Page Error");
+        // Section 1.2.3: Buffers
+        case ERR_MEM_BUFFER:      return S("E_BUF", "Buffer Error");
+        case ERR_BUF_OVERFLOW:    return S("E_BUFOVF", "Buffer Overflow");
+        case ERR_BUF_UNDERFLOW:   return S("E_BUFUDF", "Buffer Underflow");
+        case ERR_BUF_FULL:        return S("E_BUFFULL", "Buffer Full");
+        case ERR_BUF_EMPTY:       return S("E_BUFEMPTY", "Buffer Empty");
 
-        // Section 2.4: Alignment & Mapping
-        case ERR_MEM_MAP:         return S("E_MAP", "Memory Mapping Error");
-        case ERR_MAP_FAILED:      return S("E_MMAP", "mmap Failed");
-        case ERR_ALIGN_ADDR:      return S("E_ALIGN", "Address Misalignment");
-        case ERR_ALIGN_BUS:       return S("E_BUS_ALGN", "Bus Alignment Error");
-        case ERR_ALIGN_SIZE:      return S("E_SZ_ALGN", "Size Misalignment");
+        // Section 1.2.4: Alignment & Paging
+        case ERR_MEM_ALIGN:       return S("E_ALIGN", "Alignment Error");
+        case ERR_ALIGN_ADDR:      return S("E_ADDRALIGN", "Address Misaligned");
+        case ERR_ALIGN_SIZE:      return S("E_SZALIGN", "Size Misaligned");
+        case ERR_PAGE_FAULT:      return S("E_PGFAULT", "Page Fault");
+        case ERR_PAGE_PROTECT:    return S("E_PGPROT", "Page Protection Violation");
 
-        // --- DOMAIN 3: LIFECYCLE & REFLECTION (0x81) ---
+        // --- DOMAIN 1.3: LIFECYCLE & INITIALIZATION (0x81) ---
         case ERR_LIFE_DOM:        return S("E_LIFE", "Lifecycle Subsystem");
 
-        // Section 3.1: Initialization
+        // Section 1.3.1: Initialization
         case ERR_LIFE_INIT:       return S("E_INIT", "Initialization Error");
-        case ERR_INIT_TIMEOUT:    return S("E_TO", "Init Timeout");
-        case ERR_INIT_DEPENDENCY: return S("E_DEP", "Dependency Missing");
-        case ERR_INIT_PREMATURE:  return S("E_PREMATURE", "Premature Initialization");
-        case ERR_NOT_SUPPORTED:     return S("E_NOSUP", "Not Supported");
+        case ERR_INIT_FAILED:     return S("E_INITFAIL", "Init Failed");
+        case ERR_INIT_TIMEOUT:    return S("E_INITTO", "Init Timeout");
+        case ERR_INIT_DEPENDENCY: return S("E_DEP", "Missing Dependency");
+        case ERR_INIT_NOSUP:      return S("E_NOSUP", "Not Supported");
 
-        // Section 3.2: States
-        case ERR_LIFE_STATE:      return S("E_STATE", "Invalid State Transition");
-        case ERR_STATE_UNK:       return S("E_UNKNOWN", "Unknown State");
-        case ERR_STATE_BALANCED:  return S("E_ST_BAL", "Balanced State Violation");
-        case ERR_STATE_LOCKED:    return S("E_LOCKED", "Object Locked");
-        case ERR_STATE_FROZEN:    return S("E_FROZEN", "Object Frozen");
+        // Section 1.3.2: State Transitions
+        case ERR_LIFE_STATE:      return S("E_STATE", "State Error");
+        case ERR_STATE_INVALID:   return S("E_INVSTATE", "Invalid State");
+        case ERR_STATE_TRANSITION:return S("E_TRANS", "Bad Transition");
+        case ERR_STATE_LOCKED:    return S("E_STLOCK", "State Locked");
+        case ERR_STATE_FROZEN:    return S("E_STFROZEN", "State Frozen");
 
-        // Section 3.3: Reference Counting
-        case ERR_LIFE_REF:        return S("E_REF", "Reference Counting Error");
-        case ERR_REF_ZERO:        return S("E_REF_0", "Ref Count Zero");
-        case ERR_REF_MAX:         return S("E_REF_MAX", "Ref Count Max");
-        case ERR_REF_LEAK:        return S("E_LEAK", "Potential Leak Detected");
-        case ERR_REF_DANGLING:    return S("E_DANGLE", "Dangling Pointer");
+        // Section 1.3.3: Reference Counting
+        case ERR_LIFE_REF:        return S("E_REF", "Reference Error");
+        case ERR_REF_ZERO:        return S("E_REF0", "Ref Count Zero");
+        case ERR_REF_OVERFLOW:    return S("E_REFOVF", "Ref Count Overflow");
+        case ERR_REF_LEAK:        return S("E_REFLEAK", "Ref Leak");
+        case ERR_REF_DANGLING:    return S("E_DANGLING", "Dangling Reference");
 
-        // Section 3.4: Garbage Collection
-        case ERR_LIFE_GC:         return S("E_GC", "Garbage Collection Error");
-        case ERR_GC_ROOT:         return S("E_GC_ROOT", "GC Root Not Found");
-        case ERR_GC_SWEEP:        return S("E_GC_SWEEP", "GC Sweep Failure");
-        case ERR_GC_COMPACT:      return S("E_GC_COMP", "GC Compaction Failure");
-        case ERR_GC_MIRROR:       return S("E_GC_MIR", "Mirror Object Error");
+        // Section 1.3.4: Cleanup & Finalization
+        case ERR_LIFE_CLEAN:      return S("E_CLEAN", "Cleanup Error");
+        case ERR_CLEAN_FAILED:    return S("E_CLEANFAIL", "Cleanup Failed");
+        case ERR_CLEAN_PARTIAL:   return S("E_PARTIAL", "Partial Cleanup");
+        case ERR_CLEAN_BUSY:      return S("E_CBUSY", "Cleanup Busy");
+        case ERR_CLEAN_LEAKED:    return S("E_CLEAK", "Resource Leaked");
 
 
         // =====================================================================
@@ -141,99 +141,98 @@ const char *error_to_string(uint8_t err)
         case ERR_ROOT_BEFORE:     return S("E_BUSY", "Resource Busy / Retry");
         // ERR_IO_BUSY is 0x55, duplicate of ERR_ROOT_BEFORE
 
-        // --- DOMAIN 1: NETWORK & CONNECTIVITY (0x2A) ---
+        // --- DOMAIN 2.1: NETWORK & CONNECTIVITY (0x2A) ---
         case ERR_NET_DOM:         return S("E_NET", "Network Subsystem");
 
-        // Section 1.1: Sockets
+        // Section 2.1.1: Sockets & Connections
         case ERR_NET_SOCK:        return S("E_SOCK", "Socket Error");
+        case ERR_SOCK_CREATE:     return S("E_SCREATE", "Socket Create Failed");
         case ERR_SOCK_BIND:       return S("E_BIND", "Bind Failed");
         case ERR_SOCK_LISTEN:     return S("E_LISTEN", "Listen Failed");
         case ERR_SOCK_ACCEPT:     return S("E_ACCEPT", "Accept Failed");
-        case ERR_SOCK_CONNECT:    return S("E_CONN", "Connect Failed");
 
-        // Section 1.2: DNS & Resolution
-        case ERR_NET_DNS:         return S("E_NAME", "DNS Error");
-        case ERR_DNS_NXDOMAIN:    return S("E_NXDOMAIN", "Domain Not Found");
-        case ERR_DNS_TIMEOUT:     return S("E_DNS_TO", "Resolution Timeout");
-        case ERR_DNS_SERVFAIL:    return S("E_SERVFAIL", "DNS Server Failure");
-        case ERR_DNS_BALANCED:    return S("E_DNS_LB", "Load Balancer Error");
+        // Section 2.1.2: Connection State
+        case ERR_NET_CONN:        return S("E_CONN", "Connection Error");
+        case ERR_CONN_REFUSED:    return S("E_REFUSED", "Connection Refused");
+        case ERR_CONN_RESET:      return S("E_RESET", "Connection Reset");
+        case ERR_CONN_CLOSED:     return S("E_CCLOSED", "Connection Closed");
+        case ERR_CONN_TIMEOUT:    return S("E_CTO", "Connection Timeout");
 
-        // Section 1.3: Transport
-        case ERR_NET_TRANS:       return S("E_TRANS", "Transport Layer Error");
-        case ERR_TRANS_RESET:     return S("E_RST", "Connection Reset");
-        case ERR_TRANS_CLOSED:    return S("E_CLOSE", "Connection Closed");
-        case ERR_TRANS_DROP:      return S("E_DROP", "Packet Dropped");
-        case ERR_TRANS_CONGEST:   return S("E_CONGEST", "Network Congestion");
+        // Section 2.1.3: DNS & Resolution
+        case ERR_NET_DNS:         return S("E_DNS", "DNS Error");
+        case ERR_DNS_NXDOMAIN:    return S("E_NXDOM", "Domain Not Found");
+        case ERR_DNS_TIMEOUT:     return S("E_DNSTO", "DNS Timeout");
+        case ERR_DNS_SERVFAIL:    return S("E_SERVFAIL", "Server Failure");
+        case ERR_DNS_CONFIG:      return S("E_DNSCFG", "DNS Config Error");
 
-        // Section 1.4: Protocol
+        // Section 2.1.4: Protocol Layer
         case ERR_NET_PROTO:       return S("E_PROTO", "Protocol Error");
-        case ERR_PROTO_BAD:       return S("E_BAD", "Bad Request");
-        case ERR_PROTO_PROXY:     return S("E_PROXY", "Proxy Error");
-        case ERR_PROTO_SUB:       return S("E_SUB", "Subscription Failed");
-        case ERR_PROTO_PUB:       return S("E_PUB", "Publish Failed");
+        case ERR_PROTO_VERSION:   return S("E_PVER", "Protocol Version");
+        case ERR_PROTO_FORMAT:    return S("E_PFMT", "Protocol Format Error");
+        case ERR_PROTO_SEQUENCE:  return S("E_PSEQ", "Sequence Error");
+        case ERR_PROTO_STATE:     return S("E_PSTATE", "Protocol State Error");
 
-        // --- DOMAIN 2: SIGNALS & TIMING (0x2B) ---
-        case ERR_TIME_DOM:        return S("E_SIGNAL", "Timing Subsystem");
+        // --- DOMAIN 2.2: SIGNALS & TIMING (0x2B) ---
+        case ERR_TIME_DOM:        return S("E_TIME", "Timing Subsystem");
 
-        // Section 2.1: Interrupts
+        // Section 2.2.1: Interrupts
         case ERR_TIME_IRQ:        return S("E_IRQ", "Interrupt Error");
-        case ERR_IRQ_MASKED:      return S("E_MASKED", "IRQ Masked");
-        case ERR_IRQ_INTR:        return S("E_INTR", "Interrupted");
-        case ERR_IRQ_NESTED:      return S("E_NESTED", "Nested Depth Exceeded");
-        case ERR_IRQ_BALANCE:     return S("E_IRQ_BAL", "IRQ Load Balance Error");
+        case ERR_IRQ_DISABLED:    return S("E_IRQDIS", "IRQ Disabled");
+        case ERR_IRQ_PENDING:     return S("E_IRQPEND", "IRQ Pending");
+        case ERR_IRQ_NESTED:      return S("E_IRQNEST", "Nested Overflow");
+        case ERR_IRQ_PRIORITY:    return S("E_IRQPRIO", "Priority Error");
 
-        // Section 2.2: Clocks & Timers
-        case ERR_TIME_CLOCK:      return S("E_CLK", "Clock Error");
-        case ERR_CLK_SKEW:        return S("E_SKEW", "Clock Skew");
-        case ERR_CLK_JITTER:      return S("E_JITTER", "High Jitter");
-        case ERR_CLK_EXPIRED:     return S("E_EXPIRE", "Timer Expired");
-        case ERR_CLK_DRIFT:       return S("E_DRIFT", "Clock Drift");
+        // Section 2.2.2: Clocks & Timers
+        case ERR_TIME_CLOCK:      return S("E_CLOCK", "Clock Error");
+        case ERR_CLK_NOT_READY:   return S("E_CLKNRDY", "Clock Not Ready");
+        case ERR_CLK_UNSTABLE:    return S("E_CLKUNST", "Clock Unstable");
+        case ERR_CLK_EXPIRED:     return S("E_CLKEXP", "Timer Expired");
+        case ERR_CLK_OVERFLOW:    return S("E_CLKOVF", "Timer Overflow");
 
-        // Section 2.3: Synchronization
-        case ERR_TIME_SYNC:       return S("TIME_SYNC", "Sync Primitive Error");
-        case ERR_SYNC_WAIT:       return S("E_WAIT", "Wait Failed");
+        // Section 2.2.3: Synchronization
+        case ERR_TIME_SYNC:       return S("E_SYNC", "Sync Error");
+        case ERR_SYNC_FAILED:     return S("E_SYNCF", "Sync Failed");
+        case ERR_SYNC_TIMEOUT:    return S("E_SYNCTO", "Sync Timeout");
         case ERR_SYNC_BARRIER:    return S("E_BARRIER", "Barrier Broken");
-        case ERR_SYNC_SEM:        return S("E_SEM", "Semaphore Twin Error");
-        case ERR_SYNC_MUTEX:      return S("E_MUTEX", "Mutex Deadlock/Error");
+        case ERR_SYNC_LOST:       return S("E_SYNCL", "Sync Lost");
 
-        // Section 2.4: Watchdogs
+        // Section 2.2.4: Watchdogs
         case ERR_TIME_WDT:        return S("E_WDT", "Watchdog Error");
-        case ERR_WDT_BARK:        return S("E_BARK", "Watchdog Warning");
-        case ERR_WDT_BITE:        return S("E_BITE", "Watchdog Reset");
-        case ERR_WDT_EARLY:       return S("E_EARLY", "Kick Too Early");
-        case ERR_WDT_LATE:        return S("E_LATE", "Kick Too Late");
+        case ERR_WDT_EXPIRED:     return S("E_WDTEXP", "Watchdog Expired");
+        case ERR_WDT_RESET:       return S("E_WDTRST", "Watchdog Reset");
+        case ERR_WDT_EARLY:       return S("E_WDTEARLY", "Early Kick");
+        case ERR_WDT_CONFIG:      return S("E_WDTCFG", "WDT Config Error");
 
-        // --- DOMAIN 3: I/O & DRIVERS ---
-        // Based on logic, 0xAB is likely ERR_IO_DOM or similar, inferred from children
+        // --- DOMAIN 2.3: PERIPHERALS & DRIVERS (0xAB) ---
         case ERR_IO_DOM:          return S("E_IO", "I/O Subsystem");
 
-        // Section 3.1: Serial (UART)
-        case ERR_IO_SERIAL:       return S("E_SERIAL", "Serial Driver Error");
-        case ERR_SRL_BAUD:        return S("E_BAUD", "Baud Rate Mismatch");
-        case ERR_SRL_FRAME:       return S("E_FRAME", "Framing Error");
-        case ERR_SRL_PARITY:      return S("E_PARITY", "Parity Error");
-        case ERR_SRL_BREAK:       return S("E_BREAK", "Break Condition");
+        // Section 2.3.1: Serial Communication
+        case ERR_IO_SERIAL:       return S("E_SERIAL", "Serial Error");
+        case ERR_SERIAL_BAUD:     return S("E_BAUD", "Baud Rate Error");
+        case ERR_SERIAL_FRAME:    return S("E_FRAME", "Frame Error");
+        case ERR_SERIAL_PARITY:   return S("E_PARITY", "Parity Error");
+        case ERR_SERIAL_OVERRUN:  return S("E_OVERRUN", "Overrun Error");
 
-        // Section 3.2: Bus (I2C/SPI)
-        case ERR_IO_BUS:          return S("E_BUSDRV", "Bus Driver Error");
-        case ERR_BUS_NACK:        return S("E_NACK", "I2C NACK");
-        case ERR_BUS_ARB:         return S("E_ARB", "I2C Arbitration Lost");
-        case ERR_BUS_MODE:        return S("E_MODE", "SPI Mode Mismatch");
-        case ERR_BUS_OVER:        return S("E_OVER", "SPI Overrun");
+        // Section 2.3.2: Bus Communication
+        case ERR_IO_BUS:          return S("E_BUS", "Bus Error");
+        case ERR_BUS_NACK:        return S("E_NACK", "NACK Received");
+        case ERR_BUS_ARBITRATION: return S("E_ARBLOST", "Arbitration Lost");
+        case ERR_BUS_TIMEOUT:     return S("E_BUSTO", "Bus Timeout");
+        case ERR_BUS_ERROR:       return S("E_BUSERR", "Bus Error");
 
-        // Section 3.3: Analog (ADC/DAC)
-        case ERR_IO_SIGNAL:       return S("E_ANALOG", "Analog Driver Error");
-        case ERR_SIGN_HIGH:       return S("E_SATHIGH", "ADC Saturation High");
-        case ERR_SIGN_LOW:        return S("E_SATLOW", "ADC Saturation Low");
-        case ERR_SIGN_UNDERRUN:   return S("E_URUN", "DAC Underrun");
-        case ERR_SIGN_REF:        return S("E_VREF", "Voltage Ref Error");
+        // Section 2.3.3: Analog I/O
+        case ERR_IO_ANALOG:       return S("E_ANALOG", "Analog Error");
+        case ERR_ADC_SATURATED:   return S("E_ADCSAT", "ADC Saturated");
+        case ERR_ADC_TIMEOUT:     return S("E_ADCTO", "ADC Timeout");
+        case ERR_DAC_UNDERRUN:    return S("E_DACUR", "DAC Underrun");
+        case ERR_DAC_CONFIG:      return S("E_DACCFG", "DAC Config");
 
-        // Section 3.4: GPIO
-        case ERR_DRV_GPIO:        return S("DRV_GPIO", "GPIO Error");
-        case ERR_GPIO_DIR:        return S("E_DIR", "Direction Error");
-        case ERR_GPIO_MUX:        return S("E_MUX", "Muxing Error");
-        case ERR_GPIO_DEBOUNCE:   return S("E_DEBOUNCE", "Debounce Fail");
-        case ERR_GPIO_LOCKED:     return S("E_PINLCK", "Pin Locked");
+        // Section 2.3.4: GPIO & Pins
+        case ERR_IO_GPIO:         return S("E_GPIO", "GPIO Error");
+        case ERR_GPIO_CONFIG:     return S("E_GPIOCFG", "GPIO Config Error");
+        case ERR_GPIO_LOCKED:     return S("E_GPIOLCK", "Pin Locked");
+        case ERR_GPIO_STATE:      return S("E_GPIOST", "Invalid GPIO State");
+        case ERR_GPIO_INTERRUPT:  return S("E_GPIOINT", "GPIO Interrupt Error");
 
 
         // =====================================================================
@@ -244,99 +243,98 @@ const char *error_to_string(uint8_t err)
         // --- ROOT ---
         case ERR_ROOT_AFTER:      return S("E_DATA", "Data Integrity Root");
 
-        // --- DOMAIN 1: ENCODING & FORMATS (0x54) ---
-        case ERR_FMT_DOM:         return S("E_FMT", "Format & Encoding");
+        // --- DOMAIN 3.1: ENCODING & FORMATS (0x54) ---
+        case ERR_PARSE_DOM:       return S("E_FMT", "Format & Encoding");
 
-        // Section 1.1: Text & Strings
-        case ERR_FMT_TEXT:        return S("E_TEXT", "String Encoding");
-        case ERR_TEXT_ENCODING:   return S("E_ENC", "Encoding Error (UTF-8)");
-        case ERR_TEXT_DECODING:   return S("E_DEC", "Decoding Error");
+        // Section 3.1.1: Text & Strings
+        case ERR_PARSE_TEXT:      return S("E_TEXT", "Parsing Error");
+        case ERR_TEXT_ENCODE:     return S("E_ENC", "Encoding Error");
+        case ERR_TEXT_DECODE:     return S("E_DEC", "Decoding Error");
         case ERR_TEXT_TRUNC:      return S("E_TRUNC", "String Truncated");
-        case ERR_TEXT_FORMAT:     return S("E_FMT", "Text Format Error");
+        case ERR_TEXT_INVALID:    return S("E_FMT", "Text Format Error");
 
-        // Section 1.2: JSON/XML
-        case ERR_FMT_STRUCT:      return S("E_STRUCT", "Structured Data Error");
-        case ERR_STRUCT_PARSE:    return S("E_PARSE", "Parse Error");
+        // Section 3.1.2: Structured Data
+        case ERR_PARSE_STRUCT:    return S("E_STRUCT", "Structured Data Error");
+        case ERR_STRUCT_SYNTAX:   return S("E_PARSE", "Syntax Error");
         case ERR_STRUCT_TYPE:     return S("E_JTYPE", "Type Mismatch");
-        case ERR_STRUCT_TAG:      return S("E_TAG", "Tag Mismatch");
-        case ERR_STRUCT_ATTR:     return S("E_ATTR", "Attribute Error");
+        case ERR_STRUCT_MALFORMED:return S("E_FORM", "Malformed Error");
+        case ERR_STRUCT_NAMESPACE:return S("E_NAME", "Namespace Error");
 
-        // Section 1.3: Media/Binary
-        case ERR_FMT_MEDIA:       return S("E_MEDIA", "Media Format Error");
-        case ERR_MEDIA_HEADER:    return S("E_HDR", "Invalid Header");
-        case ERR_MEDIA_DEPTH:     return S("E_DEPTH", "Unsupported Bit Depth");
-        case ERR_MEDIA_RATE:      return S("E_RATE", "Unsupported Sample Rate");
-        case ERR_MEDIA_CKSUM:     return S("E_CKSUM", "Checksum Mismatch");
+        // Section 3.1.3: Media/Binary
+        case ERR_PARSE_BINARY:    return S("E_MEDIA", "Media Format Error");
+        case ERR_BIN_HEADER:      return S("E_HDR", "Invalid Header");
+        case ERR_BIN_MAGIC:       return S("E_MAGC", "Magic mismatch");
+        case ERR_BIN_VERSION:     return S("E_VERS", "Version mismatch");
+        case ERR_BIN_CHECKSUM:    return S("E_CKSUM", "Checksum Mismatch");
 
-        // Section 1.4: Validation
-        case ERR_FMT_VALID:       return S("E_VALID", "Validation Error");
-        case ERR_VAL_SCHEMA:      return S("E_SCHEMA", "Schema Violation");
-        case ERR_VAL_RANGE:       return S("E_RANGE", "Value Out of Range");
-        case ERR_VAL_PATTERN:     return S("E_PAT", "Pattern Mismatch");
-        case ERR_VAL_REQ:         return S("E_REQ", "Required Field Missing");
+        // Section 3.1.4: Validation
+        case ERR_PARSE_VALID:     return S("E_VALID", "Validation Error");
+        case ERR_VALID_SCHEMA:    return S("E_SCHEMA", "Schema Violation");
+        case ERR_VALID_CONSTRAINT:return S("E_CONSTR", "Constraint failure");
+        case ERR_VALID_PATTERN:   return S("E_PAT", "Pattern Mismatch");
+        case ERR_VALID_REQUIRED:  return S("E_REQ", "Required Field Missing");
 
-        // --- DOMAIN 2: MATH & LOGIC (0xAA -> 0xD4) ---
+        // --- DOMAIN 3.2: COLLECTIONS & QUEUES ---
+        case ERR_QUEUE_DOM:       return S("E_QUEUE", "Math Subsystem");
+
+        // Section 3.2.1: Queue State (0xD4 -> 0x68)
+        case ERR_QUEUE_STATE:     return S("E_QSTATE", "Queue State Error");
+        case ERR_QUEUE_EMPTY:     return S("E_QEMPTY", "Queue empty");
+        case ERR_QUEUE_FULL:      return S("E_QFULL", "Queue full");
+        case ERR_QUEUE_OVERFLOW:  return S("E_QOVER", "Queue Overflow");
+        case ERR_QUEUE_UNDERFLOW: return S("E_QUNDER", "Queue Underflow");
+
+        // Section 3.2.2: Queue Operations (0xD4 -> 0x69)
+        case ERR_QUEUE_OP:        return S("E_QOP", "Queue Operation Error");
+        case ERR_QUEUE_ENQUEUE:   return S("E_QENQ", "Enqueue failed");
+        case ERR_QUEUE_DEQUEUE:   return S("E_QDEQ", "Dequeue failed");
+        case ERR_QUEUE_PEEK:      return S("E_QPEEK", "Peek failed");
+        case ERR_QUEUE_CLEAR:     return S("E_QCLR", "Clear failed");
+
+        // Section 3.2.3: Ordering & Priority (0xD4 -> 0xE8)
+        case ERR_QUEUE_ORDER:     return S("E_QORD", "Queue Order Error");
+        case ERR_ORDER_SEQUENCE:  return S("E_QSEQ", "Sequence error");
+        case ERR_ORDER_PRIORITY:  return S("E_QPRIO", "Priority error");
+        case ERR_ORDER_DUPLICATE: return S("E_QDUP", "Duplicate entry");
+        case ERR_ORDER_CONFLICT:  return S("E_QCONF", "Order conflict");
+
+        // Section 3.2.4: Collection State (0xD4 -> 0xE9)
+        case ERR_COLLECTION_STATE:return S("E_COLLECT", "Collection Error");
+        case ERR_COLL_LOCKED:     return S("E_CLCK", "Collection locked");
+        case ERR_COLL_MODIFIED:   return S("E_CMOD", "Modified during iteration");
+        case ERR_COLL_INDEX:      return S("E_CIDX", "Index out of bounds");
+        case ERR_COLL_KEY:        return S("E_CKEY", "Key not found");
+
+        // --- DOMAIN 3.3: MATH & ALGORITHMS (0xAA -> 0xD5) ---
         case ERR_MATH_DOM:        return S("E_MATH", "Math Subsystem");
 
-        // Section 2.1: Arithmetic
-        case ERR_MATH_CALC:       return S("E_CALC", "Arithmetic Error");
-        case ERR_CALC_DIV0:       return S("E_DIV0", "Division by Zero");
-        case ERR_CALC_OVERFLOW:   return S("E_OVF", "Integer Overflow");
-        case ERR_CALC_UNDERFLOW:  return S("E_UDF", "Integer Underflow");
-        case ERR_CALC_NAN:        return S("E_NAN", "Result is NaN");
+        // Section 3.3.1: Arithmetic (0xD5 -> 0x6A)
+        case ERR_MATH_ARITH:      return S("E_INT", "Arithmetic Error");
+        case ERR_ARITH_DIV_ZERO:  return S("E_DIV0", "Division");
+        case ERR_ARITH_OVERFLOW:  return S("E_IOVF", "Overflow");
+        case ERR_ARITH_UNDERFLOW: return S("E_IUDF", "Underflow");
+        case ERR_ARITH_PRECISION: return S("E_IPREC", "Precision loss");
 
-        // Section 2.2: Floating Point
-        case ERR_MATH_FP:         return S("E_FP", "Floating Point Error");
-        case ERR_FP_INF:          return S("E_INF", "Infinity");
-        case ERR_FP_DENORM:       return S("E_DENORM", "Denormalized Number");
-        case ERR_FP_PRECISION:    return S("E_PREC", "Precision Loss");
-        case ERR_FP_ROUND:        return S("E_ROUND", "Rounding Error");
+        // Section 3.3.2: Floating Point (0xD5 -> 0x6B)
+        case ERR_MATH_FLOAT:      return S("E_FLOAT", "Floating Point Error");
+        case ERR_FLOAT_NAN:       return S("E_NAN", "Not a Number");
+        case ERR_FLOAT_INF:       return S("E_INF", "Infinity");
+        case ERR_FLOAT_DENORM:    return S("E_DENORM", "Denormalized");
+        case ERR_FLOAT_INEXACT:   return S("E_INEXACT", "Inexact Result");
 
-        // Section 2.3: Cryptographic Math
-        case ERR_MATH_CRYPTO:     return S("E_CRYP", "Crypto Math Error");
-        case ERR_CRYPTO_CURVE:    return S("E_CURVE", "Curve Point Invalid");
-        case ERR_CRYPTO_PRIME:    return S("E_PRIME", "Not Prime");
-        case ERR_CRYPTO_SHADOW_KEY: return S("E_WEAK", "Weak Key Detected");
-        case ERR_CRYPTO_PADDING:  return S("E_PAD", "Padding Error");
-
-        // Section 2.4: Logic
+        // Section 3.3.3: Logic & Assertions (0xD5 -> 0xEA)
         case ERR_MATH_LOGIC:      return S("E_LOGIC", "Logic Error");
         case ERR_LOGIC_ASSERT:    return S("E_ASSERT", "Assertion Failed");
-        case ERR_LOGIC_INVARIANT: return S("E_INVAR", "Invariant Violated");
-        case ERR_LOGIC_REACH:     return S("E_REACH", "Unreachable Code Reached");
-        case ERR_LOGIC_STATE:     return S("E_LSTATE", "Impossible Logic State");
+        case ERR_LOGIC_INVARIANT: return S("E_INVAR", "Invariant Broken");
+        case ERR_LOGIC_UNREACH:   return S("E_UNREACH", "Unreachable Code");
+        case ERR_LOGIC_IMPOSSIBLE:return S("E_IMPOSS", "Impossible State");
 
-        // --- DOMAIN 3: DATA & STORAGE ---
-        case ERR_STORAGE_DOM:     return S("E_STORE", "Data Subsystem");
-
-        // Section 3.1: File System
-        case ERR_STORE_FS:        return S("E_FS", "Filesystem Error");
-        case ERR_FS_NOENT:        return S("E_NOENT", "File Not Found");
-        case ERR_FS_EXIST:        return S("E_EXIST", "File Exists");
-        case ERR_FS_PERM:         return S("E_PERM", "FS Permission Denied");
-        case ERR_FS_FULL:         return S("E_FULL", "Disk Full");
-
-        // Section 3.2: Attributes
-        case ERR_STORE_ATTR:      return S("E_SATTR", "Inodes/Attrs");
-        case ERR_ATTR_RO:         return S("E_RO", "Read Only");
-        case ERR_ATTR_HIDDEN:     return S("E_HDN", "Hidden");
-        case ERR_ATTR_SYMLINK:    return S("E_LINK", "Symlink Loop");
-        case ERR_ATTR_NO_SPACE:   return S("E_NS", "No Device Space");
-
-        // Section 3.3: Block Device
-        case ERR_STORE_BLOCK:     return S("E_BLOCK", "Block Layer");
-        case ERR_BLK_READ:        return S("E_BREAD", "Block Read Error");
-        case ERR_BLK_WRITE:       return S("E_BWRITE", "Block Write Error");
-        case ERR_BLK_SECTOR:      return S("E_SECTOR", "Bad Sector");
-        case ERR_BLK_GEOMETRY:    return S("E_GEOM", "Bad Geometry");
-
-        // Section 3.4: Volume
-        case ERR_STORE_VOLUME:    return S("E_VOL", "Conversion Error");
-        case ERR_VOL_DIRTY:       return S("E_DIRTY", "Endianness Mismatch");
-        case ERR_VOL_MOUNT:       return S("E_MNT", "Size Conversion Error");
-        case ERR_VOL_UNMOUNT:     return S("E_UMNT", "Data Loss in Conversion");
-        case ERR_VOL_UNKNOWN:     return S("E_UNKW", "Type Conversion Failed");
-
+        // Section 3.3.4: Cryptographic Operations (0xD5 -> 0xEB)
+        case ERR_MATH_CRYPTO:     return S("E_CRYPTO", "Cryptographic Error");
+        case ERR_CRYPTO_KEY:      return S("E_CKEY", "Invalid Key");
+        case ERR_CRYPTO_IV:       return S("E_CIV", "Invalid IV");
+        case ERR_CRYPTO_TAG:      return S("E_CTAG", "Tag Verification Failed");
+        case ERR_CRYPTO_PADDING:  return S("E_CPADD", "Padding Error");
 
         // =====================================================================
         // QUADRANT 4: FINAL / SECURITY / FATAL
@@ -346,100 +344,100 @@ const char *error_to_string(uint8_t err)
         // --- ROOT ---
         case ERR_ROOT_RUN:        return S("E_FATAL", "Fatal System Failure");
         // ERR_FATAL is 0xFF, duplicate of ERR_ROOT_RUN
-        // ERR_FINALIZED is 0xFF, duplicate
+        // ERR_FINALIZED is 0xFF, duplicate of ERR_ROOT_RUN
 
-        // --- DOMAIN 1: SECURITY & AUTH (0x7E) ---
+        // --- DOMAIN 4.1: STORAGE & FILESYSTEM (0xFF -> 0x7E) ---
+        case ERR_STORAGE_DOM:     return S("E_STORAGE", "Storage Subsystem");
+
+        // Section 4.1.1: File Operations
+        case ERR_STORAGE_FILE:    return S("E_FILE", "File Error");
+        case ERR_FILE_NOT_FOUND:  return S("E_FNOENT", "File Not Found");
+        case ERR_FILE_EXISTS:     return S("E_FEXIST", "File Exists");
+        case ERR_FILE_TOO_LARGE:  return S("E_FTOOLARGE", "File Too Large");
+        case ERR_FILE_CORRUPTED:  return S("E_FCORRUPT", "File Corrupted");
+
+        // Section 4.1.2: File Attributes
+        case ERR_STORAGE_ATTR:    return S("E_ATTR", "Attribute Error");
+        case ERR_ATTR_READONLY:   return S("E_ATTRRO", "Read Only");
+        case ERR_ATTR_HIDDEN:     return S("E_ATTRHDN", "Hidden");
+        case ERR_ATTR_SYSTEM:     return S("E_ATTRSYS", "System File");
+        case ERR_ATTR_DIRECTORY:  return S("E_ATTRDIR", "Is Directory");
+
+        // Section 4.1.3: Volume & Mount
+        case ERR_STORAGE_VOLUME:  return S("E_VOLUME", "Volume Error");
+        case ERR_VOL_NOT_MOUNTED: return S("E_NOTMNT", "Not Mounted");
+        case ERR_VOL_BUSY:        return S("E_VBUSY", "Volume Busy");
+        case ERR_VOL_FULL:        return S("E_VFULL", "Volume Full");
+        case ERR_VOL_CORRUPTED:   return S("E_VCORRUPT", "Volume Corrupted");
+
+        // Section 4.1.4: Block Device
+        case ERR_STORAGE_BLOCK:   return S("E_BLK", "Block Device Error");
+        case ERR_BLK_READ_ERROR:  return S("E_BLKRD", "Block Read Error");
+        case ERR_BLK_WRITE_ERROR: return S("E_BLKWR", "Block Write Error");
+        case ERR_BLK_BAD_SECTOR:  return S("E_BADSECT", "Bad Sector");
+        case ERR_BLK_HARDWARE:    return S("E_BLKHW", "Hardware Error");
+
+        // --- DOMAIN 4.2: SECURITY & AUTHENTICATION (0xFF -> 0x7F) ---
         case ERR_SEC_DOM:         return S("E_SEC", "Security Subsystem");
 
-        // Section 1.1: Authentication
-        case ERR_SEC_AUTH:        return S("E_AUTH", "Authentication Failure");
-        case ERR_AUTH_FAIL:       return S("E_LOGIN", "Login Failed");
-        case ERR_AUTH_EXPIRED:    return S("E_EXPIRE", "Token Expired");
-        case ERR_AUTH_SCOPE:      return S("E_SCOPE", "Scope Invalid");
-        case ERR_AUTH_MATCH:      return S("E_REPLAY", "Credential Replay Detected");
+        // Section 4.2.1: Authentication
+        case ERR_SEC_AUTH:        return S("E_AUTH", "Authentication Error");
+        case ERR_AUTH_FAILED:     return S("E_AUTHF", "Auth Failed");
+        case ERR_AUTH_EXPIRED:    return S("E_AUTHEXP", "Token Expired");
+        case ERR_AUTH_REVOKED:    return S("E_AUTHREV", "Credentials Revoked");
+        case ERR_AUTH_INSUFFICIENT:return S("E_AUTHINS", "Insufficient Rights");
 
-        // Section 1.2: Encryption
-        case ERR_SEC_CRYPT:       return S("E_CRYPT", "Encryption Error");
-        case ERR_CRYPT_ALGO:      return S("E_ALGO", "Algo Not Supported");
-        case ERR_CRYPT_KEY:       return S("E_KEY", "Invalid Key");
-        case ERR_CRYPT_IV:        return S("E_IV", "Invalid IV");
-        case ERR_CRYPT_TAG:       return S("E_TAG", "Tag Mismatch");
+        // Section 4.2.2: Encryption
+        case ERR_SEC_ENCRYPT:     return S("E_ENCRYPT", "Encryption Error");
+        case ERR_ENCRYPT_FAILED:  return S("E_ENCF", "Encryption Failed");
+        case ERR_DECRYPT_FAILED:  return S("E_DECF", "Decryption Failed");
+        case ERR_ENCRYPT_KEY_INVALID:return S("E_INVKEY", "Invalid Key");
+        case ERR_ENCRYPT_ALGO:    return S("E_ALGO", "Unsupported Algorithm");
 
-        // Section 1.3: Access (Policies)
-        case ERR_SEC_POLICY:      return S("E_POL", "Policy Violation");
-        case ERR_POL_DENY:        return S("E_DENY", "Explicit Deny");
-        case ERR_POL_QUOTA:       return S("E_QUOTA", "Quota Exceeded");
-        case ERR_POL_TIME:        return S("E_TIME", "Access Time Violation");
-        case ERR_POL_REJECT:       return S("E_REJECT", "Access Rejected");
+        // Section 4.2.3: Policy & Access Control
+        case ERR_SEC_POLICY:      return S("E_POLICY", "Policy Error");
+        case ERR_POLICY_VIOLATION:return S("E_POLVIO", "Policy Violation");
+        case ERR_POLICY_DENY:     return S("E_DENY", "Explicit Deny");
+        case ERR_POLICY_QUOTA:    return S("E_QUOTA", "Quota Exceeded");
+        case ERR_POLICY_RATE_LIMIT:return S("E_RATELIM", "Rate Limited");
 
-        // Section 1.4: Auditing
-        case ERR_SEC_AUDIT:       return S("E_AUDIT", "Audit Failure");
-        case ERR_AUDIT_LOG:       return S("E_LOG", "Log Write Failed");
+        // Section 4.2.4: Auditing & Logging
+        case ERR_SEC_AUDIT:       return S("E_AUDIT", "Audit Error");
+        case ERR_AUDIT_FAILED:    return S("E_AUDITF", "Audit Failed");
         case ERR_AUDIT_FULL:      return S("E_AFULL", "Audit Log Full");
-        case ERR_AUDIT_TAMPER:    return S("E_TAMPER", "Tampering Detected");
-        case ERR_AUDIT_FAIL:      return S("E_AFAIL", "Audit System Fail");
+        case ERR_AUDIT_TAMPER:    return S("E_TAMPER", "Tamper Detected");
+        case ERR_AUDIT_INTEGRITY: return S("E_AINTEG", "Integrity Failure");
 
-        // --- DOMAIN 2: CONCURRENCY & ATOMICS ---
-        case ERR_LOCK_DOM:        return S("E_ATOM", "Concurrency Fatal");
+        // --- DOMAIN 4.3: CONCURRENCY & ATOMICS (0xFF -> 0xFE) ---
+        case ERR_LOCK_DOM:        return S("E_LOCK", "Concurrency Subsystem");
 
-        // Section 2.1: Locks
-        case ERR_ATOM_LOCK:       return S("E_LCK", "Lock Error");
-        case ERR_LOCK_BUSY:       return S("E_LBUSY", "Lock Busy");
-        case ERR_LOCK_OWNER:      return S("E_LOWNER", "Lock Ownership Error");
-        case ERR_LOCK_DEAD:       return S("E_LDEAD", "Deadlock Detected");
-        case ERR_LOCK_MAX:        return S("E_LMAX", "Max Recursion");
+        // Section 4.3.1: Lock Operations
+        case ERR_LOCK_STATE:      return S("E_LSTATE", "Lock State Error");
+        case ERR_LOCK_FAILED:     return S("E_LOCKF", "Lock Failed");
+        case ERR_LOCK_TIMEOUT:    return S("E_LOCKTO", "Lock Timeout");
+        case ERR_LOCK_DEADLOCK:   return S("E_DEADLOCK", "Deadlock Detected");
+        case ERR_LOCK_OWNER:      return S("E_LOWNER", "Wrong Owner");
 
-        // Section 2.2: IPC Pipes
-        case ERR_ATOM_IPC:        return S("E_IPC", "Pipe/Queue Error");
+        // Section 4.3.2: IPC & Message Passing
+        case ERR_LOCK_IPC:        return S("E_IPC", "IPC Error");
         case ERR_PIPE_BROKEN:     return S("E_BROKEN", "Broken Pipe");
         case ERR_PIPE_FULL:       return S("E_PFULL", "Pipe Full");
         case ERR_MSG_SIZE:        return S("E_SIZE", "Message Too Large");
         case ERR_MSG_QUEUE:       return S("E_QUEUE", "Queue Destroyed");
 
-        // Section 2.3: Ordering/Fences
-        case ERR_ATOM_ORDER:      return S("E_ORDER", "Ordering Error");
-        case ERR_ORDER_ACQ:       return S("E_ACQ", "Acquire Fail");
-        case ERR_ORDER_REL:       return S("E_REL", "Release Fail");
-        case ERR_ORDER_BARRIER:   return S("E_BAR", "Barrier Violation");
-        case ERR_ORDER_RACE:      return S("E_RACE", "Race Condition Detected");
+        // Section 4.3.3: Atomic Operations
+        case ERR_LOCK_ATOMIC:     return S("E_ATOMIC", "Atomic Error");
+        case ERR_ATOMIC_FAILED:   return S("E_ATOMF", "Atomic Op Failed");
+        case ERR_ATOMIC_RACE:     return S("E_RACE", "Race Detected");
+        case ERR_ATOMIC_MEMORY_ORDER:return S("E_MEMORD", "Memory Order");
+        case ERR_ATOMIC_CONTENTION:return S("E_CONTEND", "High Contention");
 
-        // Section 2.4: Critical Sections
-        case ERR_LOCK_CRIT:       return S("E_CRI", "Critical Section Error");
-        case ERR_CRIT_ENTER:      return S("E_ENTER", "Enter Critical Fail");
-        case ERR_CRIT_LEAVE:      return S("E_LEAVE", "Leave Critical Fail");
-        case ERR_CRIT_TIMEOUT:    return S("E_CTO", "Critical Timeout");
-        case ERR_CRIT_BAIL:       return S("E_BAIL", "Emergency Bail");
-
-        // --- DOMAIN 3: HARDWARE FATAL (0xFE) ---
-        case ERR_HW_DOM:          return S("E_HW", "Hardware Panic");
-
-        // Section 3.1: CPU
-        case ERR_HW_CPU:          return S("E_CPU", "CPU Exception");
-        case ERR_CPU_ILL:         return S("E_ILL", "Illegal Instruction");
-        case ERR_CPU_BUS:         return S("E_BUS", "Bus Error");
-        case ERR_CPU_TRAP:        return S("E_TRAP", "Trap");
-        case ERR_CPU_HALT:        return S("E_HALT", "CPU Halted");
-
-        // Section 3.2: Power
-        case ERR_HW_PWR:          return S("E_PWR", "Power Failure");
-        case ERR_PWR_BOR:         return S("E_BOR", "Brown Out Reset");
-        case ERR_PWR_LOW:         return S("E_LOW", "Voltage Low");
-        case ERR_PWR_HIGH:        return S("E_HIGH", "Voltage High");
-        case ERR_PWR_BATT:        return S("E_BATT", "Battery Critical");
-
-        // Section 3.3: Memory
-        case ERR_HW_RAM:          return S("E_RAM", "RAM Failure");
-        case ERR_RAM_ECC:         return S("E_ECC", "ECC Error");
-        case ERR_RAM_PARITY:      return S("E_RPAR", "RAM Parity");
-        case ERR_RAM_FAIL:        return S("E_RFAIL", "RAM Test Failed");
-        case ERR_RAM_LINE:        return S("E_LINE", "Address Line Stuck");
-
-        // Section 3.4: System Integrity
-        case ERR_SYS_PANIC:       return S("E_SYS", "Kernel Panic");
-        case ERR_PANIC_GENERAL:   return S("E_GNRL", "General Panic");
-        case ERR_PANIC_STACK:     return S("E_STCK", "Stack Smashe");
-        case ERR_PANIC_ASSERT:    return S("E_ASSERT", "Kernel Assert");
-        case ERR_PANIC_ABORT:     return S("E_ABORT", "System Abort");
+        // Section 4.3.4: Critical Sections
+        case ERR_LOCK_CRITICAL:   return S("E_CRIT", "Critical Section Error");
+        case ERR_CRIT_ENTER:      return S("E_ENTER", "Enter Failed");
+        case ERR_CRIT_EXIT:       return S("E_EXIT", "Exit Failed");
+        case ERR_CRIT_NESTED:     return S("E_CNEST", "Nested Overflow");
+        case ERR_CRIT_ABANDONED:  return S("E_ABAND", "Abandoned");
 
         // --- DEFAULT ---
         default:

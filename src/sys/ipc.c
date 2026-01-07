@@ -13,7 +13,7 @@
 
 int ipc_pool_init(struct ipc_pool *p, void *buffer, size_t block_size, uint16_t n_blocks)
 {
-    if (!p || !buffer || n_blocks == 0) return ERR_HANDLE_NULL;
+    if (!p || !buffer || n_blocks == 0) return ERR_ARG_NULL;
     if (block_size < sizeof(void*)) block_size = sizeof(void*);
     p->buffer = (uint8_t*)buffer;
     p->block_size = block_size;
@@ -77,8 +77,8 @@ void ipc_msg_free_to_pool(struct ipc_pool *pool, ipc_msg_t *m)
 
 int ipc_msg_init(ipc_msg_t *m, uint8_t type, uint8_t argc, void *argv[])
 {
-    if (!m) return ERR_HANDLE_NULL;
-    if (argc > IPC_MSG_MAX_ARGS) return ERR_VAL_RANGE;
+    if (!m) return ERR_ARG_NULL;
+    if (argc > IPC_MSG_MAX_ARGS) return ERR_ARG_RANGE;
     m->type = type;
     m->argc = argc;
     /* copy pointers (no deep copy) */
@@ -90,8 +90,8 @@ int ipc_msg_init(ipc_msg_t *m, uint8_t type, uint8_t argc, void *argv[])
 
 int ipc_msg_set_arg(ipc_msg_t *m, uint8_t idx, void *arg)
 {
-    if (!m) return ERR_HANDLE_NULL;
-    if (idx >= IPC_MSG_MAX_ARGS) return ERR_VAL_RANGE;
+    if (!m) return ERR_ARG_NULL;
+    if (idx >= IPC_MSG_MAX_ARGS) return ERR_ARG_RANGE;
     m->argv[idx] = arg;
     if (idx >= m->argc) m->argc = idx + 1;
     return ERR_SUCCESS;
@@ -109,7 +109,7 @@ int ipc_msg_set_arg(ipc_msg_t *m, uint8_t idx, void *arg)
 
 int ipc_pipe_init(ipc_pipe_t *p, void *buffer, size_t size, ipc_wake_cb_t wake_cb, void *wake_ctx)
 {
-    if (!p || !buffer || size < 2) return ERR_PROC_INVAL;
+    if (!p || !buffer || size < 2) return ERR_ARG_INVALID;
     p->buf = (uint8_t*)buffer;
     p->size = size;
     p->head = 0;

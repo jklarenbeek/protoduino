@@ -1,8 +1,10 @@
 # Ontological 8-Bit Error Taxonomy
 
-## Overview
+**A structured, 1-byte error handling system for embedded C.**
 
-This repository contains an implementation of an ontological 8-bit error taxonomy (v1.0) designed for structured error classification in programming, particularly suited for resource-constrained environments like embedded systems. The taxonomy organizes 256 possible error codes (0-255) into a hierarchical, semantically meaningful structure based on bit-level operations and symmetry principles. It converges errors to four primordial roots (0x00: Init/Success, 0x55: Before/IO, 0xAA: After/Data, 0xFF: Run/Fatal) via a "center" transformation, enabling programmatic analysis of error relations, depths, entropy, and balance.
+## Introduction
+
+This repository contains an implementation of an ontological 8-bit error taxonomy designed for structured error classification in programming, particularly suited for resource-constrained environments like embedded systems. The taxonomy organizes 256 possible error codes (0-255) into a hierarchical, semantically meaningful structure based on bit-level operations and symmetry principles. It converges errors to four primordial roots (0x00: Init/Success, 0x55: Before/IO, 0xAA: After/Data, 0xFF: Run/Fatal) via a "center" transformation, enabling programmatic analysis of error relations, depths, entropy, and balance.
 
 The header file (`errors.h`) defines error codes, macros for classification (e.g., `ERR_IS_BALANCED`), and helper functions (e.g., `err_op_entropy` for Shannon entropy, `err_op_distance` for Hamming distance). This approach goes beyond flat error lists (like POSIX errno) by providing an ontology—a formal representation of error concepts, their properties, and interrelations—for improved diagnostics, automation, and extensibility.
 
@@ -48,6 +50,146 @@ Embedded systems—found in IoT devices, microcontrollers, and real-time applica
 
 Overall, this system promotes performance optimization by revealing root causes, making embedded software more efficient and maintainable.
 
+## 🛠 The Tool Manual
+
+### Why use this?
+
+* **Hyper-Efficient:** Uses a single `uint8_t` for complex error states. No dynamic memory.
+* **Logic over Lookup:** You don't need a list of 256 `if` statements. You use **Error Operators** to detect if an error is "Fatal," "Transient," or "Data-related" via geometric properties.
+* **Configurable:** Supports "Tiny" (2-3 char) strings for 8KB flash devices, or "Verbose" strings for 32KB+ devices.
+
+### Quick Start
+
+#### 1. Integration
+
+Include the header in your project. The system uses `uint8_t` as the universal result type.
+
+```c
+#include <protoduino.h>
+
+uint8_t result = sensor_read_data();
+
+// 1. Check for Success (The Void / 0x00)
+if (result == ERR_SUCCESS) {
+    process_data();
+}
+// 2. Handle Errors
+else {
+    // Convert error to string (output depends on errors.conf.h)
+    // Tiny Mode: "E_TIME" | Verbose Mode: "Sensor Timeout"
+    printf("Failure: %s\n", error_to_string(result));
+}
+
+```
+
+#### 2. Advanced Handling (Using Operators)
+
+Instead of checking for specific error codes, you check the **Quadrant** or **Root** of the error. This allows you to write generic handlers for entire categories of failures.
+
+Use `err_op_center()` to collapse a specific error into its Primordial Root.
+
+```c
+#include <sys/errors.h>
+
+void handle_system_error(uint8_t err) {
+    // Find the "Attractor Basin" (Root) of the error
+    uint8_t root = err_op_root(err);
+
+    switch (root) {
+        case ERR_ROOT_BEFORE: // 0x55 (I/O, Connection, Input)
+            // Example: Timeout, Device Not Found, Pin Locked
+            // Strategy: Retry the operation.
+            system_retry();
+            break;
+
+        case ERR_ROOT_AFTER:  // 0xAA (Data, Parsing, Logic)
+            // Example: Checksum Fail, Overflow, Invalid Argument
+            // Strategy: Reject the data, do not retry.
+            log_and_abort_transaction();
+            break;
+
+        case ERR_ROOT_RUN:    // 0xFF (Fatal, Saturation)
+            // Example: Out of Memory, Deadlock, Hardware Failure
+            // Strategy: Full system reset required.
+            system_reboot();
+            break;
+
+        default:
+            // Handle specific lifecycle events (Yielding, Exiting)
+            if (err == ERR_YIELDING) { os_yield(); }
+            break;
+    }
+}
+
+```
+
+#### 3. Configuration
+
+Customize the string output size in `errors.conf.h` or via your compiler flags.
+
+| Macro | Value | Mode | Output Example | Target |
+| --- | --- | --- | --- | --- |
+| `ERRORS_CONF_VERBOSE_MESSAGES` | `0` | **Tiny** | `E_OOM` | ATtiny / AVR |
+| `ERRORS_CONF_VERBOSE_MESSAGES` | `1` | **Verbose** | `Out of Memory` | ARM / ESP32 |
+
+## 🔬 Theory, Topology & Validation
+
+This project is not just a list of defines; it is a mathematical claim about how errors relate to one another.
+
+### The Claim & Prove
+
+To ensure the integrity of the taxonomy, this repository includes a mathematical proof of the error topology located in the `docs` folder.
+
+1. **The Claim (`errors.js`):**
+This Node.js script contains the algorithmic definition of the ontology. It implements the bit-logic simulation, defining how children nodes (Leafs) converge into Sections, Domains, and finally Roots. It serves as the "Digital Twin" of the C library.
+2. **The Prove (`errors.csv`):**
+Generated by the claim, this CSV acts as a complete truth table for all 256 bytes. It proves that there are no "orphan" errors—every single byte value maps successfully to one of the four Primordial Roots.
+**Key Metrics in the CSV:**
+* **Center:** The Root the error converges to (e.g., `0xAA`).
+* **Depth:** How specific the error is (Root=0, Domain=1, Section=2, Leaf=3).
+* **Entropy:** Shannon entropy calculated from the bit-pattern, indicating the "complexity" or "chaos" of the error state.
+* **Symmetry:** Classification of the bit-pattern (e.g., `UNBALANCED|LEAF`).
+
+### The 4 Primordial Roots (Attractor Basins)
+
+The taxonomy maps the 8-bit space into four quadrants. Every error "orbits" one of these centers.
+
+| Root | Hex | Binary | Concept | Nature |
+| --- | --- | --- | --- | --- |
+| **INIT** | `0x00` | `00000000` | **Success / Void** | The pre-bang state. Low entropy. Perfect order. |
+| **BEFORE** | `0x55` | `01010101` | **I/O / External** | Issues occurring *before* processing (Inputs, Sensors, Oscillations). |
+| **AFTER** | `0xAA` | `10101010` | **Data / Internal** | Issues occurring *after* intake (Logic, Parsing, Storage). |
+| **RUN** | `0xFF` | `11111111` | **Fatal / Saturation** | The system is full. Maximum entropy. Deadlock. |
+
+### Transformations
+
+The system uses geometric operators to navigate the error space:
+
+* **`err_op_center(e)`:** Returns the Root (Category) of the error.
+* **`err_op_reverse(e)`:** Swaps bit significance. This often reveals the "Time-Symmetric" counterpart of an error (e.g., swapping an Initialization error for a Finalization error).
+* **`err_op_inverse(e)`:** The logical negation.
+
+## 📢 Request for Comment (RFC)
+
+**We are actively seeking contributors to validate and expand this Ontology.**
+
+This project is an experiment in rigorous error classification. We invite the embedded community to review the **Claim** (`errors.js`) and the **Prove** (`errors.csv`) and help us refine the implementation.
+
+### How to Contribute
+
+Please visit the [GitHub Issues](https://github.com/jklarenbeek/protoduino/issues) page to discuss:
+
+1. **Ontological Debates:**
+* *Example:* Does `ERR_TIMEOUT` belong in the `BEFORE` (I/O) root, or is it a `RUN` (Lifecycle) error? We need community consensus to map specific errors to the correct "Basins."
+
+
+2. **Architecture Validation:**
+* We need verification of the bit-packing logic on big-endian architectures and other constrained chips (PIC, MSP430).
+
+
+3. **Language Porting:**
+* We are looking for Rust traits or C++ `constexpr` implementations that mirror the `errors.js` logic.
+
 ## Future Progress: Quantum Error Ontologies and Importance in the Quantum-AI Era
 
 As we enter the Quantum-AI era (circa 2026), error management evolves beyond classical paradigms. Quantum systems introduce unique challenges like decoherence, gate errors, and non-locality, necessitating advanced ontologies for error classification and correction. This 8-bit taxonomy serves as a foundational model, extensible to quantum contexts.
@@ -65,3 +207,5 @@ Error ontologies are vital for scalable quantum computing, where high error rate
 For Quantum-AI hybrids, ontologies provide epistemic engines for discovery, ensuring reproducibility and knowledge scaling. They mitigate ontological errors that obscure elegant solutions, as in neoclassical physics approaches. White papers underscore AI's role in quantum revolutions, with ontologies bridging fragmented data for semantic search and services.
 
 This taxonomy's bit-based, convergent design aligns with quantum principles (e.g., entropy metrics mirroring quantum information), paving the way for hybrid classical-quantum error systems and advancing fault-tolerant Quantum-AI.
+
+**[Join the Discussion & Submit Issues Here](https://github.com/jklarenbeek/protoduino/issues)**

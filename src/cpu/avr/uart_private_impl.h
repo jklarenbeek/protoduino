@@ -106,11 +106,11 @@ uint_fast8_t CC_TMPL_FN(rx_error)(void)
   if (r == 0)
     return ERR_SUCCESS;
   if (r & _BV(__FE__))
-    return ERR_SRL_FRAME; // frame error
+    return ERR_SERIAL_FRAME; // frame error
   if (r & _BV(__DOR__))
-    return ERR_BUS_OVER; // data overrun
+    return ERR_SERIAL_OVERRUN; // data overrun
   else
-    return ERR_SRL_PARITY; // parity error
+    return ERR_SERIAL_PARITY; // parity error
 }
 
 void CC_TMPL_FN(rx_clear_errors)(void)
