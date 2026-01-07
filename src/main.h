@@ -35,4 +35,4 @@ extern struct ipc_pool g_sys_msg_pool;
 
 CC_EXTERN void protoduino_start(void);
 
-#endif // __PROTODUINO_H__
+#endif // __MAIN_H__

@@ -45,7 +45,7 @@ static ptstate_t getch(struct echo_pt *self)
       do
       {
         PT_GETR(self);
-        ret = vt_escape_add(self->buf, &self->idx, self->value);
+        ret = vt_esc_add(self->buf, &self->idx, self->value);
       }
       while(ret > 0);
 
@@ -53,7 +53,7 @@ static ptstate_t getch(struct echo_pt *self)
       if (ret == 0)
       {
         // find the rune keycode for the escape sequence
-        rune = vt_escape_match(self->buf, self->idx);
+        rune = vt_esc_match(self->buf, self->idx);
         if (rune == UTF8_DECODE_ERROR)
         {
           PT_THROW(self, ERR_FS_NOENT); // escape sequence not found.
@@ -90,7 +90,7 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
 
   PT_FOREACH(self, &pt1, getch(&pt1))
   {
-    pt1.value = vt_escape_symbol(pt1.value);
+    pt1.value = vt_esc_symbol(pt1.value);
 
     stream->print("echo '");
     stream->flush();

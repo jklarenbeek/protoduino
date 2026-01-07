@@ -4,7 +4,7 @@
  * alpha ranges -
  *	only covers ranges not in lower||upper
  */
-static CC_CONST_PTYPE_ARRAY(rune16_t, __alpha2) =
+static const rune16_t __alpha2[] CC_PROGMEM =
 {
 	0x00d8,	0x00f6,	/* Ø - ö */
 	0x00f8,	0x01f5,	/* ø - ǵ */
@@ -164,7 +164,7 @@ static CC_CONST_PTYPE_ARRAY(rune16_t, __alpha2) =
  * alpha singlets -
  *	only covers ranges not in lower||upper
  */
-static CC_CONST_PTYPE_ARRAY(rune16_t, __alpha1) =
+static const rune16_t __alpha1[] CC_PROGMEM =
 {
 	0x00aa,	/* ª */
 	0x00b5,	/* µ */
@@ -203,7 +203,7 @@ static CC_CONST_PTYPE_ARRAY(rune16_t, __alpha1) =
 /*
  * space ranges
  */
-static CC_CONST_PTYPE_ARRAY(rune16_t, __space2) =
+static const rune16_t __space2[] CC_PROGMEM =
 {
 	0x0009,	0x000a,	/* tab and newline */
 	0x0020,	0x0020,	/* space */
@@ -218,7 +218,7 @@ static CC_CONST_PTYPE_ARRAY(rune16_t, __space2) =
  * lower case ranges
  *	3rd col is conversion excess 500
  */
-static CC_CONST_PTYPE_ARRAY(rune16_t, __toupper2) =
+static const rune16_t __toupper2[] CC_PROGMEM =
 {
 	0x0061,	0x007a, 468,	/* a-z A-Z */
 	0x00e0,	0x00f6, 468,	/* à-ö À-Ö */
@@ -261,7 +261,7 @@ static CC_CONST_PTYPE_ARRAY(rune16_t, __toupper2) =
  * lower case singlets
  *	2nd col is conversion excess 500
  */
-static CC_CONST_PTYPE_ARRAY(rune16_t, __toupper1) =
+static const rune16_t __toupper1[] CC_PROGMEM =
 {
 	0x00ff, 621,	/* ÿ Ÿ */
 	0x0101, 499,	/* ā Ā */
@@ -609,7 +609,7 @@ static CC_CONST_PTYPE_ARRAY(rune16_t, __toupper1) =
  * upper case ranges
  *	3rd col is conversion excess 500
  */
-static CC_CONST_PTYPE_ARRAY(rune16_t, __tolower2) =
+static const rune16_t __tolower2[] CC_PROGMEM =
 {
 	0x0041,	0x005a, 532,	/* A-Z a-z */
 	0x00c0,	0x00d6, 532,	/* À-Ö à-ö */
@@ -653,7 +653,7 @@ static CC_CONST_PTYPE_ARRAY(rune16_t, __tolower2) =
  * upper case singlets
  *	2nd col is conversion excess 500
  */
-static CC_CONST_PTYPE_ARRAY(rune16_t, __tolower1) =
+static const rune16_t __tolower1[] CC_PROGMEM =
 {
 	0x0100, 501,	/* Ā ā */
 	0x0102, 501,	/* Ă ă */
@@ -994,7 +994,7 @@ static CC_CONST_PTYPE_ARRAY(rune16_t, __tolower1) =
  * title characters are those between
  * upper and lower case. ie DZ Dz dz
  */
-static CC_CONST_PTYPE_ARRAY(rune16_t, __totitle1) =
+static const rune16_t __totitle1[] CC_PROGMEM =
 {
 	0x01c4, 501,	/* Ǆ ǅ */
 	0x01c6, 499,	/* ǆ ǅ */

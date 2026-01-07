@@ -124,47 +124,6 @@
 #define CC_CONCAT4(s1, s2, s3, s4) CC_CONCAT4EXT(s1, s2, s3, s4)
 
 /**
- * @def CC_CONST_PTYPE_ARRAY(type, varname)
- * @brief Macro to define a constant array stored in program memory
- * @param type The data type of the array elements
- * @param varname The name of the variable representing the array
- */
-#define CC_CONST_PTYPE_ARRAY(type, varname) const type varname[] CC_PROGMEM
-
-/**
- * @def CC_EXPORT_CONST_PTYPE_ARRAY(type, varname)
- * @brief Macro to declare an externally defined constant array stored in program memory
- * @param type The data type of the array elements
- * @param varname The name of the variable representing the array
- */
-#define CC_EXPORT_CONST_PTYPE_ARRAY(type, varname) extern const type varname[]
-
-/**
- * @def CC_CONST_PSTR(varname, value)
- * @brief Macro to define a constant string stored in program memory
- * @param varname The name of the variable representing the string
- * @param value The value of the string
- */
-#define CC_CONST_PSTR(varname, value) CC_CONST_PTYPE_ARRAY(char, varname) = value;
-//#define CC_CONST_PSTR(var, val) const char var[] CC_PROGMEM = val
-
-/**
- * @def CC_EXPORT_CONST_PSTR(varname)
- * @brief Macro to declare an externally defined constant string stored in program memory
- * @param varname The name of the variable representing the string
- */
-#define CC_EXPORT_CONST_PSTR(varname) CC_EXPORT_CONST_PTYPE_ARRAY(char, varname)
-
-/**
- * @def CC_CONST_PSTRUCT_ARR(type, varname)
- * @brief Macro to define a constant array of structures stored in program memory
- * @param type The data type of the structures in the array
- * @param varname The name of the variable representing the array
- */
-#define CC_CONST_PSTRUCT_ARR(type, varname) CC_CONST_PTYPE_ARRAY(struct type, varname)
-//#define CC_CONST_PSTRUCT_ARR(type, varname) const struct type varname[] CC_PROGMEM
-
-/**
  * @def CC_NELEM(x)
  * @brief Macro to determine the number of elements in an array
  * @param x The array

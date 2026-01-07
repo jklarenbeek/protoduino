@@ -4,8 +4,6 @@
 #include <cc.h>
 #include <stdint.h>
 
-#include "utf8.h"
-
 // key codes for rune16_t between 0x80-0x9F (size == 32)
 // https://www.gnu.org/software/guile-ncurses/manual/html_node/Getting-characters-from-the-keyboard.html
 #define KEY_TAB                 '\t'            // TAB key
@@ -130,35 +128,10 @@
 #define VT_ERR_BUFFER_OVERFLOW -2
 #define VT_ERR_KEY_NOT_FOUND -3
 
-// VT400 output sequence codes.
-// CC_EXPORT_CONST_PSTR(VT_SEQ_CSI);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_CLEAR);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_CLRTOBOT);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_CLRTOEOL);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_DELCH);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_NEXTLINE);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_INSERTLINE);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_DELETELINE);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_ATTRSET);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_ATTRSET_REVERSE);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_ATTRSET_UNDERLINE);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_ATTRSET_BLINK);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_ATTRSET_BOLD);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_ATTRSET_DIM);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_ATTRSET_FCOLOR);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_ATTRSET_BCOLOR);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_INSERT_MODE);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_REPLACE_MODE);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_RESET_SCRREG);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_LOAD_G1);
-// CC_EXPORT_CONST_PSTR(VT_SEQ_CURSOR_VIS);
+CC_EXTERN int8_t vt_esc_add(char * buffer, uint8_t * idx, const rune16_t ch);
 
-#define VT_SEQ_END_ATTRSET 'm'
+CC_EXTERN rune16_t vt_esc_match(const char * buffer, const uint8_t len);
 
-CC_EXTERN int8_t vt_escape_add(char * buffer, uint8_t * idx, const rune16_t ch);
-
-CC_EXTERN rune16_t vt_escape_match(const char * buffer, const uint8_t len);
-
-CC_EXTERN rune16_t vt_escape_symbol(rune16_t rune);
+CC_EXTERN rune16_t vt_esc_symbol(rune16_t rune);
 
 #endif

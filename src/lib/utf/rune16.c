@@ -15,7 +15,7 @@
 /**
  * modified for arduino by
  * Joham (http://github.com/jklarenbeek)
- *  
+ *
  */
 #include "rune16.h"
 #include "rune16_private.h"
@@ -31,7 +31,7 @@ rune16_t * rune16_strchr(rune16_t *s, rune16_t c)
 	rune16_t c0 = c;
 	rune16_t c1;
 
-	if(c == 0) 
+	if(c == 0)
 	{
 		while(*s++);
 		return s-1;
@@ -70,18 +70,6 @@ rune16_t * rune16_strcpy(rune16_t *s1, rune16_t *s2)
 	while(*s1++ = *s2++);
 	return os1;
 }
-
-// we don't malloc.... just not. besides, its an idiot function anyway
-// rune16_t * rune16_strdup(rune16_t *s)
-// {
-// 	rune16_t *ns;
-
-// 	ns = (rune16_t *)malloc(sizeof(rune16_t)*(rune16_strlen(s) + 1));
-// 	if(ns == 0)
-// 		return 0;
-
-// 	return rune16_strcpy(ns, s);
-// }
 
 rune16_t * rune16_strecpy(rune16_t *s1, rune16_t *es1, rune16_t *s2)
 {
@@ -197,11 +185,11 @@ static rune16_t * rune16_bsearch(const rune16_t c, const rune16_t *t, int n, con
 	rune16_t *p;
 	int m;
 
-	while(n > 1) 
+	while(n > 1)
 	{
 		m = n/2;
 		p = (rune16_t *)t + m*ne;
-		if(c >= p[0]) 
+		if(c >= p[0])
 		{
 			t = p;
 			n = n-m;

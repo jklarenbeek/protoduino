@@ -77,7 +77,7 @@ const int _SBASE_ = __COUNTER__ + 1; // Index of 1st __COUNTER__ ref below
 #define _S1_ (sin((__COUNTER__ - _SBASE_) / 128.0 * M_PI) + 1.0) * 127.5 + 0.5,
 #define _S2_ _S1_ _S1_ _S1_ _S1_ _S1_ _S1_ _S1_ _S1_ // Expands to 8 items
 #define _S3_ _S2_ _S2_ _S2_ _S2_ _S2_ _S2_ _S2_ _S2_ // Expands to 64 items
-CC_CONST_PTYPE_ARRAY(uint8_t, sineTable) = { _S3_ _S3_ _S3_ _S3_ }; // 256 items
+const uint8_t sineTable[] CC_PROGMEM = { _S3_ _S3_ _S3_ _S3_ }; // 256 items
 
 // Similar to above, but for an 8-bit gamma-correction table.
 #define _GAMMA_ 2.6
@@ -85,7 +85,7 @@ const int _GBASE_ = __COUNTER__ + 1; // Index of 1st __COUNTER__ ref below
 #define _G1_ pow((__COUNTER__ - _GBASE_) / 255.0, _GAMMA_) * 255.0 + 0.5,
 #define _G2_ _G1_ _G1_ _G1_ _G1_ _G1_ _G1_ _G1_ _G1_ // Expands to 8 items
 #define _G3_ _G2_ _G2_ _G2_ _G2_ _G2_ _G2_ _G2_ _G2_ // Expands to 64 items
-CC_CONST_PTYPE_ARRAY(uint8_t, gammaTable) = { _G3_ _G3_ _G3_ _G3_ }; // 256 items
+const uint8_t gammaTable[] CC_PROGMEM = { _G3_ _G3_ _G3_ _G3_ }; // 256 items
 
 static void rgbgc(struct rgb * left)
 {
