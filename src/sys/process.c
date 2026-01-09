@@ -323,6 +323,19 @@ void process_run(void)
   (void)do_event();
 }
 
+struct process *process_find_by_name(const char *name) {
+    struct process *p = process_list;
+
+    while (p) {
+        const char *pname = PROCESS_NAME_STRING(p);
+        if (strcmp(pname, name) == 0) {
+            return p;
+        }
+        p = p->next;
+    }
+    return NULL;
+}
+
 /* Post event (atomic). If per-process inbox enabled and destination != NULL,
  * try to place in inbox first; otherwise fall back to global queue.
  */
