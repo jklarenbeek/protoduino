@@ -15,13 +15,16 @@ struct echo_pt { // : rune16_pt, buf8_pt
   lc_t lc;                      // protothread state
   Stream * stream;              // stream for getc and putc
   rune16_t value;               // yielded rune
-  uint8_t idx;               // current index of buffer
-  uint8_t buf[VT_ESCAPE_BUFLEN];  // current escape buffer
+  uint8_t idx;                  // current index of buffer
+  uint8_t buf[VT_ESCAPE_BUFLEN];// current escape buffer
 };
 
 
 #define PT_GETR(ptecho) \
   PT_WAIT_UNTIL(ptecho, (utf8_getr(ptecho->stream, &ptecho->value) > 0))
+
+#define PT_PUTR(pt, ptecho) \
+  PT_WAIT_UNTIL(pt, (utf8_putr(ptecho.stream, ptecho.value) > 0))
 
 static ptstate_t getch(struct echo_pt *self)
 {
@@ -38,7 +41,7 @@ static ptstate_t getch(struct echo_pt *self)
     {
       uint8_t ret;
       rune16_t rune;
-      self->idx = 0;
+      self->idx = 0; // reset the index of the buffer to the beginning.
 
       // from here we buffer all input
       // until we reach an escape terminator code.
@@ -50,35 +53,27 @@ static ptstate_t getch(struct echo_pt *self)
       while(ret > 0);
 
       // the escape sequence was buffered correctly
-      if (ret == 0)
+      if (ret == ERR_SUCCESS)
       {
         // find the rune keycode for the escape sequence
         rune = vt_esc_match(self->buf, self->idx);
         if (rune == UTF8_DECODE_ERROR)
         {
-          PT_THROW(self, ERR_FS_NOENT); // escape sequence not found.
+          PT_THROW(self, ERR_COLL_KEY); // escape sequence not found.
         }
 
         self->value = rune; // we found the keycode.
         PT_YIELD(self);
       }
-      else // if (ret < 0)
+      else if (ret != ERR_YIELDING)
       {
-        if (ret == VT_ERR_INVALID_INPUT)
-        {
-          PT_THROW(self, ERR_PROC_INVAL);
-        }
-
-        PT_THROW(self, ERR_STACK_OVER);
+        PT_THROW(self, ret);
       }
     }
   }
 
   PT_END(self);
 }
-
-#define PT_PUTR(pt, ptecho) \
-  PT_WAIT_UNTIL(pt, (utf8_putr(ptecho.stream, ptecho.value) > 0))
 
 static struct echo_pt pt1;
 

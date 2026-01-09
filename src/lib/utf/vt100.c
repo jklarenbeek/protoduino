@@ -1,3 +1,4 @@
+#include <sys/errors.h>
 #include "vt100.h"
 #include "utf8.h"
 
@@ -14,6 +15,8 @@ const char VT_KEY_NM_PPAGE[]     CC_PROGMEM = "[5~";
 const char VT_KEY_NM_NPAGE[]     CC_PROGMEM = "[6~";
 const char VT_KEY_NM_CENTER[]    CC_PROGMEM = "[G";
 const char VT_KEY_NM_BTAB[]      CC_PROGMEM = "[Z";
+const char VT_KEY_NM_HOME_H[]    CC_PROGMEM = "[H";
+const char VT_KEY_NM_END_F[]     CC_PROGMEM = "[F";
 const char VT_KEY_NM_F1[]        CC_PROGMEM = "[11~";
 const char VT_KEY_NM_F2[]        CC_PROGMEM = "[12~";
 const char VT_KEY_NM_F3[]        CC_PROGMEM = "[13~";
@@ -38,6 +41,16 @@ const char VT_KEY_EXT_UP[]       CC_PROGMEM = "\eOA";
 const char VT_KEY_EXT_DOWN[]     CC_PROGMEM = "\eOB";
 const char VT_KEY_EXT_RIGHT[]    CC_PROGMEM = "\eOC";
 const char VT_KEY_EXT_LEFT[]     CC_PROGMEM = "\eOD";
+const char VT_KEY_CTL_HOME[]     CC_PROGMEM = "OH";
+const char VT_KEY_CTL_END[]      CC_PROGMEM = "OF";
+const char VT_KEY_NM_CTL_UP[]    CC_PROGMEM = "[1;5A";
+const char VT_KEY_NM_CTL_DOWN[]  CC_PROGMEM = "[1;5B";
+const char VT_KEY_NM_CTL_RIGHT[] CC_PROGMEM = "[1;5C";
+const char VT_KEY_NM_CTL_LEFT[]  CC_PROGMEM = "[1;5D";
+const char VT_KEY_NM_ALT_UP[]    CC_PROGMEM = "[1;3A";
+const char VT_KEY_NM_ALT_DOWN[]  CC_PROGMEM = "[1;3B";
+const char VT_KEY_NM_ALT_RIGHT[] CC_PROGMEM = "[1;3C";
+const char VT_KEY_NM_ALT_LEFT[]  CC_PROGMEM = "[1;3D";
 
 struct vt_key_map
 {
@@ -47,38 +60,54 @@ struct vt_key_map
 
 const struct vt_key_map vt_key_mappings[] CC_PROGMEM =
 {
-  { VT_KEY_NM_UP    , KEY_UP },
-  { VT_KEY_NM_DOWN  , KEY_DOWN },
-  { VT_KEY_NM_RIGHT , KEY_RIGHT },
-  { VT_KEY_NM_LEFT  , KEY_LEFT },
-  { VT_KEY_NM_HOME  , KEY_HOME },
-  { VT_KEY_NM_IC    , KEY_IC },
-  { VT_KEY_NM_DC    , KEY_DC }, // 0x7F
-  { VT_KEY_NM_END   , KEY_END },
-  { VT_KEY_NM_PPAGE , KEY_PPAGE },
-  { VT_KEY_NM_NPAGE , KEY_NPAGE },
-  { VT_KEY_NM_CENTER, KEY_CR },  // ?
-  { VT_KEY_NM_BTAB  , KEY_BTAB },
-  { VT_KEY_NM_F1    , KEY_F(1) },
-  { VT_KEY_NM_F2    , KEY_F(2) },
-  { VT_KEY_NM_F3    , KEY_F(3) },
-  { VT_KEY_NM_F4    , KEY_F(4) },
-  { VT_KEY_NM_F5    , KEY_F(5) },
-  { VT_KEY_NM_F6    , KEY_F(6) },
-  { VT_KEY_NM_F7    , KEY_F(7) },
-  { VT_KEY_NM_F8    , KEY_F(8) },
-  { VT_KEY_NM_F9    , KEY_F(9) },
-  { VT_KEY_NM_F10   , KEY_F(10) },
-  { VT_KEY_NM_F11   , KEY_F(11) },
-  { VT_KEY_NM_F12   , KEY_F(12) },
-  { VT_KEY_CTL_UP   , KEY_SB },
-  { VT_KEY_CTL_DOWN , KEY_SF },
-  { VT_KEY_CTL_RIGHT, KEY_NW },
-  { VT_KEY_CTL_LEFT , KEY_PW },
-  { VT_KEY_ALT_UP   , KEY_MLU },
-  { VT_KEY_ALT_DOWN , KEY_MLD },
-  { VT_KEY_ALT_RIGHT, KEY_CR }, // ?
-  { VT_KEY_ALT_LEFT , KEY_CR }, // ?
+  { VT_KEY_NM_UP       , KEY_UP },
+  { VT_KEY_NM_DOWN     , KEY_DOWN },
+  { VT_KEY_NM_RIGHT    , KEY_RIGHT },
+  { VT_KEY_NM_LEFT     , KEY_LEFT },
+  { VT_KEY_NM_HOME     , KEY_HOME },
+  { VT_KEY_NM_HOME_H   , KEY_HOME },
+  { VT_KEY_NM_IC       , KEY_IC },
+  { VT_KEY_NM_DC       , KEY_DC }, // 0x7F
+  { VT_KEY_NM_END      , KEY_END },
+  { VT_KEY_NM_END_F    , KEY_END },
+  { VT_KEY_CTL_HOME    , KEY_HOME },
+  { VT_KEY_CTL_END     , KEY_END },
+  { VT_KEY_NM_PPAGE    , KEY_PPAGE },
+  { VT_KEY_NM_NPAGE    , KEY_NPAGE },
+  { VT_KEY_NM_CENTER   , KEY_CR },  // ?
+  { VT_KEY_NM_BTAB     , KEY_BTAB },
+  { VT_KEY_NM_F1       , KEY_F(1) },
+  { VT_KEY_NM_F2       , KEY_F(2) },
+  { VT_KEY_NM_F3       , KEY_F(3) },
+  { VT_KEY_NM_F4       , KEY_F(4) },
+  { VT_KEY_NM_F5       , KEY_F(5) },
+  { VT_KEY_NM_F6       , KEY_F(6) },
+  { VT_KEY_NM_F7       , KEY_F(7) },
+  { VT_KEY_NM_F8       , KEY_F(8) },
+  { VT_KEY_NM_F9       , KEY_F(9) },
+  { VT_KEY_NM_F10      , KEY_F(10) },
+  { VT_KEY_NM_F11      , KEY_F(11) },
+  { VT_KEY_NM_F12      , KEY_F(12) },
+  { VT_KEY_CTL_UP      , KEY_SB },
+  { VT_KEY_CTL_DOWN    , KEY_SF },
+  { VT_KEY_CTL_RIGHT   , KEY_NW },
+  { VT_KEY_CTL_LEFT    , KEY_PW },
+  { VT_KEY_ALT_UP      , KEY_MLU },
+  { VT_KEY_ALT_DOWN    , KEY_MLD },
+  { VT_KEY_ALT_RIGHT   , KEY_MLR },
+  { VT_KEY_ALT_LEFT    , KEY_MLL },
+  { VT_KEY_EXT_UP      , KEY_MLU },
+  { VT_KEY_EXT_DOWN    , KEY_MLD },
+  { VT_KEY_EXT_RIGHT   , KEY_MLR },
+  { VT_KEY_EXT_LEFT    , KEY_MLL },
+  { VT_KEY_NM_CTL_UP   , KEY_SB },
+  { VT_KEY_NM_CTL_DOWN , KEY_SF },
+  { VT_KEY_NM_CTL_RIGHT, KEY_NW },
+  { VT_KEY_NM_CTL_LEFT , KEY_PW },
+  { VT_KEY_NM_ALT_UP   , KEY_MLU },
+  { VT_KEY_NM_ALT_DOWN , KEY_MLD },
+  { VT_KEY_NM_ALT_RIGHT, KEY_MLR },
+  { VT_KEY_NM_ALT_LEFT , KEY_MLL },
 };
 
 // VT400 output sequence codes.
@@ -104,39 +133,48 @@ const char VT_SEQ_RESET_SCRREG[]        CC_PROGMEM = "\e[r";    // reset scrolli
 const char VT_SEQ_LOAD_G1[]             CC_PROGMEM = "\e)0";    // load G1 character set
 const char VT_SEQ_CURSOR_VIS[]          CC_PROGMEM = "\e[?25";  // set cursor visible/not visible
 
-#define VT_IF_ESCAPE_END(c) ((c >= 'A' && c <= 'D') || c == 'G' || c == 'Z' || c == '~')
+#ifdef __AVR__
+#define GET_VT_SEQ(idx) (const char *)pgm_read_word(&vt_key_mappings[idx].vt_seq)
+#define GET_KEY(idx) (rune16_t)pgm_read_word(&vt_key_mappings[idx].key)
+#else
+#define GET_VT_SEQ(idx) vt_key_mappings[idx].vt_seq
+#define GET_KEY(idx) vt_key_mappings[idx].key
+#ifndef strcmp_P
+#define strcmp_P strcmp
+#endif
+#endif
+
+#define VT_IF_ESCAPE_END(c) ((c >= 'A' && c <= 'D') || c == 'G' || c == 'Z' || c == '~' || c == 'H' || c == 'F')
 
 const size_t vt_key_mappings_size = (sizeof(vt_key_mappings) / sizeof(struct vt_key_map));
 
 int8_t vt_esc_add(char * buffer, uint8_t * idx, const rune16_t ch)
 {
     if (ch > 0x7F)
-        return VT_ERR_INVALID_INPUT;
+        return ERR_ARG_INVALID;
 
     if(!(*idx < (VT_ESCAPE_BUFLEN - 1)))
-        return VT_ERR_BUFFER_OVERFLOW;
+        return ERR_BUF_OVERFLOW;
 
+    buffer[(*idx)++] = ch;
     if (VT_IF_ESCAPE_END(ch))
     {
-        buffer[(*idx)++] = ch; ;
-        buffer[(*idx)++] = '\0';
-        return 0; // SUCCESS
+        buffer[(*idx)] = '\0';
+        return ERR_SUCCESS; // SUCCESS
     }
     else
     {
-        buffer[(*idx)++] = ch;
-        return 1; // WAITING
+        return ERR_YIELDING; // WAITING
     }
 }
 
 rune16_t vt_esc_match(const char * buffer, const uint8_t len)
 {
-    uint8_t size = (len < VT_ESCAPE_BUFLEN) ? len : VT_ESCAPE_BUFLEN;
     for(int idx = 0; idx < vt_key_mappings_size; ++idx)
     {
-        if (strncmp_P(buffer, vt_key_mappings[idx].vt_seq, size))
+        if (strcmp_P(buffer, GET_VT_SEQ(idx)) == 0)
         {
-            return vt_key_mappings[idx].key;
+            return GET_KEY(idx);
         }
     }
 
@@ -166,17 +204,18 @@ rune16_t vt_esc_symbol(const rune16_t rune)
         case KEY_END: return ACS_END;
         case KEY_BTAB: return ACS_BTAB;
 
-        // case KEY_DL:
-        // case KEY_IL:
-        // case KEY_SF:
-        // case KEY_SB:
+        case KEY_SF: return ACS_CURSOR_DOWN;
+        case KEY_SB: return ACS_CURSOR_UP;
+        case KEY_NW: return ACS_CURSOR_RIGHT;
+        case KEY_PW: return ACS_CURSOR_LEFT;
 
-        // case KEY_NW:
-        // case KEY_PW:
-        // case KEY_MLU:
-        // case KEY_MLD:
-        //     return ASC_UNKNOWN;
+        case KEY_MLU: return ACS_CURSOR_UP;
+        case KEY_MLD: return ACS_CURSOR_DOWN;
+        case KEY_MLR: return ACS_CURSOR_RIGHT;
+        case KEY_MLL: return ACS_CURSOR_LEFT;
 
         default: return rune;
     };
 }
+
+

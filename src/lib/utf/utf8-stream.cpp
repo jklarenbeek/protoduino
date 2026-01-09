@@ -16,17 +16,17 @@ int8_t utf8_getr(Stream *st, rune16_t *rune)
 
   /*
 	 * one character sequence
-	 *	00000-0007F => T1 
+	 *	00000-0007F => T1
    *  0b0xxxxxxx
-	 */    
+	 */
   s0 = (uint8_t)st->peek();
-  if (s0 < 0b10000000) 
+  if (s0 < 0b10000000)
   {
     s0 = (uint8_t)st->read();
     *rune = s0;
     return 1;
   }
-  
+
   /*
 	 * two character sequence
 	 *	0080-07FF => T2 Tx
@@ -43,7 +43,7 @@ int8_t utf8_getr(Stream *st, rune16_t *rune)
       return UTF8_RET_CORRUPT;
 
     r = (((s0 & 0b00011111) << 6) | (s1 & 0b00111111));
-    
+
     *rune = r;
     return 2;
   }
@@ -67,7 +67,7 @@ int8_t utf8_getr(Stream *st, rune16_t *rune)
       return UTF8_RET_CORRUPT;
 
     r = (((((s0 & 0b00001111) << 6) | (s1 & 0b00111111)) << 6) | (s2 & 0b00111111));
-    
+
     *rune = r;
     return 3;
   }
@@ -108,7 +108,7 @@ int8_t utf8_putr(Stream *st, const rune16_t rune)
   int size = st->availableForWrite();
   if (size < 1)
     return 0;
-	
+
   /*
 	 * one character sequence
 	 *	00000-0007F => 00-7F
@@ -153,7 +153,7 @@ int utf8_puts(Stream *st, const rune16_t * str)
   int ret = 0;
   while (*str != '\0')
   {
-      if (utf8_putr(st, *str++) == 0)
+      if (utf8_putr(st, *str) == 0)
         break;
 
       ret++;

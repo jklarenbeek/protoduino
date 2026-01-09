@@ -192,7 +192,7 @@ CC_FLATTEN uint_fast8_t CC_TMPL_FN(write8)(const uint_fast8_t data)
     return 0; // let the user handle it manually
   }
 
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+  CC_ATOMIC_RESTORE()
   {
     // add data to the ringbuffer
     ringb8_put(&VAR_TX, data);
@@ -216,7 +216,7 @@ CC_FLATTEN uint_fast8_t CC_TMPL_FN(write16)(const uint_fast16_t data)
 
   tmp.data = data;
 
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+  CC_ATOMIC_RESTORE()
   {
     // add data to the ringbuffer
     ringb8_put(&VAR_TX, tmp.buf[0]);
@@ -241,7 +241,7 @@ CC_FLATTEN uint_fast8_t CC_TMPL_FN(write24)(const uint_fast32_t data)
 
   tmp.data = data;
 
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+  CC_ATOMIC_RESTORE()
   {
     // add data to the ringbuffer
     ringb8_put(&VAR_TX, tmp.buf[0]);
@@ -267,7 +267,7 @@ CC_FLATTEN uint_fast8_t CC_TMPL_FN(write32)(const uint_fast32_t data)
 
   tmp.data = data;
 
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+  CC_ATOMIC_RESTORE()
   {
     // add data to the ringbuffer
     ringb8_put(&VAR_TX, tmp.buf[0]);

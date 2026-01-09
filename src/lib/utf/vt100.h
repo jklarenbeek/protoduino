@@ -17,10 +17,11 @@
 
 #define KEY_C0                  0x80
 #define KEY_C(n)                (KEY_C0+(n))
-#define KEY_UP                  KEY_C(0)        // Up arrow key
-#define KEY_DOWN                KEY_C(1)        // Down arrow key
-#define KEY_RIGHT               KEY_C(2)        // Right arrow key
-#define KEY_LEFT                KEY_C(3)        // Left arrow key
+
+#define KEY_DOWN                KEY_C(0)        // Down arrow key
+#define KEY_UP                  KEY_C(1)        // Up arrow key
+#define KEY_LEFT                KEY_C(2)        // Left arrow key
+#define KEY_RIGHT               KEY_C(3)        // Right arrow key
 
 #define KEY_HOME                KEY_C(4)        // Home key
 #define KEY_DC                  KEY_DELETE      // Delete character key
@@ -28,7 +29,8 @@
 #define KEY_NPAGE               KEY_C(6)        // Next-page key
 #define KEY_PPAGE               KEY_C(7)        // Previous-page key
 #define KEY_END                 KEY_C(8)        // End key
-#define KEY_BTAB                KEY_C(9)       // Back tab key
+#define KEY_BTAB                KEY_C(9)        // Back tab key
+
 
 #define KEY_DL                  KEY_C(10)       // Delete Line (Shift + Delete)
 #define KEY_IL                  KEY_C(11)       // Insert line (Shift + Insert)
@@ -41,8 +43,10 @@
 
 #define KEY_MLU                 KEY_C(16)       // Move line 1 up (ALT + Up)
 #define KEY_MLD                 KEY_C(17)       // Move line 1 down (ALT + Down)
+#define KEY_MLR                 KEY_C(18)       // Move line 1 right (ALT + Right)
+#define KEY_MLL                 KEY_C(19)       // Move line 1 left (ALT + Left)
 
-#define KEY_F0                  KEY_C(18)       // Function key F0
+#define KEY_F0                  KEY_C(20)       // Function key F0
 #define KEY_F(n)                (KEY_F0+(n)-1)  // Space for additional 12 function keys
 
 //
@@ -120,10 +124,18 @@
 #define ACS_CURSOR_RIGHT        0x21E5 // '▶' U+21E5
 #define ACS_CURSOR_LEFT         0x25C0 // '◀' U+25C0
 
+// Cursor movement
+#define VT_SEQ_MOVE_HOME             "\e[H"
+#define VT_SEQ_MOVE_TO               "\e[%d;%dH"
+#define VT_SEQ_MOVE_UP               "\e[%dA"
+#define VT_SEQ_MOVE_DOWN             "\e[%dB"
+#define VT_SEQ_MOVE_RIGHT            "\e[%dC"
+#define VT_SEQ_MOVE_LEFT             "\e[%dD"
+
 ///
 ///
 ///
-#define VT_ESCAPE_BUFLEN 6
+#define VT_ESCAPE_BUFLEN 16
 
 #define VT_ERR_INVALID_INPUT -1
 #define VT_ERR_BUFFER_OVERFLOW -2

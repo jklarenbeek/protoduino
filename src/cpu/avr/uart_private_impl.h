@@ -148,7 +148,7 @@ CC_FLATTEN bool CC_TMPL_FN(tx_is_available)(void)
 
 void CC_TMPL_FN(tx_write8)(const uint_fast8_t data)
 {
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+  CC_ATOMIC_RESTORE()
   {
     // write the byte to the data register immediatly
     __UDR__ = data;

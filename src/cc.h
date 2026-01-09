@@ -154,7 +154,7 @@
 #define CC_TMPL2_FN(method) CC_CONCAT3(CC_TMPL2_PREFIX,_,method)
 
 /* Helper for ISR-safety and portability: you may override these macros */
-#if defined(__AVR__)
+#ifdef __AVR__
 #include <util/atomic.h>
 #include <avr/pgmspace.h>
 
@@ -167,6 +167,10 @@ typedef double float64_t;
 #define CC_ATOMIC_FORCEON() ATOMIC_BLOCK(ATOMIC_FORCEON)
 
 #else
+
+#define PROGMEM
+#define PSTR(x)                                 (x)
+#define pgm_read_byte(s)                        (*s)
 
 #define CC_PROGMEM
 
