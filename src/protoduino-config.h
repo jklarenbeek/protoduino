@@ -5,7 +5,8 @@
 
 #include "./sys/errors.conf.h"
 #include "./sys/serial.conf.h"
-#include "./sys/process.conf.h"
 #include "./sys/ipc.conf.h"
+#include "./sys/pt/pipe.conf.h"
+#include "./sys/process.conf.h"
 
 #endif

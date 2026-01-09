@@ -16,7 +16,7 @@ RINGB8(CC_TMPL_VAR(tx), SERIAL_TX_BUFFER_SIZE);
 
 static volatile serial_onrecieved_fn CC_TMPL_VAR(onrecieved_callback) = 0;
 
-#ifdef SERIAL_REGISTER_ERRORS
+#if SERIAL_REGISTER_ERRORS
 static uint32_t CC_TMPL_VAR(rx_errcnt) = 0;
 static uint32_t CC_TMPL_VAR(rx_errofw) = 0;
 
@@ -44,7 +44,7 @@ static void CC_TMPL_FN(on_rx_complete)(uint_fast8_t data)
     // add the byte to the buffer
     ringb8_put(&VAR_RX, data);
   }
-#ifdef SERIAL_REGISTER_ERRORS
+#if SERIAL_REGISTER_ERRORS
   else
   {
       CC_TMPL_VAR(rx_errofw)++;
@@ -54,7 +54,7 @@ static void CC_TMPL_FN(on_rx_complete)(uint_fast8_t data)
 
 static void CC_TMPL_FN(on_rx_error)(uint_fast8_t err)
 {
-#ifdef SERIAL_REGISTER_ERRORS
+#if SERIAL_REGISTER_ERRORS
   CC_TMPL_VAR(rx_errcnt)++;
 #endif
   CC_TMPL2_FN(rx_clear_errors)();

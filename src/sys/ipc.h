@@ -1,4 +1,5 @@
 // file: ./src/sys/ipc.h
+
 #ifndef __IPC_H__
 #define __IPC_H__ 1
 
@@ -22,9 +23,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#include <protoduino-config.h>
-#include <cc.h>
-#include "errors.h"             /* error taxonomy (ERR_* defines) */
+#include <protoduino.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,7 +50,7 @@ struct ipc_pool {
 };
 
 /* Initialize an ipc pool. buffer must be BLOCK_SIZE * N large.
- * Returns: ERR_SUCCESS or ERR_RES_EXHAUSTED/ERR_PROC_INVAL on bad args.
+ * Returns: ERR_SUCCESS or ERR_ARG_NULL on bad args.
  */
 int ipc_pool_init(struct ipc_pool *p, void *buffer, size_t block_size, uint16_t n_blocks);
 
@@ -85,7 +84,7 @@ int ipc_msg_set_arg(ipc_msg_t *m, uint8_t idx, void *arg);
  * Example: for protoduino, your callback may call process_poll(reader_proc) or
  * process_post(reader_proc, PROCESS_EVENT_POLL, NULL).
  */
-typedef void (*ipc_wake_cb_t)(void *ctx);
+typedef void (*ipc_wake_cb_t)(void* wake_ctx);
 
 typedef struct ipc_pipe {
     uint8_t *buf;             /* pointer to buffer storage */
@@ -97,7 +96,7 @@ typedef struct ipc_pipe {
 } ipc_pipe_t;
 
 /* Initialize a pipe. buffer must be `size` bytes. wake_cb may be NULL.
- * Returns ERR_SUCCESS or ERR_PROC_INVAL if args invalid.
+ * Returns ERR_SUCCESS or ERR_ARG_INVALID if args invalid.
  */
 int ipc_pipe_init(ipc_pipe_t *p, void *buffer, size_t size, ipc_wake_cb_t wake_cb, void *wake_ctx);
 

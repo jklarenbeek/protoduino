@@ -1,3 +1,5 @@
+// file: ./src/sys/pt/sem.h
+
 /*
  * Copyright (c) 2004, Swedish Institute of Computer Science.
  * All rights reserved.
@@ -156,8 +158,8 @@ PT_THREAD(driver_thread(struct pt *pt))
  *
  */
 
-#ifndef PT_SEM_H_
-#define PT_SEM_H_
+#ifndef __PT_SEM_H_
+#define __PT_SEM_H_
 
 #include "../pt.h"
 
@@ -226,7 +228,7 @@ struct pt_sem {
  */
 #define PT_SEM_SIGNAL(pt, s) (++(s)->head)
 
-#endif /* PT_SEM_H_ */
+#endif /* __PT_SEM_H_ */
 
 /** @} */
 /** @} */

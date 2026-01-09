@@ -6,9 +6,11 @@
 
 // flag to get a count of rx errors or buffer overflows
 // this feature will consume an extra 8 bytes per serial device.
-#define SERIAL_REGISTER_ERRORS
+#ifndef SERIAL_REGISTER_ERRORS
+#define SERIAL_REGISTER_ERRORS 1
+#endif
 
-#if !defined(SERIAL_RX_BUFFER_SIZE)
+#ifndef SERIAL_RX_BUFFER_SIZE
 #if ((RAMEND - RAMSTART) < 1023)
 #define SERIAL_RX_BUFFER_SIZE 16
 #else
@@ -16,7 +18,7 @@
 #endif
 #endif
 
-#if !defined(SERIAL_TX_BUFFER_SIZE)
+#ifndef SERIAL_TX_BUFFER_SIZE
 #if ((RAMEND - RAMSTART) < 1023)
 #define SERIAL_TX_BUFFER_SIZE 16
 #else

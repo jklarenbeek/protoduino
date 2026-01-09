@@ -1,4 +1,6 @@
-
+// file: ./src/sys/pt/types.h
+#ifndef __PT_TYPES_H__
+#define __PT_TYPES_H__
 
 #include "lc.h"
 #include "../../utf/rune16.h"
@@ -28,4 +30,4 @@ struct stream8_pt
   Stream * stream;              // stream for getc and putc
 }
 
-
+#endif /* __PT_TYPES_H__ */

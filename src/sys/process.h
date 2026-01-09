@@ -1,6 +1,6 @@
 // file: ./src/sys/process.h
-#ifndef PROCESS_H_
-#define PROCESS_H_
+#ifndef __PROCESS_H__
+#define __PROCESS_H__
 
 /*
  * process.h - protoduino process scheduler header
@@ -11,13 +11,10 @@
  * Config knobs are overridable in ./src/protoduino_config.h
  */
 
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-
-#include "../cc.h"      /* CC_ATOMIC_RESTORE() / CC_ATOMIC_FORCEON() */
-#include "errors.h"     /* ERR_* */
-#include "pt.h"         /* ptstate_t, PT_* macros */
+#include <protoduino.h>
+#if PROCESS_CONF_PIPELINES
+#include "process/pipelines.h"
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Basic types & events                                               */
@@ -75,11 +72,21 @@ struct process {
 #endif
 
     process_prio_t prio;
+
     psstate_t state : 3;
     uint8_t needspoll : 1;
-    uint8_t reserved_flags : 4;
+    uint8_t has_stdin : 1;
+    uint8_t has_stdout: 1;
+    uint8_t reserved_flags : 2;
+
     struct pt pt;
     process_thread_t thread;
+
+#if PROCESS_CONF_PIPELINES
+    ipc_pipe_t *stdin;
+    ipc_pipe_t *stdout;
+    size_t written;
+#endif
 
 #if PROCESS_CONF_PER_PROCESS_INBOX
 #if PROCESS_CONF_INBOX_POINTERS
@@ -100,7 +107,7 @@ struct process {
     process_event_t ev, \
     process_data_t data)
 
-#if defined(__AVR__)
+#ifdef __AVR__
 #include <avr/pgmspace.h>
 #define PROCESS(name, strname, priority) \
   static const char process_name_##name[] PROGMEM = strname; \
@@ -110,7 +117,7 @@ struct process {
     process_name_##name, \
     priority, \
     PROCESS_STATE_NONE, \
-    0, 0, \
+    0, 0, 0, 0, \
     { 0 }, \
     process_thread_##name \
   }
@@ -123,13 +130,16 @@ struct process {
     process_name_##name, \
     priority, \
     PROCESS_STATE_NONE, \
-    0, 0, \
+    0, 0, 0, 0, \
     { 0 }, \
     process_thread_##name \
   }
 #endif
 
 #define PROCESS_EXTERN(name) extern struct process name
+
+#define PROCESS_CURRENT() process_current
+CC_EXTERN struct process *process_current;
 
 /* Protothread helpers */
 #define PROCESS_BEGIN()             PT_BEGIN(pt_process)
@@ -179,4 +189,4 @@ void process_poll(struct process *p);
 void process_report_error(struct process *src, uint8_t code);
 
 /* End of header */
-#endif /* PROCESS_H_ */
+#endif /* __PROCESS_H__ */

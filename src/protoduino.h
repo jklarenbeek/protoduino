@@ -3,15 +3,15 @@
 #ifndef __PROTODUINO_H__
 #define __PROTODUINO_H__
 
-#include "protoduino-config.h"
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "cc.h"
+
+#include "protoduino-config.h"
+
 #include "sys/errors.h"
 #include "sys/pt.h"
 
-
-#endif
+#endif /* __PROTODUINO_H__ */

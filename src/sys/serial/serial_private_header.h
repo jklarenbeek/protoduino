@@ -46,7 +46,7 @@
  * The reimplementation avoids dependencies on Arduino's core libraries, enabling use in bare-metal or custom environments.
  */
 
-#ifdef SERIAL_REGISTER_ERRORS
+#if SERIAL_REGISTER_ERRORS
 /**
  * @fn uint_fast32_t serial[0..3]_get_read_errors(void)
  * @brief Retrieves the total count of receive errors encountered.

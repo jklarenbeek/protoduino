@@ -6,7 +6,7 @@
 /* ------------------------------------------------------------------ */
 
 #ifndef PROCESS_CONF_EVENT_QUEUE_SIZE
-#define PROCESS_CONF_EVENT_QUEUE_SIZE 8
+#define PROCESS_CONF_EVENT_QUEUE_SIZE 4
 #endif
 
 #ifndef PROCESS_CONF_PER_PROCESS_INBOX
@@ -21,5 +21,16 @@
 #define PROCESS_CONF_INBOX_POINTERS 0
 #endif
 
-
+#ifndef PROCESS_CONF_PIPELINES
+#define PROCESS_CONF_PIPELINES 1
 #endif
+
+#ifndef PROCESS_CONF_PIPELINES_MAX_STAGES
+#define PROCESS_CONF_PIPELINES_MAX_STAGES 3
+#endif
+
+#ifndef PROCESS_CONF_PIPE_BUFFER_SIZE
+#define PROCESS_CONF_PIPE_BUFFER_SIZE PT_CONF_PIPE_BUFFER_SIZE
+#endif
+
+#endif /* __PROCESS_CONF_H__ */

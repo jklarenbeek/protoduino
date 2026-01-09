@@ -108,7 +108,9 @@ static void call_process(struct process *p, process_event_t ev, process_data_t d
     return;
 
   p->state = PROCESS_STATE_RUNNING;
+  process_current = p; // <--- SET GLOBAL
   ptstate_t ret = p->thread(&p->pt, ev, data);
+  process_current = NULL; // <--- CLEAR GLOBAL
 
   /* If still running (WAITING or YIELDED), mark called and return */
   if (PT_ISRUNNING(ret))
@@ -340,7 +342,7 @@ void process_iterate(process_iterate_cb_t callback)
 // Handles PROGMEM if on AVR, matching the storage of process names.
 static int process_match_n(const char *segment, size_t len, const char *process_name)
 {
-#if defined(__AVR__)
+#ifdef __AVR__
   size_t name_len = strlen_P(process_name);
   if (len != name_len)
     return 0;
