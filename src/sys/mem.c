@@ -1,6 +1,6 @@
 // file:./src/sys/mem.c
 
-int free_memory(void) {
+int free_mem(void) {
   extern int __heap_start,*__brkval;
   int v;
   return (int)&v - (__brkval == 0

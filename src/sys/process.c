@@ -323,17 +323,53 @@ void process_run(void)
   (void)do_event();
 }
 
-struct process *process_find_by_name(const char *name) {
-    struct process *p = process_list;
-
-    while (p) {
-        const char *pname = PROCESS_NAME_STRING(p);
-        if (strcmp(pname, name) == 0) {
-            return p;
-        }
-        p = p->next;
+void process_iterate(process_iterate_cb_t callback)
+{
+  struct process *p = process_list;
+  while (p != NULL)
+  {
+    if (callback)
+    {
+      callback(p);
     }
-    return NULL;
+    p = p->next;
+  }
+}
+
+// Helper: Match a name against a segment of a string.
+// Handles PROGMEM if on AVR, matching the storage of process names.
+static int process_match_n(const char *segment, size_t len, const char *process_name)
+{
+#if defined(__AVR__)
+  size_t name_len = strlen_P(process_name);
+  if (len != name_len)
+    return 0;
+  return strncmp_P(segment, process_name, len) == 0;
+#else
+  size_t name_len = strlen(process_name);
+  if (len != name_len)
+    return 0;
+  return strncmp(segment, process_name, len) == 0;
+#endif
+}
+
+// Lookup active process by name with length limit.
+// Returns a pointer to the process or NULL if not found.
+struct process *process_lookup_n(const char *name_segment, size_t len)
+{
+  struct process *p = process_list;
+  while (p)
+  {
+    /* Use the macro to safely get the name (handles NULL/PROGMEM) */
+    const char *pname = PROCESS_NAME_STRING(p);
+
+    if (process_match_n(name_segment, len, pname))
+    {
+      return p;
+    }
+    p = p->next;
+  }
+  return NULL;
 }
 
 /* Post event (atomic). If per-process inbox enabled and destination != NULL,

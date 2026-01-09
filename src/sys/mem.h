@@ -1,2 +1,2 @@
 
-CC_EXTERN int free_memory(void);
+CC_EXTERN int free_mem(void);

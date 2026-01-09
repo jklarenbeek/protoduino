@@ -61,13 +61,16 @@ struct error_info {
 };
 
 /* -- process struct -------------------------------------------------- */
+#ifndef PROCESS_CONF_NO_PROCESS_NAMES
+#define PROCESS_NAME_STRING(p) (p == NULL ? PSTR("NULL") : ((p)->name ? (p)->name : PSTR("EMPTY")))
+#else
+#define PROCESS_NAME_STRING(p) (p == NULL ? PSTR("NULL") : PSTR("EMPTY"))
+#endif
 
 struct process {
     struct process *next;
 
-#if !defined(PROCESS_CONF_NO_PROCESS_NAMES) && defined(__AVR__)
-    const char *name; /* pointer to PROGMEM string (pointer in RAM) */
-#elif !defined(PROCESS_CONF_NO_PROCESS_NAMES)
+#ifndef PROCESS_CONF_NO_PROCESS_NAMES
     const char *name;
 #endif
 
@@ -128,12 +131,6 @@ struct process {
 
 #define PROCESS_EXTERN(name) extern struct process name
 
-#if !defined(PROCESS_CONF_NO_PROCESS_NAMES)
-#define PROCESS_NAME_STRING(p) ((const char *)(p == NULL ? (const char*)"NULL" : ((p)->name ? (const char*)(p)->name : (const char*)"")))
-#else
-#define PROCESS_NAME_STRING(p) ((const char *)(p == NULL ? (const char*)"NULL" : (const char*)""))
-#endif
-
 /* Protothread helpers */
 #define PROCESS_BEGIN()             PT_BEGIN(pt_process)
 #define PROCESS_END()               PT_END(pt_process)
@@ -156,6 +153,15 @@ void process_exit(struct process *p);
 
 /* Game-loop scheduler: handle polls first if poll_requested, otherwise handle exactly one event */
 void process_run(void);
+
+/* Callback type for process iteration */
+typedef void (*process_iterate_cb_t)(struct process *p);
+
+/* Iterate over all active processes and execute callback for each */
+void process_iterate(process_iterate_cb_t callback);
+
+/* Lookup active process by name with length limit. */
+struct process *process_lookup_n(const char *name_segment, size_t len);
 
 /* Post event to global queue (atomic). Returns 1 on success, 0 if queue full.
  * p == NULL => broadcast.
