@@ -1,8 +1,6 @@
 // file: ./src/sys/errors.c
-#include <protoduino-config.h>
-#include <cc.h>
 #include "errors.h"
-#include <stdint.h>
+
 
 /*
  * If the S macro is not provided elsewhere, provide the
