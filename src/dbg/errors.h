@@ -1,3 +1,4 @@
+// file: ./src/dbg/errors.h
 #ifndef __DBG_ERRORS_H__
 #define __DBG_ERRORS_H__
 

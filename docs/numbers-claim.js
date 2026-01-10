@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// errors.js
+// file: ./docs/numbers-proof.csv
 // Node.js 22.17.0 (ESM) implementation of the provided C99 macros and ops.
 // Produces CSV describing hierarchy and symmetry classes for bytes 0..255.
 

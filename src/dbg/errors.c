@@ -1,4 +1,4 @@
-// file: ./src/sys/errors.c
+// file: ./src/dbg/errors.c
 #include "errors.h"
 
 
