@@ -363,7 +363,8 @@ static void process_log(struct process *src, uint8_t severity, process_event_t e
   uint8_t idx = (uint8_t)(error_pool_idx++ % PROCESS_CONF_ERROR_POOL_SIZE);
   error_pool[idx].source = src;
   error_pool[idx].severity = severity;
-  error_pool[idx].code = err;
+  error_pool[idx].event = ev;
+  error_pool[idx].error = err;
   process_post(process_error_logger, ev, &error_pool[idx]);
 }
 

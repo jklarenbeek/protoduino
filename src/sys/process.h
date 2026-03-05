@@ -59,7 +59,7 @@ struct error_info {
                            => Least signifant 3 bits */
   uint8_t reserved : 5;
   uint8_t event; /* the event that triggered the error (e.g. PROCESS_EVENT_MSG) */
-  uint8_t code; /* raw ptstate_t error code (>= PT_ERROR) */
+  uint8_t error; /* raw ptstate_t error code (>= PT_ERROR) */
 };
 
 /* -- process struct -------------------------------------------------- */

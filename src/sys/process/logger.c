@@ -30,34 +30,8 @@ PROCESS_THREAD(error_logger_process, ev, data)
   {
     PROCESS_WAIT_EVENT();
 
-    // 1. Handle Standard Errors
-    if (ev == PROCESS_EVENT_ERROR)
-    {
-      // Use the definition from process.h, do not redefine
-      struct error_info *info = (struct error_info *)data;
-
-      print_P(PSTR("[ERR] Src:"));
-      print_P(PROCESS_NAME_STRING(info->source));
-
-      print_P(PSTR(" Code:"));
-      print_dec(info->code);
-
-      print_P(PSTR(" ("));
-      // Assuming error_to_string is defined in errors.h and returns PROGMEM ptr
-      const char *msg = error_to_string(info->code);
-      if (msg)
-      {
-        print_P(msg);
-      }
-      else
-      {
-        print_P(PSTR("Unknown"));
-      }
-      print_P(PSTR(")\r\n"));
-      serial0_flush();
-    }
-    // 2. Handle Message Leaks
-    else if (ev == PROCESS_EVENT_MSG)
+    // Handle Message Leaks
+    if (ev == PROCESS_EVENT_MSG)
     {
       ipc_msg_t *m = (ipc_msg_t *)data;
 
@@ -77,6 +51,32 @@ PROCESS_THREAD(error_logger_process, ev, data)
         print_P(PSTR("NULL"));
       }
       print_P(PSTR("\r\n"));
+      serial0_flush();
+    }
+
+    else /* Handle Standard Errors */
+    {
+      // Use the definition from process.h, do not redefine
+      struct error_info *info = (struct error_info *)data;
+
+      print_P(PSTR("[ERR] Src:"));
+      print_P(PROCESS_NAME_STRING(info->source));
+
+      print_P(PSTR(" Code:"));
+      print_dec(info->error);
+
+      print_P(PSTR(" ("));
+      // Assuming error_to_string is defined in errors.h and returns PROGMEM ptr
+      const char *msg = error_to_string(info->error);
+      if (msg)
+      {
+        print_P(msg);
+      }
+      else
+      {
+        print_P(PSTR("Unknown"));
+      }
+      print_P(PSTR(")\r\n"));
       serial0_flush();
     }
   }
