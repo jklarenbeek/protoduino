@@ -1,72 +1,65 @@
 /**
- *   @author http://github.com/jklarenbeek
+ * examples/pt-basic-echo
  *
- *	This demo will not work correctly on SimulIde, since it appears not to support unicode in its serial monitor.
- *	SimulIde also has a problem with flushing/sending its buffer in the same way as a real arduino does.
+ * This demo will not work correctly on SimulIde, since it appears not to
+ * support unicode in its serial monitor. SimulIde also has a problem with
+ * flushing/sending its buffer in the same way as a real arduino does.
  */
 #include <protoduino.h>
 #include <sys/serial/SerialClass.hpp>
-#include <lib/utf/vt100.h>
 #include <lib/utf/utf8-stream.h>
+#include <lib/utf/vt100.h>
+
 
 static int count = 0;
 
-struct echo_pt { // : rune16_pt, buf8_pt
-  lc_t lc;                      // protothread state
-  Stream * stream;              // stream for getc and putc
-  rune16_t value;               // yielded rune
-  uint8_t idx;                  // current index of buffer
-  uint8_t buf[VT_ESCAPE_BUFLEN];// current escape buffer
+struct echo_pt {                 // : rune16_pt, buf8_pt
+  lc_t lc;                       // protothread state
+  Stream *stream;                // stream for getc and putc
+  rune16_t value;                // yielded rune
+  uint8_t idx;                   // current index of buffer
+  uint8_t buf[VT_ESCAPE_BUFLEN]; // current escape buffer
 };
 
-
-#define PT_GETR(ptecho) \
+#define PT_GETR(ptecho)                                                        \
   PT_WAIT_UNTIL(ptecho, (utf8_getr(ptecho->stream, &ptecho->value) > 0))
 
-#define PT_PUTR(pt, ptecho) \
+#define PT_PUTR(pt, ptecho)                                                    \
   PT_WAIT_UNTIL(pt, (utf8_putr(ptecho.stream, ptecho.value) > 0))
 
-static ptstate_t getch(struct echo_pt *self)
-{
+static ptstate_t getch(struct echo_pt *self) {
   PT_BEGIN(self);
 
-  forever: while(1)
-  {
+forever:
+  while (1) {
     PT_GETR(self);
-    if (self->value != KEY_ESCAPE)
-    {
+    if (self->value != KEY_ESCAPE) {
       PT_YIELD(self);
-    }
-    else
-    {
-      uint8_t ret;
+    } else {
+      int8_t ret;
       rune16_t rune;
       self->idx = 0; // reset the index of the buffer to the beginning.
 
       // from here we buffer all input
       // until we reach an escape terminator code.
-      do
-      {
+      do {
         PT_GETR(self);
-        ret = vt_esc_add(self->buf, &self->idx, self->value);
-      }
-      while(ret > 0);
+        ret = vt_esc_add((char *)self->buf, &self->idx, self->value);
+      } while (ret > 0);
 
       // the escape sequence was buffered correctly
-      if (ret == ERR_SUCCESS)
-      {
+      if (ret == ERR_SUCCESS) {
         // find the rune keycode for the escape sequence
-        rune = vt_esc_match(self->buf, self->idx);
-        if (rune == UTF8_DECODE_ERROR)
-        {
-          PT_THROW(self, ERR_INPUT_INVALID); // escape sequence not found.
+        rune = vt_esc_match((const char *)self->buf, self->idx);
+        if (rune == UTF8_DECODE_ERROR) {
+          /* Fix: Since ERR_INPUT_INVALID does not exist, use ERR_TEXT_INVALID
+           */
+          PT_THROW(self, ERR_TEXT_INVALID); // escape sequence not found.
         }
 
         self->value = rune; // we found the keycode.
         PT_YIELD(self);
-      }
-      else if (ret != ERR_YIELDING)
-      {
+      } else if (ret != ERR_YIELDING) {
         PT_THROW(self, ret);
       }
     }
@@ -77,14 +70,12 @@ static ptstate_t getch(struct echo_pt *self)
 
 static struct echo_pt pt1;
 
-static ptstate_t main_driver(struct pt *self, Stream *stream)
-{
+static ptstate_t main_driver(struct pt *self, Stream *stream) {
   PT_BEGIN(self);
 
   pt1.stream = stream;
 
-  PT_FOREACH(self, &pt1, getch(&pt1))
-  {
+  PT_FOREACH(self, &pt1, getch(&pt1)) {
     pt1.value = vt_esc_symbol(pt1.value);
 
     stream->print("echo '");
@@ -102,8 +93,7 @@ static ptstate_t main_driver(struct pt *self, Stream *stream)
   PT_END(self);
 }
 
-void setup()
-{
+void setup() {
   SerialLine.begin(9600);
 
   // if analog input pin 0 is unconnected, random analog
@@ -122,14 +112,11 @@ void setup()
   delay(1000);
 }
 
-
 static struct pt main1;
 
-void loop()
-{
+void loop() {
   SerialLine.print("= Starting loop: ");
   SerialLine.println(count);
-
 
   /* Initialize the protothread state variables. */
   PT_INIT(&main1);
@@ -138,10 +125,7 @@ void loop()
    * Call the main driver protothread until it exits,
    * ends or throws an error
    */
-  while(PT_ISRUNNING(main_driver(&main1, &SerialLine)))
-  {
+  while (PT_ISRUNNING(main_driver(&main1, &SerialLine))) {
     ++count;
   }
-
 }
-

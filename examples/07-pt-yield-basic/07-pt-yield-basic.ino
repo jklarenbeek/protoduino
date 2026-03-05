@@ -1,4 +1,6 @@
 /**
+ * examples/pt-yield-basic.ino
+ *
  * This example demonstrates two instances of a protothread which
  * randomly yields a number. If a threshold is reached (the random
  * number is greater then 191) the instance will exit. The proto
@@ -10,10 +12,11 @@
  * Instead it will remain in that state until we manually reset
  * each protothread instance at the beginning of the void loop()
  * function.
+ *
  */
-
 #include <protoduino.h>
 #include <dbg/print.h>
+
 
 /**
  * the protothread state structure is extended to hold
@@ -29,8 +32,7 @@ struct yield_pt {
   uint8_t value;
 };
 
-static void print_waitone(const struct yield_pt *p)
-{
+static void print_waitone(const struct yield_pt *p) {
   print_dec(print_count);
   print_P(PSTR(" - instance "));
   print_dec(p->node);
@@ -39,19 +41,18 @@ static void print_waitone(const struct yield_pt *p)
   println();
 }
 
-static void print_yield(const struct yield_pt *p)
-{
-    print_dec(print_count);
-    print_P(PSTR(" - instance "));
-    print_dec(p->node);
-    print_P(PSTR(" yield random(0, 255) = "));
-    print_P(p->value);
-    println();
-
+static void print_yield(const struct yield_pt *p) {
+  print_dec(print_count);
+  print_P(PSTR(" - instance "));
+  print_dec(p->node);
+  print_P(PSTR(" yield random(0, 255) = "));
+  /* Fix: p->value is uint8_t, not a string. Use print_dec() instead of
+   * print_P(). */
+  print_dec(p->value);
+  println();
 }
 
-static void print_thread(const ptstate_t s, const struct yield_pt *p)
-{
+static void print_thread(const ptstate_t s, const struct yield_pt *p) {
   print_state_ex_P(s, p->lc);
   print_dec(p->node);
   print_P(PSTR(" value: "));
@@ -65,14 +66,12 @@ static void print_thread(const ptstate_t s, const struct yield_pt *p)
  * to an singleton protothread which uses static variables inside
  * the protothread to hold its variable structure.
  */
-static ptstate_t protothread(struct yield_pt *self)
-{
+static ptstate_t protothread(struct yield_pt *self) {
   PT_BEGIN(self);
 
   // we loop 5 times, in order to reach a PT_ENDED state.
   // if we reach the threshold we set the state to PT_EXITED.
-  for(self->idx = 0; self->idx < 5; self->idx++)
-  {
+  for (self->idx = 0; self->idx < 5; self->idx++) {
     // increase to global counter so we can see some interesting behaviour.
     print_count++;
 
@@ -92,12 +91,10 @@ static ptstate_t protothread(struct yield_pt *self)
     // we reached the treshold so exit.
     if (self->value > 191)
       PT_EXIT(self);
-
   }
 
   PT_END(self);
 }
-
 
 /**
  * Finally, we have the main loop. Here is where the protothreads are
@@ -108,17 +105,13 @@ static ptstate_t protothread(struct yield_pt *self)
 static struct yield_pt pt1, pt2;
 static ptstate_t st1, st2;
 
-void setup()
-{
-  print_setup();
-}
+void setup() { print_setup(); }
 
 /**
  * Here we initialize the state and variable structure of each
  * protothread instance.
  */
-void init_pt(struct yield_pt * p, uint8_t node)
-{
+void init_pt(struct yield_pt *p, uint8_t node) {
   PT_INIT(p);
   p->node = node;
   p->idx = 0;
@@ -136,8 +129,7 @@ void init_pt(struct yield_pt * p, uint8_t node)
  * cycle through the protothread instances without changing
  * a exited or ended state.
  */
-bool run_once()
-{
+bool run_once() {
   print_line_P(PSTR(" - protopump is_running()"));
 
   bool running = false;
@@ -146,36 +138,32 @@ bool run_once()
   if (PT_ISRUNNING(st2 = protothread(&pt2)))
     running = true;
 
-  if (running == false)
-  {
+  if (running == false) {
     print_line_P(PSTR(" - end of protopump"));
   }
 
   return running;
 }
 
-void loop()
-{
+void loop() {
   print_line_P(PSTR("void loop()"));
 
   /* Initialize the protothread state variables. */
-  init_pt(&pt1,1);
-  init_pt(&pt2,2);
+  init_pt(&pt1, 1);
+  init_pt(&pt2, 2);
 
   // start the protopump and run until both protothread
   // instances have either exited, ended, or threw an error.
-  while(run_once()) {
+  while (run_once()) {
 
     print_thread(st1, &pt1);
     print_thread(st2, &pt2);
 
     delay(2000);
-
   }
 
   print_thread(st1, &pt1);
   print_thread(st2, &pt2);
 
   delay(2000);
-
 }

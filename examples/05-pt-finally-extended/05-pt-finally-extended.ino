@@ -1,16 +1,16 @@
 /***
+ * examples/pt-finally-extended.ino
  *
-*/
+ * PT_FINALLY extended example
+ */
 
 #include <protoduino.h>
-#include <sys/errors.h>
 #include <dbg/print.h>
+
 
 typedef ptstate_t (*protothread_t)(struct pt *self);
 
-
-static ptstate_t protothread1(struct pt *self)
-{
+static ptstate_t protothread1(struct pt *self) {
   PT_BEGIN(self);
 
   print_line_P(PSTR("protothread1: main workflow without errors"));
@@ -19,8 +19,7 @@ static ptstate_t protothread1(struct pt *self)
 
   print_line_P(PSTR("protothread1: PT_ENDED"));
 
-  PT_CATCHANY(self)
-  {
+  PT_CATCHANY(self) {
     print_error_P(PSTR("protothread1: PT_CATCHANY()"), PT_ERROR_STATE);
   }
 
@@ -31,22 +30,22 @@ static ptstate_t protothread1(struct pt *self)
   PT_END(self);
 }
 
-static ptstate_t protothread2(struct pt *self)
-{
+static ptstate_t protothread2(struct pt *self) {
   PT_BEGIN(self);
 
   print_line_P(PSTR("protothread2: PT_RAISE in main workflow"));
 
   PT_WAIT_ONE(self);
 
-  print_line_P(PSTR("protothread2: PT_RAISE(ERR_PROC_INVAL)"));
+  print_line_P(PSTR("protothread2: PT_RAISE(ERR_ARG_INVALID)"));
 
-  PT_RAISE(self, ERR_PROC_INVAL);
+  /* ERR_PROC_INVAL does not exist; ERR_ARG_INVALID (0x47) is the correct
+     error code for an invalid process/argument condition. */
+  PT_RAISE(self, ERR_ARG_INVALID);
 
   print_line_P(PSTR("protothread2: PT_ENDED"));
 
-  PT_CATCHANY(self)
-  {
+  PT_CATCHANY(self) {
     print_error_P(PSTR("protothread2: PT_CATCHANY()"), PT_ERROR_STATE);
   }
 
@@ -57,22 +56,22 @@ static ptstate_t protothread2(struct pt *self)
   PT_END(self);
 }
 
-static ptstate_t protothread3(struct pt *self)
-{
+static ptstate_t protothread3(struct pt *self) {
   PT_BEGIN(self);
 
   print_line_P(PSTR("protothread3: PT_THROW in main workflow"));
 
   PT_WAIT_ONE(self);
 
-  print_line_P(PSTR("protothread3: PT_THROW(ERR_PROC_INVAL)"));
+  print_line_P(PSTR("protothread3: PT_THROW(ERR_ARG_INVALID)"));
 
-  PT_THROW(self, ERR_PROC_INVAL);
+  /* ERR_PROC_INVAL does not exist; ERR_ARG_INVALID (0x47) is the correct
+     error code for an invalid process/argument condition. */
+  PT_THROW(self, ERR_ARG_INVALID);
 
   print_line_P(PSTR("protothread3: PT_ENDED"));
 
-  PT_CATCHANY(self)
-  {
+  PT_CATCHANY(self) {
     print_error_P(PSTR("protothread3: PT_CATCHANY()"), PT_ERROR_STATE);
   }
 
@@ -83,22 +82,22 @@ static ptstate_t protothread3(struct pt *self)
   PT_END(self);
 }
 
-static ptstate_t protothread4(struct pt *self)
-{
+static ptstate_t protothread4(struct pt *self) {
   PT_BEGIN(self);
 
   print_line_P(PSTR("protothread4: PT_RETHROW in PT_CATCHANY"));
 
   PT_WAIT_ONE(self);
 
-  print_line_P(PSTR("protothread4: PT_THROW(ERR_PROC_INVAL)"));
+  print_line_P(PSTR("protothread4: PT_THROW(ERR_ARG_INVALID)"));
 
-  PT_THROW(self, ERR_PROC_INVAL);
+  /* ERR_PROC_INVAL does not exist; ERR_ARG_INVALID (0x47) is the correct
+     error code for an invalid process/argument condition. */
+  PT_THROW(self, ERR_ARG_INVALID);
 
   print_line_P(PSTR("protothread4: PT_ENDED"));
 
-  PT_CATCHANY(self)
-  {
+  PT_CATCHANY(self) {
     print_error_P(PSTR("protothread4: PT_CATCHANY()"), PT_ERROR_STATE);
     PT_RETHROW(self);
   }
@@ -110,13 +109,9 @@ static ptstate_t protothread4(struct pt *self)
   PT_END(self);
 }
 
-void setup()
-{
-  print_setup();
-}
+void setup() { print_setup(); }
 
-void test_run(protothread_t protothread, uint8_t idx)
-{
+void test_run(protothread_t protothread, uint8_t idx) {
   print_line_val_P(PSTR("void test_run() START"), idx);
 
   static struct pt self;
@@ -124,8 +119,7 @@ void test_run(protothread_t protothread, uint8_t idx)
 
   // set the protothread control structure to the beginning of the protothread
   PT_INIT(&self);
-  while(PT_ISRUNNING(state = protothread(&self)))
-  {
+  while (PT_ISRUNNING(state = protothread(&self))) {
     print_state_P(PSTR("while PT_ISRUNNING(...) == TRUE"), state);
     delay(1000);
   }
@@ -134,19 +128,16 @@ void test_run(protothread_t protothread, uint8_t idx)
 
   // set the protothread control structure to the finally control block
   PT_FINAL(&self);
-  while(PT_ISRUNNING(state = protothread(&self)))
-  {
+  while (PT_ISRUNNING(state = protothread(&self))) {
     print_state_P(PSTR("while finally PT_ISRUNNING(...) == TRUE"), state);
     delay(1000);
   }
 
   print_state_P(PSTR("PT_RUNNING is finally done!"), state);
   delay(1000);
-
 }
 
-void loop()
-{
+void loop() {
   test_run(&protothread1, 1);
   print_count++;
   test_run(&protothread2, 2);

@@ -1,12 +1,14 @@
 /**
+ * examples/pt-wait-until-while.ino
+ *
  * This example demonstrates the use of the PT_WAIT_UNTIL() and
  * PT_WAIT_WHILE() macros.
  * Since each protothread contains a forever loop, this example
  * runs forever.
  */
-
 #include <protoduino.h>
 #include <dbg/print.h>
+
 
 /**
  * The first protothread function. A protothread function must always
@@ -16,14 +18,14 @@
  * The protothread function is driven by the main loop further down in
  * the code.
  */
-static ptstate_t protothread1(struct pt *pt)
-{
+static ptstate_t protothread1(struct pt *pt) {
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(pt);
 
-  /* We loop forever here. */
-  forever: while(1) {
+/* We loop forever here. */
+forever:
+  while (1) {
 
     print_count++;
     print_line_P(PSTR("Protothread 1 running; wait one"));
@@ -40,12 +42,11 @@ static ptstate_t protothread1(struct pt *pt)
  * The second protothread function. This is almost the same as the
  * first one.
  */
-static ptstate_t protothread2(struct pt *pt)
-{
+static ptstate_t protothread2(struct pt *pt) {
   PT_BEGIN(pt);
 
-  forever: while(1)
-  {
+forever:
+  while (1) {
     print_count++;
     print_line_P(PSTR("Protothread 2 running; wait until (count % 2) == 0"));
 
@@ -59,12 +60,11 @@ static ptstate_t protothread2(struct pt *pt)
  * The thirth protothread function. This is almost the same as the
  * first one and introduced to make the example a little more clear.
  */
-static ptstate_t protothread3(struct pt *pt)
-{
+static ptstate_t protothread3(struct pt *pt) {
   PT_BEGIN(pt);
 
-  forever: while(1)
-  {
+forever:
+  while (1) {
     print_count++;
     print_line_P(PSTR("Protothread 3 running; wait while (count % 3) != 0"));
 
@@ -74,7 +74,6 @@ static ptstate_t protothread3(struct pt *pt)
   PT_END(pt);
 }
 
-
 /**
  * Finally, we have the main loop. Here is where the protothreads are
  * initialized and scheduled. First, however, we define the
@@ -83,8 +82,7 @@ static ptstate_t protothread3(struct pt *pt)
  */
 static struct pt pt1, pt2, pt3;
 
-void setup()
-{
+void setup() {
   print_setup();
 
   /* Initialize the protothread state variables with PT_INIT(). */
@@ -93,8 +91,7 @@ void setup()
   PT_INIT(&pt3);
 }
 
-void loop()
-{
+void loop() {
   print_line_P(PSTR("void loop()"));
 
   print_state_P(PSTR("protothread1"), protothread1(&pt1));

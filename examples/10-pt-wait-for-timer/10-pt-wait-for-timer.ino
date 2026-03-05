@@ -1,16 +1,19 @@
-
+/**
+ * examples/pt-wait-for-timer.ino
+ *
+ * PT_WAIT_DELAY / timer example
+ */
 #include <protoduino.h>
 #include <sys/pt/timer.h>
 #include <dbg/print.h>
 
-struct timer_pt
-{
+
+struct timer_pt {
   lc_t lc;
   timer timer1;
 };
 
-static ptstate_t protothread1(struct timer_pt *pt)
-{
+static ptstate_t protothread1(struct timer_pt *pt) {
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(pt);
@@ -26,16 +29,15 @@ static ptstate_t protothread1(struct timer_pt *pt)
   /* All protothread functions must end with PT_END() which takes a
      pointer to a struct pt. */
   PT_END(pt);
-
 }
 
-static ptstate_t protothread2(struct pt *pt)
-{
+static ptstate_t protothread2(struct pt *pt) {
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(pt);
 
-  print_line_P(PSTR("Protothread 2: Setting timer2 for 5000 milliseconds and awaits."));
+  print_line_P(
+      PSTR("Protothread 2: Setting timer2 for 5000 milliseconds and awaits."));
 
   /* Be weary of the static variable being used by PT_WAIT_DELAY().
      This protothread should not be used in a multiple pt instances. */
@@ -46,19 +48,14 @@ static ptstate_t protothread2(struct pt *pt)
   /* All protothread functions must end with PT_END() which takes a
      pointer to a struct pt. */
   PT_END(pt);
-
 }
 
 static struct timer_pt pt1;
 static struct pt pt2;
 
-void setup()
-{
-  print_setup();
-}
+void setup() { print_setup(); }
 
-void loop()
-{
+void loop() {
   print_line_P(PSTR("void loop(): "));
 
   /* Initialize the protothread state variables each loop. */
@@ -67,12 +64,12 @@ void loop()
 
   print_line_P(PSTR("void loop(): using timer_expired()"));
 
-  while(PT_ISRUNNING(protothread1(&pt1)))
+  while (PT_ISRUNNING(protothread1(&pt1)))
     print_count++;
 
   print_line_P(PSTR("void loop(): using PT_WAIT_DELAY()"));
 
-  while(PT_ISRUNNING(protothread2(&pt2)))
+  while (PT_ISRUNNING(protothread2(&pt2)))
     print_count++;
 
   delay(1000);

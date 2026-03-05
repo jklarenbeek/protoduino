@@ -1,16 +1,19 @@
 /**
+ * examples/pt-wait-one-basic.ino
+ *
  * This example demonstrates a simple use of protothreads
  * Each protothread will run until a protothread is blocked
  * by the PT_WAIT_ONE() macro. Then the next protothread
  * will run until that thread hits a PT_WAIT_ONE(), etc, etc
  * When all three protothread have run one cylce, the
- * arduino runs the void loop() fu®nction again and runs
+ * arduino runs the void loop() function again and runs
  * each protothread until it hits PT_WAIT_ONE(). Since each
  * protothread contains a while(1)/forever loop, this will
  * go on forever.
  */
 #include <protoduino.h>
 #include <dbg/print.h>
+
 
 /**
  * The first protothread function. A protothread function must always
@@ -24,15 +27,14 @@
  * same as protothread 1.4 by Adam Dunkels.
  *
  */
-static ptstate_t protothread1(struct pt *pt)
-{
+static ptstate_t protothread1(struct pt *pt) {
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(pt);
 
-  /* We loop forever here. */
-  forever: while(1)
-  {
+/* We loop forever here. */
+forever:
+  while (1) {
     print_count++;
     print_line_P(PSTR("Protothread 1 running"));
 
@@ -48,11 +50,11 @@ static ptstate_t protothread1(struct pt *pt)
  * The second protothread function. This is almost the same as the
  * first one.
  */
-static ptstate_t protothread2(struct pt *pt)
-{
+static ptstate_t protothread2(struct pt *pt) {
   PT_BEGIN(pt);
 
-  forever: while(1) // and here too
+forever:
+  while (1) // and here too
   {
     print_count++;
     print_line_P(PSTR("Protothread 2 running"));
@@ -72,12 +74,11 @@ static ptstate_t protothread2(struct pt *pt)
  * The thirth protothread function. This is almost the same as the
  * first one and introduced to make the example a little more clear.
  */
-static ptstate_t protothread3(struct pt *pt)
-{
+static ptstate_t protothread3(struct pt *pt) {
   PT_BEGIN(pt);
 
-  forever: while(1)
-  {
+forever:
+  while (1) {
 
     print_count++;
     print_line_P(PSTR("Protothread 3 running"));
@@ -99,7 +100,6 @@ static ptstate_t protothread3(struct pt *pt)
   PT_END(pt);
 }
 
-
 /**
  * Finally, we have the main loop. Here is where the protothreads are
  * initialized and scheduled. First, however, we define the
@@ -108,19 +108,16 @@ static ptstate_t protothread3(struct pt *pt)
  */
 static struct pt pt1, pt2, pt3;
 
-void setup()
-{
+void setup() {
   print_setup();
 
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&pt1);
   PT_INIT(&pt2);
   PT_INIT(&pt3);
-
 }
 
-void loop()
-{
+void loop() {
   print_line_P(PSTR("void loop()"));
 
   print_state_P(PSTR("protothread1"), protothread1(&pt1));

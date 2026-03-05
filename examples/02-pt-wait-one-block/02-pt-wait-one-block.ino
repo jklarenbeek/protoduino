@@ -1,12 +1,14 @@
 /**
+ * examples/pt-wait-one-block.ino
+ *
  * This example demonstrates what happens when a protothread ends
  * or exits. It clearly shows how protothreads v1 is different from
  * protothread v2 in that the protothread is not automatically
  * reset to its init state when a protothread is ended or exited.
  */
-
 #include <protoduino.h>
 #include <dbg/print.h>
+
 
 /**
  * The first protothread function. A protothread function must always
@@ -20,8 +22,7 @@
  * same as protothread 1.8 by Adam Dunkels.
  *
  */
-static ptstate_t protothread1(struct pt *pt)
-{
+static ptstate_t protothread1(struct pt *pt) {
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(pt);
@@ -47,8 +48,7 @@ static ptstate_t protothread1(struct pt *pt)
  * The second protothread function. This is almost the same as the
  * first one.
  */
-static ptstate_t protothread2(struct pt *pt)
-{
+static ptstate_t protothread2(struct pt *pt) {
   PT_BEGIN(pt);
 
   print_count++;
@@ -68,8 +68,7 @@ static ptstate_t protothread2(struct pt *pt)
  * The thirth protothread function. This is almost the same as the
  * first one and introduced to make the example a little more clear.
  */
-static ptstate_t protothread3(struct pt *pt)
-{
+static ptstate_t protothread3(struct pt *pt) {
   PT_BEGIN(pt);
 
   print_count++;
@@ -90,7 +89,6 @@ static ptstate_t protothread3(struct pt *pt)
   PT_END(pt);
 }
 
-
 /**
  * Finally, we have the main loop. Here is where the protothreads are
  * initialized and scheduled. First, however, we define the
@@ -99,15 +97,13 @@ static ptstate_t protothread3(struct pt *pt)
  */
 static struct pt pt1, pt2, pt3;
 
-void setup()
-{
+void setup() {
   print_setup();
 
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&pt1);
   PT_INIT(&pt2);
   PT_INIT(&pt3);
-
 }
 
 /**
@@ -115,9 +111,8 @@ void setup()
  * automagically reschedule anymore when PT_END() has been reached.
  * Your output on the serial terminal will eventually only show 'void loop()'
  * commands.
-*/
-void loop()
-{
+ */
+void loop() {
   print_line_P(PSTR("void loop()"));
 
   print_state_P(PSTR("protothread1"), protothread1(&pt1));

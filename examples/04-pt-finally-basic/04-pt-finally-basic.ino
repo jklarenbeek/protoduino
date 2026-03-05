@@ -1,18 +1,19 @@
 /***
+ * examples/pt-finally-basic.ino
  *
-*/
-
+ * PT_FINALLY basic example
+ */
 #include <protoduino.h>
 #include <dbg/print.h>
 
-static ptstate_t protothread1(struct pt *self)
-{
+
+static ptstate_t protothread1(struct pt *self) {
   PT_BEGIN(self);
 
   print_line_P(PSTR("PT_BEGIN() protothread1"));
 
-  forever: while(1)
-  {
+forever:
+  while (1) {
     print_line_P(PSTR("PT_WAIT_ONE() protothread1"));
 
     PT_WAIT_ONE(self);
@@ -28,8 +29,7 @@ static ptstate_t protothread1(struct pt *self)
 
   print_line_P(PSTR("PT_ENDED protothread1"));
 
-  PT_CATCHANY(self)
-  {
+  PT_CATCHANY(self) {
     print_error_P(PSTR("PT_CATCHANY() protothread1"), PT_ERROR_STATE);
     PT_RETHROW(self);
   }
@@ -41,13 +41,9 @@ static ptstate_t protothread1(struct pt *self)
   PT_END(self);
 }
 
-void setup()
-{
-  print_setup();
-}
+void setup() { print_setup(); }
 
-void test1_run()
-{
+void test1_run() {
   print_line_P(PSTR("void test1_run() START"));
 
   static struct pt pt1;
@@ -56,8 +52,7 @@ void test1_run()
 
   // set the protothread control structure to the beginning of the protothread
   PT_INIT(&pt1);
-  while(PT_ISRUNNING(state = protothread1(&pt1)))
-  {
+  while (PT_ISRUNNING(state = protothread1(&pt1))) {
     print_state_P(PSTR("while PT_ISRUNNING(...) == TRUE"), state);
     delay(1000);
   }
@@ -66,19 +61,16 @@ void test1_run()
 
   // set the protothread control structure to the finally control block
   PT_FINAL(&pt1);
-  while(PT_ISRUNNING(state = protothread1(&pt1)))
-  {
+  while (PT_ISRUNNING(state = protothread1(&pt1))) {
     print_state_P(PSTR("while finally PT_ISRUNNING(...) == TRUE"), state);
     delay(1000);
   }
 
   print_state_P(PSTR("PT_RUNNING is finally done!"), state);
   delay(1000);
-
 }
 
-void loop()
-{
+void loop() {
   test1_run();
   print_count++;
 

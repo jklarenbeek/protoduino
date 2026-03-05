@@ -49,8 +49,7 @@ typedef enum psstate_t {
 #define PROCESS_EVENT_POLL EVENT_POLL   /* 2 => ERR_LOCK_CRITICAL = 0xFD */
 #define PROCESS_EVENT_EXIT EVENT_EXIT   /* 3 => ERR_LOCK_ATOMIC = 0xFC */
 #define PROCESS_EVENT_ERROR EVENT_ERROR /* 4 => ERR_CRIT_ABANDONED = 0xFB */
-#define PROCESS_EVENT_MSG                                                      \
-  EVENT_MSG /* ERR_CLEAN_LEAK (intended to carry ipc_msg_t*) */
+#define PROCESS_EVENT_MSG EVENT_MSGQ_SEC
 #define PROCESS_EVENT_PIPE EVENT_PIPE /* ERR_PIPE_BROKEN */
 
 /* Error information structure */
@@ -59,6 +58,7 @@ struct error_info {
   uint8_t severity : 3; /* Non = 0/Debug = 1/Flow/Verbose/Info/Warn/Error/Fatal
                            => Least signifant 3 bits */
   uint8_t reserved : 5;
+  uint8_t event; /* the event that triggered the error (e.g. PROCESS_EVENT_MSG) */
   uint8_t code; /* raw ptstate_t error code (>= PT_ERROR) */
 };
 
@@ -233,7 +233,13 @@ int process_post_from_isr(struct process *p, process_event_t ev,
 void process_poll(struct process *p);
 
 /* Convenience: report error to configured logger (if any) */
-void process_log(struct process *src, uint8_t code);
+void process_debug(struct process *src, process_event_t ev, uint8_t code);
+void process_flow(struct process *src, process_event_t ev, uint8_t code);
+void process_verbose(struct process *src, process_event_t ev, uint8_t code);
+void process_info(struct process *src, process_event_t ev, uint8_t code);
+void process_warn(struct process *src, process_event_t ev, uint8_t code);
+void process_error(struct process *src, process_event_t ev, uint8_t code);
+void process_fatal(struct process *src, process_event_t ev, uint8_t code);
 
 /* End of header */
 #endif /* __PROCESS_H__ */

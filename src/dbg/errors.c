@@ -4,6 +4,8 @@
  * If the S macro is not provided elsewhere, provide the
  * compile-time selector: tiny (short) vs verbose messages.
  */
+#include <protoduino.h>
+
 #ifndef S
 #if ERRORS_CONF_VERBOSE_MESSAGES
 #define S(tiny, verbose) (verbose)

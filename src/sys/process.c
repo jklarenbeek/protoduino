@@ -82,6 +82,27 @@ static int process_inbox_pop(struct process *p, struct process_event_entry *out)
 }
 #endif /* PROCESS_CONF_EVENT_INBOX */
 
+static void exit_process(struct process *p)
+{
+  if (!p || p->state == PROCESS_STATE_NONE)
+    return;
+
+  /* unlink from process_list */
+  struct process **q = &process_list;
+  while (*q)
+  {
+    if (*q == p)
+    {
+      *q = p->next;
+      break;
+    }
+    q = &((*q)->next);
+  }
+
+  p->state = PROCESS_STATE_NONE;
+  p->next = NULL;
+}
+
 /* Call a process's protothread and handle protothread v2 lifecycle correctly */
 static void call_process(struct process *p, process_event_t ev, process_data_t data)
 {
@@ -115,13 +136,13 @@ static void call_process(struct process *p, process_event_t ev, process_data_t d
     /* Post an error event to logger if it's an error */
     if (PT_ISERROR(ret) && process_error_logger)
     {
-      process_error(p, ret);
+      process_error(p, ev, ret);
     }
 
     /* Check for message leak *before* the process is removed */
     if (ev == PROCESS_EVENT_MSG && process_error_logger)
     {
-      process_log(5, src, PROCESS_EVENT_MSG, ERR_CLEAN_LEAKED);
+      process_warn(p, ev, ERR_CLEAN_LEAKED);
     }
 
     /* Arm the final state for the protothread */
@@ -195,7 +216,7 @@ static int do_event(void)
       if (pp->state != PROCESS_STATE_NONE)
       {
         call_process(pp, e.ev, e.data);
-        any++
+        any++;
       }
     }
     return any;
@@ -245,27 +266,6 @@ void process_start(struct process *p)
 
   /* send INIT */
   process_post(p, PROCESS_EVENT_INIT, NULL);
-}
-
-static void exit_process(struct process *p)
-{
-  if (!p || p->state == PROCESS_STATE_NONE)
-    return;
-
-  /* unlink from process_list */
-  struct process **q = &process_list;
-  while (*q)
-  {
-    if (*q == p)
-    {
-      *q = p->next;
-      break;
-    }
-    q = &((*q)->next);
-  }
-
-  p->state = PROCESS_STATE_NONE;
-  p->next = NULL;
 }
 
 void process_exit(struct process *p) {
@@ -367,30 +367,30 @@ static void process_log(struct process *src, uint8_t severity, process_event_t e
   process_post(process_error_logger, ev, &error_pool[idx]);
 }
 
-void process_debug(struct process *src, uint8_t code) {
-  process_log(src, 1, PROCESS_EVENT_ERROR, code);
+void process_debug(struct process *src, process_event_t ev /* = PROCESS_EVENT_ERROR */, uint8_t code) {
+  process_log(src, 1, ev, code);
 }
 
-void process_flow(struct process *src, uint8_t code) {
-  process_log(src, 2, PROCESS_EVENT_ERROR, code);
+void process_flow(struct process *src, process_event_t ev, uint8_t code) {
+  process_log(src, 2, ev, code);
 }
 
-void process_verbose(struct process *src, uint8_t code) {
-  process_log(src, 3, PROCESS_EVENT_ERROR, code);
+void process_verbose(struct process *src, process_event_t ev, uint8_t code) {
+  process_log(src, 3, ev, code);
 }
 
-void process_info(struct process *src, uint8_t code) {
-  process_log(src, 4, PROCESS_EVENT_ERROR, code);
+void process_info(struct process *src, process_event_t ev, uint8_t code) {
+  process_log(src, 4, ev, code);
 }
 
-void process_warn(struct process *src, uint8_t code) {
-  process_log(src, 5, PROCESS_EVENT_ERROR, code);
+void process_warn(struct process *src, process_event_t ev, uint8_t code) {
+  process_log(src, 5, ev, code);
 }
 
-void process_error(struct process *src, uint8_t code) {
-  process_log(src, 6, PROCESS_EVENT_ERROR, code);
+void process_error(struct process *src, process_event_t ev, uint8_t code) {
+  process_log(src, 6, ev, code);
 }
 
-void process_fatal(struct process *src, uint8_t code) {
-  process_log(src, 7, PROCESS_EVENT_ERROR, code);
+void process_fatal(struct process *src, process_event_t ev, uint8_t code) {
+  process_log(src, 7, ev, code);
 }

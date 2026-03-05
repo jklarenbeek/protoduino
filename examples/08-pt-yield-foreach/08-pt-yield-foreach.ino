@@ -1,4 +1,6 @@
 /**
+ * examples/pt-yield-foreach.ino
+ *
  * This example demonstrates the use of the PT_FOREACH() and
  * PT_ENDEACH() macro. The PT_FOREACH() macro works like the
  * PT_SPAWN() macro and accepts the same arguments. The
@@ -13,9 +15,9 @@
  * also reinitializes the child protothread.
  *
  */
-
 #include <protoduino.h>
 #include <dbg/print.h>
+
 
 /**
  * Although an iterator doesn't need to return a value, this example
@@ -30,16 +32,15 @@ struct yield_pt {
   uint8_t value;
 };
 
-static void print_iterator(struct yield_pt *it)
-{
-    print_dec(print_count);
-    print_P(PSTR(" - iterator "));
-    print_dec(it->node);
-    print_P(PSTR(" ("));
-    print_dec(it->lc);
-    print_P(PSTR(") yielded value: "));
-    print_dec((it->value));
-    println();
+static void print_iterator(struct yield_pt *it) {
+  print_dec(print_count);
+  print_P(PSTR(" - iterator "));
+  print_dec(it->node);
+  print_P(PSTR(" ("));
+  print_dec(it->lc);
+  print_P(PSTR(") yielded value: "));
+  print_dec((it->value));
+  println();
 }
 
 /**
@@ -48,14 +49,13 @@ static void print_iterator(struct yield_pt *it)
  * The protothread iterator is driven by the main_driver
  * protothread further down in the code.
  */
-static ptstate_t iterator1(struct yield_pt *self, uint8_t max)
-{
+static ptstate_t iterator1(struct yield_pt *self, uint8_t max) {
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(self);
 
   /* We loop for 'max' times. */
-  for(self->value = 0; self->value < max; ++self->value) {
+  for (self->value = 0; self->value < max; ++self->value) {
 
     /**
      * Notify the caller thread that a value has
@@ -87,14 +87,14 @@ static ptstate_t iterator1(struct yield_pt *self, uint8_t max)
  * The protothread iterator is driven by the main_driver
  * protothread further down in the code.
  */
-static ptstate_t iterator2(struct yield_pt *self, uint8_t max)
-{
+static ptstate_t iterator2(struct yield_pt *self, uint8_t max) {
   /* A protothread function must begin with PT_BEGIN() which takes a
      pointer to a struct pt. */
   PT_BEGIN(self);
 
-  /* We loop forever here. */
-  forever: while(1) {
+/* We loop forever here. */
+forever:
+  while (1) {
 
     /**
      * As previously mentioned is the calling PT_FOREACH macro non-
@@ -138,8 +138,7 @@ static ptstate_t iterator2(struct yield_pt *self, uint8_t max)
  * to the caller of the main_driver protothread; in this
  * case the void loop() function
  */
-static ptstate_t main_driver(struct pt *pt)
-{
+static ptstate_t main_driver(struct pt *pt) {
   static struct yield_pt it1, it2;
 
   PT_BEGIN(pt);
@@ -149,12 +148,11 @@ static ptstate_t main_driver(struct pt *pt)
   it1.node = 1;
   it2.node = 2;
 
-  PT_FOREACH(pt, &it1, iterator1(&it1, 16))
-  {
+  PT_FOREACH(pt, &it1, iterator1(&it1, 16)) {
     print_iterator(&it1);
 
     PT_FOREACH(pt, &it2, iterator2(&it2, 92))
-      print_iterator(&it2);
+    print_iterator(&it2);
     PT_ENDEACH(pt);
   }
   PT_ENDEACH(pt);
@@ -170,13 +168,9 @@ static ptstate_t main_driver(struct pt *pt)
  */
 static struct pt pt1;
 
-void setup()
-{
-  print_setup();
-}
+void setup() { print_setup(); }
 
-void loop()
-{
+void loop() {
   print_line_P(PSTR("void loop()"));
 
   /* Initialize the protothread state variables. */
@@ -186,13 +180,11 @@ void loop()
    * Call the main driver protothread until it exits,
    * ends or throws an error
    */
-  while(PT_ISRUNNING(main_driver(&pt1)))
-  {
+  while (PT_ISRUNNING(main_driver(&pt1))) {
     print_count++;
     delay(2000);
   }
 
   print_count++;
   delay(2000);
-
 }
