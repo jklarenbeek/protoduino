@@ -22,7 +22,7 @@ Both designs are:
 * **atomic** (via `CC_ATOMIC_RESTORE()` from `cc.h`)
 * **scheduler-independent**
 * tailored for **8-bit AVR / low-RAM** systems
-* fully integrated with your **Error Taxonomy (`errors.h`)**
+* fully integrated with the **Event Taxonomy (`events.h`)** and **Error Taxonomy (`errors.h`)**
 
 The IPC layer does **not** depend on the Protoduino scheduler.
 Integration is performed through a **user-supplied wake callback**.
@@ -249,7 +249,7 @@ This means:
 * Message pools do not know about event queues
 * `process.c` remains lean, small, and focused
 
-Your scheduler will attach pipes to processes later.
+The protoduino scheduler will attach pipes to processes later.
 
 ---
 
@@ -277,7 +277,7 @@ Now the `uart_process()` wakes whenever bytes arrive.
 
 # 4. Error Handling
 
-All IPC operations use the [Error Taxonomy](taxonomy.md).
+All IPC operations use the [Error Taxonomy](ontology.md) of the protoduino unified event error ontology.
 
 Examples:
 

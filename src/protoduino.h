@@ -11,6 +11,7 @@
 
 #include "protoduino-config.h"
 
+#include "sys/events.h"
 #include "sys/errors.h"
 #include "sys/pt.h"
 

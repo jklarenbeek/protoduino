@@ -59,7 +59,7 @@ static ptstate_t getch(struct echo_pt *self)
         rune = vt_esc_match(self->buf, self->idx);
         if (rune == UTF8_DECODE_ERROR)
         {
-          PT_THROW(self, ERR_COLL_KEY); // escape sequence not found.
+          PT_THROW(self, ERR_INPUT_INVALID); // escape sequence not found.
         }
 
         self->value = rune; // we found the keycode.

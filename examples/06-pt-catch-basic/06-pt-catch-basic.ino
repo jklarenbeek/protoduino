@@ -185,10 +185,8 @@ static ptstate_t protothread5(struct pt * self)
 
   print_line_P(PSTR("PT_BEGIN() protothread5"));
 
-  do {
-    static struct pt it1;
-    PT_SPAWN(self, &it1, iterator1(&it1));
-  } while(0);
+  static struct pt it1;
+  PT_SPAWN(self, &it1, iterator1(&it1));
 
   print_line_P(PSTR("PT_ENDED protothread5"));
 

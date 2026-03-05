@@ -1,26 +1,24 @@
 // file: ./src/dbg/errors.c
-#include "errors.h"
-
 
 /*
  * If the S macro is not provided elsewhere, provide the
  * compile-time selector: tiny (short) vs verbose messages.
  */
 #ifndef S
-  #if ERRORS_CONF_VERBOSE_MESSAGES
-    #define S(tiny, verbose) (verbose)
-  #else
-    #define S(tiny, verbose) (tiny)
-  #endif
+#if ERRORS_CONF_VERBOSE_MESSAGES
+#define S(tiny, verbose) (verbose)
+#else
+#define S(tiny, verbose) (tiny)
+#endif
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-const char *error_to_string(uint8_t err)
-{
-    switch (err) {
+const char *error_to_string(uint8_t err) {
+  switch (err) {
+#if 0
         // =====================================================================
         // QUADRANT 1: INIT / LIFECYCLE / SYSTEM STATE
         // ROOT: 0x00 (The Void / Success)
@@ -436,11 +434,11 @@ const char *error_to_string(uint8_t err)
         case ERR_CRIT_EXIT:       return S("E_EXIT", "Exit Failed");
         case ERR_CRIT_NESTED:     return S("E_CNEST", "Nested Overflow");
         case ERR_CRIT_ABANDONED:  return S("E_ABAND", "Abandoned");
-
-        // --- DEFAULT ---
-        default:
-            return S("UNK", "Unknown Ontology Code");
-    }
+#endif
+  // --- DEFAULT ---
+  default:
+    return S("UNK", "Unknown Ontology Code");
+  }
 }
 
 #ifdef __cplusplus

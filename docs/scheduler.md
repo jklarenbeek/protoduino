@@ -40,11 +40,11 @@ This scheduler is small, deterministic, and designed for resource-constrained mi
 * `struct process`: describes a process (priority, state, protothread control block, optional inbox).
 * `events[]` (global ring): each entry `{ dest, ev, data }` where dest==NULL means broadcast.
 * `process_list`: linked list of registered processes, sorted by priority (smaller numeric prio == higher priority).
-* `poll_requested` flag and per-process `needspoll` flag to indicate polls to be serviced.
+* `poll_requested` flag and per-process `needs_poll` flag to indicate polls to be serviced.
 
 ### Core loop (`process_run()`)
 
-1. If `poll_requested` is set, call `do_poll()` which scans process_list and calls each process with `PROCESS_EVENT_POLL` for those whose `needspoll` is set. `do_poll()` services *all* polls and returns if it ran any.
+1. If `poll_requested` is set, call `do_poll()` which scans process_list and calls each process with `PROCESS_EVENT_POLL` for those whose `needs_poll` is set. `do_poll()` services *all* polls and returns if it ran any.
 2. If no polls were handled, `process_run()` handles *exactly one* event from the global queue (or one per-process inbox item if enabled) and returns quickly. This is the "game loop" constraint: one event -> return.
 
 Why this pattern? On tiny MCUs, processing all polls first ensures responsive streaming (pipes) while bounding event processing time to a single event per `process_run()` call to keep frame/tick latency predictable.
@@ -54,10 +54,10 @@ Why this pattern? On tiny MCUs, processing all polls first ensures responsive st
 * `process_post(dest, ev, data)`:
 
   * Atomic: uses `CC_ATOMIC_RESTORE()` to safely update ring indices.
-  * If `PROCESS_CONF_PER_PROCESS_INBOX` is enabled and dest != NULL, the scheduler first tries to push into the recipient's inbox (fast path). If inbox full or not enabled, falls back to global queue.
+  * If `PROCESS_CONF_EVENT_INBOX` is enabled and dest != NULL, the scheduler first tries to push into the recipient's inbox (fast path). If inbox full or not enabled, falls back to global queue.
   * Returns 1 on success, 0 if the queue is full.
 
-* `process_poll(proc)`: sets `proc->needspoll = 1` and `poll_requested = 1`. Used by IPC pipes to notify readers that data arrived.
+* `process_poll(proc)`: sets `proc->needs_poll = 1` and `poll_requested = 1`. Used by IPC pipes to notify readers that data arrived.
 
 ### Event dispatch
 
@@ -297,7 +297,7 @@ Before labeling behavior "correct", run this checklist on target hardware (AVR /
 ### Configuration & compile-time checks
 
 * [ ] `PROCESS_CONF_EVENT_QUEUE_SIZE` set suitably for your memory and expected concurrency.
-* [ ] `PROCESS_CONF_PER_PROCESS_INBOX` configured as intended.
+* [ ] `PROCESS_CONF_EVENT_INBOX` configured as intended.
 * [ ] `CC_ATOMIC_RESTORE()` defined and maps to `ATOMIC_BLOCK(ATOMIC_RESTORESTATE)` on AVR.
 * [ ] `ipc_pool` buffers sized and aligned: `block_size >= sizeof(void*)`.
 
@@ -340,7 +340,7 @@ Before labeling behavior "correct", run this checklist on target hardware (AVR /
 * Fix:
 
   * Ensure `ipc_pipe_init(pipe, buf, size, pipe_wake_cb, (void*)reader_process)` with `pipe_wake_cb` implementing `process_poll(reader_proc)`.
-  * Verify `process_poll()` sets `poll_requested = 1` and `needspoll` for process.
+  * Verify `process_poll()` sets `poll_requested = 1` and `needs_poll` for process.
 
 #### 3) Processes never run after `PROCESS_START` or INIT ignored
 

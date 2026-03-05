@@ -70,26 +70,26 @@
 
 // A balanced diagonal from right top to left bottom
 // results in error codes 0x55 (85) and 0xAA (170) => ERR_IS_MOVEMENT(err)
-#define ERR_IS_BALANCED_ROOT(err) (err_op_center(err) == err_op_inverse(err))
+#define ERR_IS_PARITY(err) (err_op_center(err) == err_op_inverse(err))
 
 // A balanced diagonal from right top to left bottom
-#define ERR_IS_BALANCED_SHADOW(err) (ERR_IS_BALANCED(err) && ERR_IS_SHADOW(err))
+#define ERR_IS_ANTICODE(err) (ERR_IS_BALANCED(err) && ERR_IS_SHADOW(err))
 
 // A balanced circle in the middle of the 16x16 matrix
-#define ERR_IS_BALANCED_EDGE(err) (!ERR_IS_BALANCED_ROOT(err) && ERR_IS_BALANCED(err) && !ERR_IS_SHADOW(err))
+#define ERR_IS_MARGIN(err) (!ERR_IS_PARITY(err) && ERR_IS_BALANCED(err) && !ERR_IS_SHADOW(err))
 
 // An unbalanced diagonal from left top to right bottom
 // Only 0x00 and 0xFF
-#define ERR_IS_UNBALANCED_ROOT(err) (ERR_IS_ABSTRACT(err))
+#define ERR_IS_ABSOLUTE(err) (ERR_IS_ABSTRACT(err))
 
 // Diagonal from left top to right bottom (twin but not 00 or FF)
-#define ERR_IS_UNBALANCED_TWIN(err) ((!ERR_IS_ABSTRACT(err)) && ERR_IS_UNBALANCED(err) && ERR_IS_TWIN(err))
+#define ERR_IS_REPEATER(err) ((!ERR_IS_ABSTRACT(err)) && ERR_IS_UNBALANCED(err) && ERR_IS_TWIN(err))
 
 // Extreme imbalance (1 or 7 one's). Outer edge cirlce of the 16x16 matrix.
-#define ERR_IS_UNBALANCED_EDGE(err) (err_op_one_count(err) == 1 || err_op_one_count(err) == 7)
+#define ERR_IS_IMPULSE(err) (err_op_one_count(err) == 1 || err_op_one_count(err) == 7)
 
 // Everything else unbalanced
-#define ERR_IS_UNBALANCED_OTHER(err) (ERR_IS_UNBALANCED(err) && !ERR_IS_TWIN(err) && !ERR_IS_UNBALANCED_EDGE(err))
+#define ERR_IS_ASYMMETRY(err) (ERR_IS_UNBALANCED(err) && !ERR_IS_TWIN(err) && !ERR_IS_IMPULSE(err))
 
 static CC_ALWAYS_INLINE uint8_t err_op_inverse(uint8_t err) {
     // Inverse the cluster (EEEE DDDD)

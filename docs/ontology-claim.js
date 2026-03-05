@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// file: ./docs/numbers-proof.csv
+// file: ./docs/numbers-proof.js
 // Node.js 22.17.0 (ESM) implementation of the provided C99 macros and ops.
 // Produces CSV describing hierarchy and symmetry classes for bytes 0..255.
 
@@ -12,7 +12,7 @@ const ERR_SUCCESS = 0x00
 const ERR_YIELDING = 0x01
 const ERR_EXITING = 0x02
 const ERR_ENDING = 0x03
-const ERR_FINALIZED = 0x255 // the lifecycle has completely ended
+const ERR_FINALIZED = 0xFF // the lifecycle has completely ended
 function ERR_IS_RESERVED(err) {
   return err === ERR_SUCCESS
     || err === ERR_YIELDING
@@ -93,12 +93,12 @@ function ERR_IS_DOMAIN(err) {
   return !ERR_IS_ROOT(err) && ERR_IS_ROOT(err_op_center(err));
 }
 
-// Each domain has 4 sections and 12 per root
+// Each domain has 4 sections, thus 12 per root
 function ERR_IS_SECTION(err) {
   return err_op_depth(err) === 2;
 }
 
-// Each section has 14 leafs and thus 48 per root
+// Each section has 14 leafs and thus 48 per root, totaling in 192 leafs.
 function ERR_IS_LEAF(err) {
   return err_op_depth(err) === 3;
 }
@@ -129,35 +129,35 @@ function ERR_IS_UNBALANCED(err) {
   return !ERR_IS_BALANCED(err);
 }
 
-function ERR_IS_BALANCED_ROOT(err) {
+function ERR_IS_PARITY(err) {
   // return ERR_IS_MOVEMENT(err);
   return err_op_center(err) === err_op_inverse(err);
 }
 
-function ERR_IS_BALANCED_SHADOW(err) {
+function ERR_IS_ANTICODE(err) {
   return ERR_IS_BALANCED(err) && ERR_IS_SHADOW(err);
 }
 
-function ERR_IS_BALANCED_EDGE(err) {
-  return !ERR_IS_BALANCED_ROOT(err) && ERR_IS_BALANCED(err) && !ERR_IS_SHADOW(err);
+function ERR_IS_MARGIN(err) {
+  return !ERR_IS_PARITY(err) && ERR_IS_BALANCED(err) && !ERR_IS_SHADOW(err);
 }
 
-function ERR_IS_UNBALANCED_ROOT(err) {
+function ERR_IS_ABSOLUTE(err) {
   return ERR_IS_ABSTRACT(err);
 }
 
-function ERR_IS_UNBALANCED_TWIN(err) {
+function ERR_IS_REPEATER(err) {
   // !ERR_IS_ABSTRACT(err) && ERR_IS_TWIN(err)
   return !ERR_IS_ABSTRACT(err) && ERR_IS_UNBALANCED(err) && ERR_IS_TWIN(err);
 }
 
-function ERR_IS_UNBALANCED_EDGE(err) {
+function ERR_IS_IMPULSE(err) {
   const ones = err_op_one_count(err);
   return ones === 1 || ones === 7;
 }
 
-function ERR_IS_UNBALANCED_OTHER(err) {
-  return ERR_IS_UNBALANCED(err) && !ERR_IS_TWIN(err) && !ERR_IS_UNBALANCED_EDGE(err);
+function ERR_IS_ASYMMETRY(err) {
+  return ERR_IS_UNBALANCED(err) && !ERR_IS_TWIN(err) && !ERR_IS_IMPULSE(err);
 }
 
 function err_op_root(err) {
@@ -235,77 +235,77 @@ function formatBin8(x) {
   return x.toString(2).padStart(8, '0');
 }
 
+function toHex8(value) {
+ return '0x' + value.toString(16).padStart(2, '0').toUpperCase();
+}
+
+function toList(arr) {
+  return Array.isArray(arr) ? arr.join('|') : arr;
+}
+
+function toFloat(nmbr) {
+  return Number(nmbr).toFixed(8).replace(/\.?0+$/, '');
+}
+
 function classifyByte(b) {
   b = toByte(b);
   const classes = [];
+  const hierarchy = [];
   const symmetry = [];
 
-  // Balanced/unbalanced
-  if (ERR_IS_BALANCED(b)) classes.push('BALANCED');
-  if (ERR_IS_UNBALANCED(b)) classes.push('UNBALANCED');
+  // Reserved values (as defined in the C `pt.h` FSM macro's)
+  if (ERR_IS_RESERVED(b)) classes.push('RESERVED');
 
-  // The four main quadrants
-  if (ERR_IS_ABSTRACT(b)) classes.push('ABSTRACT');
-  if (ERR_IS_MOVEMENT(b)) classes.push('MOVING');
+  if (err_op_root(b) === ERR_ROOT_INIT) classes.push('INIT');
+  if (err_op_root(b) === ERR_ROOT_RUN) classes.push('RUN');
+  if (err_op_root(b) === ERR_ROOT_BEFORE) classes.push('BEFORE');
+  if (err_op_root(b) === ERR_ROOT_AFTER) classes.push('AFTER');
 
-  // Twin/shadow/etc
+  // Operators per quadrant Twin/shadow/etc
   if (ERR_IS_TWIN(b)) classes.push('TWIN');
   if (ERR_IS_SHADOW(b)) classes.push('SHADOW');
   if (ERR_IS_MIRROR(b)) classes.push('MIRROR');
 
+  // The four main quadrants divided in 2 classes
+  if (ERR_IS_ABSTRACT(b)) hierarchy.push('ABSTRACT');
+  if (ERR_IS_MOVEMENT(b)) hierarchy.push('MOVING');
+
   // Root/domain/section/leaf
-  if (ERR_IS_ROOT(b)) classes.push('ROOT');
-  if (ERR_IS_DOMAIN(b)) classes.push('DOMAIN');
-  if (ERR_IS_SECTION(b)) classes.push('SECTION');
-  if (ERR_IS_LEAF(b)) classes.push('LEAF');
+  if (ERR_IS_ROOT(b)) hierarchy.push('ROOT');
+  if (ERR_IS_DOMAIN(b)) hierarchy.push('DOMAIN');
+  if (ERR_IS_SECTION(b)) hierarchy.push('SECTION');
+  if (ERR_IS_LEAF(b)) hierarchy.push('LEAF');
 
-  // Specific balanced classes
-  if (ERR_IS_BALANCED_ROOT(b)) symmetry.push('BALANCED_ROOT');
-  if (ERR_IS_BALANCED_SHADOW(b)) symmetry.push('BALANCED_SHADOW');
-  if (ERR_IS_BALANCED_EDGE(b)) symmetry.push('BALANCED_EDGE');
+  // Balanced/unbalanced
+  if (ERR_IS_BALANCED(b)) symmetry.push('BALANCED');
+  if (ERR_IS_UNBALANCED(b)) symmetry.push('UNBALANCED');
 
-  // Unbalanced specifics
-  if (ERR_IS_UNBALANCED_ROOT(b)) symmetry.push('UNBALANCED_ROOT');
-  if (ERR_IS_UNBALANCED_TWIN(b)) symmetry.push('UNBALANCED_TWIN');
-  if (ERR_IS_UNBALANCED_EDGE(b)) symmetry.push('UNBALANCED_EDGE');
-  if (ERR_IS_UNBALANCED_OTHER(b)) symmetry.push('UNBALANCED_OTHER');
+  // Specific balanced symmetry classes (always BALANCED)
+  if (ERR_IS_PARITY(b)) symmetry.push('PARITY');
+  if (ERR_IS_ANTICODE(b)) symmetry.push('ANTICODE');
+  if (ERR_IS_MARGIN(b)) symmetry.push('MARGIN');
 
-  // Reserved values (as defined in the C macro)
-  if (ERR_IS_RESERVED(b)) classes.push('RESERVED');
-
-  // Add relations to roots and neighbors (diagnostic)
-  const center = err_op_center(b);
-  const inverse = err_op_inverse(b);
-  const reverse = err_op_reverse(b);
-  const opposite = err_op_opposite(b);
-  const root = err_op_root(b);
-  const depth = err_op_depth(b);
-  const ones = err_op_one_count(b);
-  const entropy = err_op_entropy(b);
-  const balance = ones / 8.0;
-
-  // relation to its center/inverse/reverse/opposite (to itself)
-  const rel_center = err_op_relation(b, center);
-  const rel_inverse = err_op_relation(b, inverse);
-  const rel_reverse = err_op_relation(b, reverse);
-  const rel_opposite = err_op_relation(b, opposite);
+  // Specific unbalanced symmetry classes (always UNBALANCED)
+  if (ERR_IS_ABSOLUTE(b)) symmetry.push('ABSOLUTE');
+  if (ERR_IS_REPEATER(b)) symmetry.push('REPEATER');
+  if (ERR_IS_IMPULSE(b)) symmetry.push('IMPULSE');
+  if (ERR_IS_ASYMMETRY(b)) symmetry.push('ASYMMETRY');
 
   return {
-    value: b,
-    hex: '0x' + b.toString(16).padStart(2, '0'),
+    hex: toHex8(b),
+    classes: toList(classes),
+    hierarchy: toList(hierarchy),
+    symmetry: toList(symmetry),
+    inverse: toHex8(err_op_inverse(b)),
+    opposite: toHex8(err_op_opposite(b)),
+    reverse: toHex8(err_op_reverse(b)),
+    parent: toHex8(err_op_center(b)),
+    depth: err_op_depth(b),
+    distance: err_op_distance(b, err_op_root(b)),
+    ones: err_op_one_count(b),
+    entropy: toFloat(err_op_entropy(b)),
     bin: formatBin8(b),
-    classes,
-    symmetry,
-    center,
-    root,
-    depth,
-    inverse,
-    reverse,
-    opposite,
-    ones,
-    zeros: 8 - ones,
-    entropy,
-    balance,
+    value: b,
   };
 }
 
@@ -323,30 +323,20 @@ function escapeCSV(val) {
 
 function objectToCSVRow(obj, columns) {
   return columns.map(col => {
-    if (col === 'classes') {
-      return escapeCSV(Array.isArray(obj.classes) ? obj.classes.join('|') : obj.classes);
-    }
-    if (col === 'symmetry') {
-      return escapeCSV(Array.isArray(obj.symmetry) ? obj.symmetry.join('|') : obj.symmetry);
-    }
-    if (col === 'entropy' || col === 'balance') {
-      return escapeCSV(Number(obj[col]).toFixed(8).replace(/\.?0+$/, ''));
-    }
     return escapeCSV(obj[col]);
   }).join(',');
 }
 
-function main_hierarchical_csv() {
-  const columns = [
-    'value', 'hex', 'bin', 'classes', 'symmetry', 'center', 'root', 'depth',
-    'inverse', 'reverse', 'opposite', 'ones', 'zeros', 'entropy', 'balance'
-  ];
+function main_hierarchical_csv(outputleafs = false) {
 
   // 1. Data Collection
   const allBytes = [];
   for (let i = 0; i < 256; i++) {
     allBytes.push(classifyByte(i));
   }
+
+  // and get its columns
+  const columns = Object.getOwnPropertyNames(allBytes[0]);
 
   // 2. Tree Construction (Adjacency List: Parent -> Children)
   const tree = {}; // Map<int, Array<Object>>
@@ -356,7 +346,7 @@ function main_hierarchical_csv() {
     if (ERR_IS_ROOT(b.value)) {
       roots.push(b);
     } else {
-      const parentVal = b.center;
+      const parentVal = err_op_center(b.value);
       if (!tree[parentVal]) tree[parentVal] = [];
       tree[parentVal].push(b);
     }
@@ -387,33 +377,37 @@ function main_hierarchical_csv() {
     // Separator between quadrants (except before the first one)
     if (rIndex > 0) console.log("");
 
-    console.log(`// [QUADRANT ${rIndex + 1}/4] ROOT: ${rootNode.hex} (${rootNode.classes.join('|')})`);
+    console.log(`// [QUADRANT ${rIndex + 1}/4] ROOT: ${rootNode.hex} (${rootNode.classes})`);
     console.log(objectToCSVRow(rootNode, columns));
 
     // Level 1: Domains (Children of Root)
     const domains = tree[rootNode.value] || [];
     sortChildren(domains);
 
-    domains.forEach(domainNode => {
+    domains.forEach((domainNode, dIndex) => {
+      console.log(`// Domain ${rIndex + 1}.${dIndex + 1}:`);
       console.log(objectToCSVRow(domainNode, columns));
 
       // Level 2: Sections (Children of Domain)
       const sections = tree[domainNode.value] || [];
       sortChildren(sections);
 
-      sections.forEach(sectionNode => {
+      sections.forEach((sectionNode, sIndex) => {
+        console.log(`// Section ${rIndex + 1}.${dIndex + 1}.${sIndex + 1}:`);
         console.log(objectToCSVRow(sectionNode, columns));
 
-        // Level 3: Leafs (Children of Section)
-        const leafs = tree[sectionNode.value] || [];
-        sortChildren(leafs);
+        // Level 3: Leafs (Children of Section, 192 leafs in total)
+        if (outputleafs) {
+          const leafs = tree[sectionNode.value] || [];
+          sortChildren(leafs);
 
-        leafs.forEach(leafNode => {
-          console.log(objectToCSVRow(leafNode, columns));
-        });
+          leafs.forEach(leafNode => {
+            console.log(objectToCSVRow(leafNode, columns));
+          });
+        }
       });
     });
   });
 }
 
-main_hierarchical_csv();
+main_hierarchical_csv(true);

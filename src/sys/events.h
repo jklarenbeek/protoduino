@@ -1,455 +1,629 @@
+
 // file: ./src/sys/events.h
-
-// -----------------------------------------------------------------------------
-// HYPER-BYTE EVENT TOPOLOGY
-// -----------------------------------------------------------------------------
-// Generated: 2025-01-10T00:00:00.000Z
-// Geometry:  16x16 Matrix (0..255) mapped to 4 Attractor Basins.
-// Hierarchy: ROOT(4) -> DOMAIN(12) -> SECTION(48) -> LEAF(192)
-// Logic:     Parent = ((Child << 1) & 0xF0) | ((Child >>> 1) & 0x0F)
-// Purpose:   Event taxonomy for process_post() and IPC message pump system
-// -----------------------------------------------------------------------------
-
 #ifndef __EVENTS_H__
 #define __EVENTS_H__
 
-#include <stdint.h>
-
+//
+// ONTOLOGICAL 8-BIT EVENT TAXONOMY
+#define __EVENTS_VERSION__ 3
 // -----------------------------------------------------------------------------
-// [QUADRANT 1/4] ROOT: 0x00 (UNBALANCED|ABSTRACT|TWIN|MIRROR|ROOT|RESERVED)
-// System Lifecycle & Initialization Events
+// Geometry:  16x16 Matrix (0..255) mapped to 4 Attractor Basins.
+// Logic:     Convergence via ((Child << 1) & 0xF0) | ((Child >> 1) & 0x0F)
+// Architecture: 4 ROOTS -> 12 DOMAINS -> 48 SECTIONS -> 192 LEAFS
+// Symmetry: TWINS (foundational), SHADOWS (complementary), MIRRORS
+// (bidirectional) Inverse mapping: ~event & 0xFF maps to corresponding error
+// code in errors.h
+// Duality: event = ~error & 0xFF  (bitwise inversion connects the two spaces)
+// Quadrant mapping:
+//   Q1 events (0x00) <-> Q4 errors (0xFF)  [INIT <-> RUN]
+//   Q2 events (0x55) <-> Q3 errors (0xAA)  [BEFORE <-> AFTER]
+//   Q3 events (0xAA) <-> Q2 errors (0x55)  [AFTER <-> BEFORE]
+//   Q4 events (0xFF) <-> Q1 errors (0x00)  [RUN <-> INIT]
+// User input: scalar (key/button) cast to process_data_t directly;
+//             vector (motion/touch/gesture) wrapped in ipc_msg_t* from pool.
 // -----------------------------------------------------------------------------
-
-#define EVENT_SYSTEM_ROOT           0x00  // 00000000 UNBALANCED|ABSTRACT|TWIN|MIRROR|ROOT|RESERVED - System root attractor (reserved)
-#define EVENT_NONE                  EVENT_SYSTEM_ROOT
-
-// Domain: System Lifecycle (0x01)
-#define EVENT_PROCESS_INIT          0x01  // 00000001 UNBALANCED|DOMAIN|RESERVED - Lifecycle management domain - Process initialization requested
-
-// Section: Process Lifecycle (0x02)
-#define EVENT_PROCESS_READY         0x02  // 00000010 UNBALANCED|SECTION|RESERVED - Process lifecycle section - Process ready for work
-#define EVENT_PROCESS_POLL          0x04  // 00000100 UNBALANCED|LEAF - Process poll request
-#define EVENT_PROCESS_STARTED       0x05  // 00000101 UNBALANCED|LEAF - Process has started execution
-#define EVENT_PROCESS_ACTIVE        0x84  // 10000100 UNBALANCED|LEAF - Process is actively running
-#define EVENT_PROCESS_CONTINUE      0x85  // 10000101 UNBALANCED|LEAF - Process continue request
-
-// Section: Process Termination (0x03)
-#define EVENT_PROCESS_PAUSED        0x03  // 00000011 UNBALANCED|SECTION|RESERVED - Process termination section - Process pause request
-#define EVENT_PROCESS_EXIT          0x06  // 00000110 UNBALANCED|LEAF - Process exit requested
-#define EVENT_PROCESS_STOPPED       0x07  // 00000111 UNBALANCED|LEAF - Process stopped cleanly
-#define EVENT_PROCESS_TERMINATED    0x86  // 10000110 UNBALANCED|LEAF - Process terminated
-#define EVENT_PROCESS_ERROR         0x87  // 10000111 BALANCED|SHADOW|LEAF - Process recieves an error
-
-// Section: System State Changes (0x82)
-#define EVENT_SYS_STATE_SEC         0x82  // 10000010 UNBALANCED|SECTION - System state section
-#define EVENT_SYSTEM_BOOT           0x44  // 01000100 UNBALANCED|TWIN|LEAF - System boot sequence start
-#define EVENT_SYSTEM_READY          0x45  // 01000101 UNBALANCED|LEAF - System ready for operation
-#define EVENT_SYSTEM_SUSPEND        0xC4  // 11000100 UNBALANCED|LEAF - System entering suspend
-#define EVENT_SYSTEM_RESUME         0xC5  // 11000101 BALANCED|LEAF - System resuming from suspend
-
-// Section: Power Management (0x83)
-#define EVENT_POWER_SEC             0x83  // 10000011 UNBALANCED|SECTION - Power management section
-#define EVENT_POWER_ON              0x46  // 01000110 UNBALANCED|LEAF - Power on event
-#define EVENT_POWER_LOW             0x47  // 01000111 BALANCED|LEAF - Low power warning
-#define EVENT_POWER_CRITICAL        0xC6  // 11000110 BALANCED|LEAF - Critical power level
-#define EVENT_POWER_OFF             0xC7  // 11000111 UNBALANCED|LEAF - Power off requested
-
-// Domain: Scheduler Events (0x80)
-#define EVENT_SCHEDULER_DOMAIN      0x80  // 10000000 UNBALANCED|DOMAIN - Scheduler control domain
-
-// Section: Scheduling Control (0x40)
-#define EVENT_SCHED_CTRL_SEC        0x40  // 01000000 UNBALANCED|SECTION - Scheduler control section
-#define EVENT_SCHEDULE_TICK         0x20  // 00100000 UNBALANCED|LEAF - Scheduler tick event
-#define EVENT_SCHEDULE_POLL         0x21  // 00100001 UNBALANCED|LEAF - Poll request for process
-#define EVENT_SCHEDULE_YIELD        0xA0  // 10100000 UNBALANCED|LEAF - Process yield requested
-#define EVENT_SCHEDULE_PREEMPT      0xA1  // 10100001 UNBALANCED|LEAF - Preemption event
-
-// Section: Priority & Queue (0x41)
-#define EVENT_PRIORITY_SEC          0x41  // 01000001 UNBALANCED|SECTION - Priority management section
-#define EVENT_PRIORITY_CHANGE       0x22  // 00100010 UNBALANCED|TWIN|LEAF - Process priority changed
-#define EVENT_PRIORITY_BOOST        0x23  // 00100011 UNBALANCED|LEAF - Priority temporarily boosted
-#define EVENT_QUEUE_FULL            0xA2  // 10100010 UNBALANCED|LEAF - Event queue full
-#define EVENT_QUEUE_AVAILABLE       0xA3  // 10100011 BALANCED|LEAF - Queue space available
-
-// Section: Timer Events (0xC0)
-#define EVENT_TIMER_SEC             0xC0  // 11000000 UNBALANCED|SECTION - Timer event section
-#define EVENT_TIMER_EXPIRED         0x60  // 01100000 UNBALANCED|LEAF - Timer expired
-#define EVENT_TIMER_STARTED         0x61  // 01100001 UNBALANCED|LEAF - Timer started
-#define EVENT_TIMER_STOPPED         0xE0  // 11100000 UNBALANCED|LEAF - Timer stopped
-#define EVENT_TIMER_RESET           0xE1  // 11100001 BALANCED|SHADOW|LEAF - Timer reset
-
-// Section: Watchdog & Monitoring (0xC1)
-#define EVENT_WATCHDOG_SEC          0xC1  // 11000001 UNBALANCED|SECTION - Watchdog section
-#define EVENT_WATCHDOG_TRIGGER      0x62  // 01100010 UNBALANCED|LEAF - Watchdog trigger
-#define EVENT_WATCHDOG_RESET        0x63  // 01100011 BALANCED|LEAF - Watchdog reset
-#define EVENT_MONITOR_ALERT         0xE2  // 11100010 BALANCED|LEAF - System monitor alert
-#define EVENT_MONITOR_CLEAR         0xE3  // 11100011 UNBALANCED|LEAF - Monitor alert cleared
-
-// Domain: Thread & Synchronization (0x81)
-#define EVENT_THREAD_DOMAIN         0x81  // 10000001 UNBALANCED|MIRROR|DOMAIN - Thread synchronization domain
-
-// Section: Thread Control (0x42)
-#define EVENT_THREAD_CTRL_SEC       0x42  // 01000010 UNBALANCED|MIRROR|SECTION - Thread control section
-#define EVENT_THREAD_CREATE         0x24  // 00100100 UNBALANCED|MIRROR|LEAF - Thread created
-#define EVENT_THREAD_SPAWN          0x25  // 00100101 UNBALANCED|LEAF - Thread spawned
-#define EVENT_THREAD_JOIN           0xA4  // 10100100 UNBALANCED|LEAF - Thread join requested
-#define EVENT_THREAD_DETACH         0xA5  // 10100101 BALANCED|SHADOW|MIRROR|LEAF - Thread detached
-
-// Section: Synchronization (0x43)
-#define EVENT_SYNC_SEC              0x43  // 01000011 UNBALANCED|SECTION - Synchronization section
-#define EVENT_MUTEX_ACQUIRED        0x26  // 00100110 UNBALANCED|LEAF - Mutex acquired
-#define EVENT_MUTEX_RELEASED        0x27  // 00100111 BALANCED|LEAF - Mutex released
-#define EVENT_SEMAPHORE_POST        0xA6  // 10100110 BALANCED|LEAF - Semaphore posted
-#define EVENT_SEMAPHORE_WAIT        0xA7  // 10100111 UNBALANCED|LEAF - Semaphore wait
-
-// Section: Condition Variables (0xC2)
-#define EVENT_CONDVAR_SEC           0xC2  // 11000010 UNBALANCED|SECTION - Condition variable section
-#define EVENT_CONDVAR_SIGNAL        0x64  // 01100100 UNBALANCED|LEAF - Condition signaled
-#define EVENT_CONDVAR_BROADCAST     0x65  // 01100101 BALANCED|LEAF - Condition broadcast
-#define EVENT_CONDVAR_WAIT          0xE4  // 11100100 BALANCED|LEAF - Condition wait entered
-#define EVENT_CONDVAR_TIMEOUT       0xE5  // 11100101 UNBALANCED|LEAF - Condition wait timeout
-
-// Section: Barriers & Latches (0xC3)
-#define EVENT_BARRIER_SEC           0xC3  // 11000011 BALANCED|SHADOW|MIRROR|SECTION - Barrier section
-#define EVENT_BARRIER_WAIT          0x66  // 01100110 BALANCED|TWIN|MIRROR|LEAF - Barrier wait
-#define EVENT_BARRIER_RELEASE       0x67  // 01100111 UNBALANCED|LEAF - Barrier released
-#define EVENT_LATCH_COUNT           0xE6  // 11100110 UNBALANCED|LEAF - Latch count decremented
-#define EVENT_LATCH_COMPLETE        0xE7  // 11100111 UNBALANCED|MIRROR|LEAF - Latch completed
-
-// -----------------------------------------------------------------------------
-// [QUADRANT 2/4] ROOT: 0x55 (BALANCED|MOVING|TWIN|ROOT)
-// User Input & Human Interface Events
-// -----------------------------------------------------------------------------
-
-#define EVENT_INPUT_ROOT            0x55  // 01010101 BALANCED|MOVING|TWIN|ROOT - User input root attractor
-
-// Domain: Keyboard Input (0x2A)
-#define EVENT_KEYBOARD_DOMAIN       0x2A  // 00101010 UNBALANCED|DOMAIN - Keyboard input domain
-
-// Section: Key Press/Release (0x14)
-#define EVENT_KEY_BASIC_SEC         0x14  // 00010100 UNBALANCED|SECTION - Basic key section
-#define EVENT_KEY_PRESSED           0x08  // 00001000 UNBALANCED|LEAF - Key pressed down
-#define EVENT_KEY_RELEASED          0x09  // 00001001 UNBALANCED|LEAF - Key released
-#define EVENT_KEY_REPEAT            0x88  // 10001000 UNBALANCED|TWIN|LEAF - Key auto-repeat
-#define EVENT_KEY_CHORD             0x89  // 10001001 UNBALANCED|LEAF - Key chord detected
-
-// Section: Modifier Keys (0x15)
-#define EVENT_KEY_MOD_SEC           0x15  // 00010101 UNBALANCED|SECTION - Modifier key section
-#define EVENT_KEY_SHIFT             0x0A  // 00001010 UNBALANCED|LEAF - Shift key state change
-#define EVENT_KEY_CTRL              0x0B  // 00001011 UNBALANCED|LEAF - Control key state change
-#define EVENT_KEY_ALT               0x8A  // 10001010 UNBALANCED|LEAF - Alt key state change
-#define EVENT_KEY_META              0x8B  // 10001011 BALANCED|LEAF - Meta/Win key state change
-
-// Section: Special Keys (0x94)
-#define EVENT_KEY_SPECIAL_SEC       0x94  // 10010100 UNBALANCED|SECTION - Special key section
-#define EVENT_KEY_FUNCTION          0x48  // 01001000 UNBALANCED|LEAF - Function key pressed
-#define EVENT_KEY_NAVIGATION        0x49  // 01001001 UNBALANCED|LEAF - Navigation key (arrows, home, end)
-#define EVENT_KEY_MEDIA             0xC8  // 11001000 UNBALANCED|LEAF - Media control key
-#define EVENT_KEY_SYSTEM            0xC9  // 11001001 BALANCED|LEAF - System key (power, sleep)
-
-// Section: Input Method (0x95)
-#define EVENT_INPUT_METHOD_SEC      0x95  // 10010101 BALANCED|SECTION - Input method section
-#define EVENT_IME_START             0x4A  // 01001010 UNBALANCED|LEAF - IME composition started
-#define EVENT_IME_UPDATE            0x4B  // 01001011 BALANCED|SHADOW|LEAF - IME composition updated
-#define EVENT_IME_COMMIT            0xCA  // 11001010 BALANCED|LEAF - IME text committed
-#define EVENT_IME_CANCEL            0xCB  // 11001011 UNBALANCED|LEAF - IME composition cancelled
-
-// Domain: Mouse & Pointer (0x2B)
-#define EVENT_MOUSE_DOMAIN          0x2B  // 00101011 BALANCED|DOMAIN - Mouse/pointer domain
-
-// Section: Mouse Buttons (0x16)
-#define EVENT_MOUSE_BTN_SEC         0x16  // 00010110 UNBALANCED|SECTION - Mouse button section
-#define EVENT_MOUSE_LEFT_DOWN       0x0C  // 00001100 UNBALANCED|LEAF - Left button pressed
-#define EVENT_MOUSE_LEFT_UP         0x0D  // 00001101 UNBALANCED|LEAF - Left button released
-#define EVENT_MOUSE_RIGHT_DOWN      0x8C  // 10001100 UNBALANCED|LEAF - Right button pressed
-#define EVENT_MOUSE_RIGHT_UP        0x8D  // 10001101 BALANCED|LEAF - Right button released
-
-// Section: Mouse Movement (0x17)
-#define EVENT_MOUSE_MOVE_SEC        0x17  // 00010111 BALANCED|SECTION - Mouse movement section
-#define EVENT_MOUSE_MOVE            0x0E  // 00001110 UNBALANCED|LEAF - Mouse moved
-#define EVENT_MOUSE_DRAG            0x0F  // 00001111 BALANCED|SHADOW|LEAF - Mouse drag operation
-#define EVENT_MOUSE_ENTER           0x8E  // 10001110 BALANCED|LEAF - Mouse entered region
-#define EVENT_MOUSE_LEAVE           0x8F  // 10001111 UNBALANCED|LEAF - Mouse left region
-
-// Section: Mouse Wheel (0x96)
-#define EVENT_WHEEL_SEC             0x96  // 10010110 BALANCED|SHADOW|SECTION - Mouse wheel section
-#define EVENT_WHEEL_VERTICAL        0x4C  // 01001100 UNBALANCED|LEAF - Vertical scroll
-#define EVENT_WHEEL_HORIZONTAL      0x4D  // 01001101 BALANCED|LEAF - Horizontal scroll
-#define EVENT_WHEEL_TILT            0xCC  // 11001100 BALANCED|TWIN|LEAF - Wheel tilt
-#define EVENT_WHEEL_ZOOM            0xCD  // 11001101 UNBALANCED|LEAF - Zoom gesture via wheel
-
-// Section: Advanced Pointer (0x97)
-#define EVENT_POINTER_SEC           0x97  // 10010111 UNBALANCED|SECTION - Advanced pointer section
-#define EVENT_POINTER_DOWN          0x4E  // 01001110 BALANCED|LEAF - Pointer/pen down
-#define EVENT_POINTER_UP            0x4F  // 01001111 UNBALANCED|LEAF - Pointer/pen up
-#define EVENT_POINTER_HOVER         0xCE  // 11001110 UNBALANCED|LEAF - Pointer hovering
-#define EVENT_POINTER_CANCEL        0xCF  // 11001111 UNBALANCED|LEAF - Pointer cancelled
-
-// Domain: Touch & Gesture (0xAB)
-#define EVENT_TOUCH_DOMAIN          0xAB  // 10101011 UNBALANCED|DOMAIN - Touch/gesture domain
-
-// Section: Touch Events (0x56)
-#define EVENT_TOUCH_SEC             0x56  // 01010110 BALANCED|SECTION - Touch event section
-#define EVENT_TOUCH_START           0x2C  // 00101100 UNBALANCED|LEAF - Touch started
-#define EVENT_TOUCH_MOVE            0x2D  // 00101101 BALANCED|SHADOW|LEAF - Touch moved
-#define EVENT_TOUCH_END             0xAC  // 10101100 BALANCED|LEAF - Touch ended
-#define EVENT_TOUCH_CANCEL          0xAD  // 10101101 UNBALANCED|LEAF - Touch cancelled
-
-// Section: Multi-Touch (0x57)
-#define EVENT_MULTITOUCH_SEC        0x57  // 01010111 UNBALANCED|SECTION - Multi-touch section
-#define EVENT_TOUCH_TAP             0x2E  // 00101110 BALANCED|LEAF - Single tap
-#define EVENT_TOUCH_DOUBLE_TAP      0x2F  // 00101111 UNBALANCED|LEAF - Double tap
-#define EVENT_TOUCH_LONG_PRESS      0xAE  // 10101110 UNBALANCED|LEAF - Long press
-#define EVENT_TOUCH_FORCE           0xAF  // 10101111 UNBALANCED|LEAF - Force touch/3D touch
-
-// Section: Gestures (0xD6)
-#define EVENT_GESTURE_SEC           0xD6  // 11010110 UNBALANCED|SECTION - Gesture section
-#define EVENT_GESTURE_SWIPE         0x6C  // 01101100 BALANCED|LEAF - Swipe gesture
-#define EVENT_GESTURE_PINCH         0x6D  // 01101101 UNBALANCED|LEAF - Pinch gesture
-#define EVENT_GESTURE_ROTATE        0xEC  // 11101100 UNBALANCED|LEAF - Rotation gesture
-#define EVENT_GESTURE_PAN           0xED  // 11101101 UNBALANCED|LEAF - Pan gesture
-
-// Section: Custom Gestures (0xD7)
-#define EVENT_CUSTOM_GESTURE_SEC    0xD7  // 11010111 UNBALANCED|SECTION - Custom gesture section
-#define EVENT_GESTURE_CUSTOM_1      0x6E  // 01101110 UNBALANCED|LEAF - Custom gesture 1
-#define EVENT_GESTURE_CUSTOM_2      0x6F  // 01101111 UNBALANCED|LEAF - Custom gesture 2
-#define EVENT_GESTURE_CUSTOM_3      0xEE  // 11101110 UNBALANCED|TWIN|LEAF - Custom gesture 3
-#define EVENT_GESTURE_RECOGNIZED    0xEF  // 11101111 UNBALANCED|LEAF - Gesture recognition complete
-
-// -----------------------------------------------------------------------------
-// [QUADRANT 3/4] ROOT: 0xAA (BALANCED|MOVING|TWIN|ROOT)
-// Communication & I/O Events
-// -----------------------------------------------------------------------------
-
-#define EVENT_IO_ROOT               0xAA  // 10101010 BALANCED|MOVING|TWIN|ROOT - I/O and communication root
-
-// Domain: Serial Communication (0x54)
-#define EVENT_SERIAL_DOMAIN         0x54  // 01010100 UNBALANCED|DOMAIN - Serial communication domain
-
-// Section: UART Events (0x28)
-#define EVENT_UART_SEC              0x28  // 00101000 UNBALANCED|SECTION - UART section
-#define EVENT_UART_RX_READY         0x10  // 00010000 UNBALANCED|LEAF - UART receive ready
-#define EVENT_UART_RX_COMPLETE      0x11  // 00010001 UNBALANCED|TWIN|LEAF - UART receive complete
-#define EVENT_UART_TX_READY         0x90  // 10010000 UNBALANCED|LEAF - UART transmit ready
-#define EVENT_UART_TX_COMPLETE      0x91  // 10010001 UNBALANCED|LEAF - UART transmit complete
-
-// Section: Serial Errors (0x29) - OBSOLETE
-// TODO: replace this section, since we have only one error event `EVENT_PROCESS_ERROR`.
-//       the error itself can be given as data to the `EVENT_PROCESS_ERROR`.
-#define EVENT_SERIAL_ERR_SEC        0x29  // 00101001 UNBALANCED|SECTION - Serial error section
-#define EVENT_UART_OVERRUN          0x12  // 00010010 UNBALANCED|LEAF - UART overrun detected
-#define EVENT_UART_FRAMING          0x13  // 00010011 UNBALANCED|LEAF - UART framing error
-#define EVENT_UART_PARITY           0x92  // 10010010 UNBALANCED|LEAF - UART parity error
-#define EVENT_UART_BREAK            0x93  // 10010011 BALANCED|LEAF - UART break detected
-
-// Section: SPI Events (0xA8)
-#define EVENT_SPI_SEC               0xA8  // 10101000 UNBALANCED|SECTION - SPI section
-#define EVENT_SPI_TRANSFER_START    0x50  // 01010000 UNBALANCED|LEAF - SPI transfer started
-#define EVENT_SPI_TRANSFER_DONE     0x51  // 01010001 UNBALANCED|LEAF - SPI transfer complete
-#define EVENT_SPI_SELECT            0xD0  // 11010000 UNBALANCED|LEAF - SPI slave selected
-#define EVENT_SPI_DESELECT          0xD1  // 11010001 BALANCED|LEAF - SPI slave deselected
-
-// Section: I2C Events (0xA9)
-#define EVENT_I2C_SEC               0xA9  // 10101001 BALANCED|SECTION - I2C section
-#define EVENT_I2C_START             0x52  // 01010010 UNBALANCED|LEAF - I2C start condition
-#define EVENT_I2C_STOP              0x53  // 01010011 BALANCED|LEAF - I2C stop condition
-#define EVENT_I2C_ACK               0xD2  // 11010010 BALANCED|SHADOW|LEAF - I2C acknowledge
-#define EVENT_I2C_NACK              0xD3  // 11010011 UNBALANCED|LEAF - I2C not-acknowledge
-
-// Domain: Network Events (0xD4)
-#define EVENT_NETWORK_DOMAIN        0xD4  // 11010100 BALANCED|DOMAIN - Network communication domain
-
-// Section: Connection (0x68)
-#define EVENT_NET_CONN_SEC          0x68  // 01101000 UNBALANCED|SECTION - Network connection section
-#define EVENT_NET_CONNECT           0x30  // 00110000 UNBALANCED|LEAF - Network connection established
-#define EVENT_NET_DISCONNECT        0x31  // 00110001 UNBALANCED|LEAF - Network disconnected
-#define EVENT_NET_RECONNECT         0xB0  // 10110000 UNBALANCED|LEAF - Network reconnection attempt
-#define EVENT_NET_TIMEOUT           0xB1  // 10110001 BALANCED|LEAF - Network timeout
-
-// Section: Data Transfer (0x69)
-#define EVENT_NET_DATA_SEC          0x69  // 01101001 BALANCED|SHADOW|SECTION - Network data section
-#define EVENT_NET_DATA_RECEIVED     0x32  // 00110010 UNBALANCED|LEAF - Network data received
-#define EVENT_NET_DATA_SENT         0x33  // 00110011 BALANCED|TWIN|LEAF - Network data sent
-#define EVENT_NET_PACKET_READY      0xB2  // 10110010 BALANCED|LEAF - Network packet ready
-#define EVENT_NET_BUFFER_FULL       0xB3  // 10110011 UNBALANCED|LEAF - Network buffer full
-
-// Section: Protocol Events (0xE8)
-#define EVENT_PROTOCOL_SEC          0xE8  // 11101000 BALANCED|SECTION - Protocol section
-#define EVENT_PROTOCOL_HANDSHAKE    0x70  // 01110000 UNBALANCED|LEAF - Protocol handshake
-#define EVENT_PROTOCOL_NEGOTIATED   0x71  // 01110001 BALANCED|LEAF - Protocol negotiated
-#define EVENT_PROTOCOL_UPGRADE      0xF0  // 11110000 BALANCED|SHADOW|LEAF - Protocol upgrade
-#define EVENT_PROTOCOL_DOWNGRADE    0xF1  // 11110001 UNBALANCED|LEAF - Protocol downgrade
-
-// Section: MQTT/PubSub (0xE9)
-#define EVENT_MQTT_SEC              0xE9  // 11101001 UNBALANCED|SECTION - MQTT/PubSub section
-#define EVENT_MQTT_CONNECT          0x72  // 01110010 BALANCED|LEAF - MQTT connected
-#define EVENT_MQTT_PUBLISH          0x73  // 01110011 UNBALANCED|LEAF - MQTT message published
-#define EVENT_MQTT_SUBSCRIBE        0xF2  // 11110010 UNBALANCED|LEAF - MQTT topic subscribed
-#define EVENT_MQTT_MESSAGE          0xF3  // 11110011 UNBALANCED|LEAF - MQTT message received
-
-// Domain: File & Storage (0xD5)
-#define EVENT_STORAGE_DOMAIN        0xD5  // 11010101 UNBALANCED|DOMAIN - File/storage domain
-
-// Section: File Operations (0x6A)
-#define EVENT_FILE_SEC              0x6A  // 01101010 BALANCED|SECTION - File operation section
-#define EVENT_FILE_OPEN             0x34  // 00110100 UNBALANCED|LEAF - File opened
-#define EVENT_FILE_CLOSE            0x35  // 00110101 BALANCED|LEAF - File closed
-#define EVENT_FILE_READ             0xB4  // 10110100 BALANCED|SHADOW|LEAF - File read complete
-#define EVENT_FILE_WRITE            0xB5  // 10110101 UNBALANCED|LEAF - File write complete
-
-// Section: Directory (0x6B)
-#define EVENT_DIR_SEC               0x6B  // 01101011 UNBALANCED|SECTION - Directory section
-#define EVENT_DIR_CREATED           0x36  // 00110110 BALANCED|LEAF - Directory created
-#define EVENT_DIR_DELETED           0x37  // 00110111 UNBALANCED|LEAF - Directory deleted
-#define EVENT_DIR_SCAN_START        0xB6  // 10110110 UNBALANCED|LEAF - Directory scan started
-#define EVENT_DIR_SCAN_DONE         0xB7  // 10110111 UNBALANCED|LEAF - Directory scan complete
-
-// Section: Storage Media (0xEA)
-#define EVENT_MEDIA_SEC             0xEA  // 11101010 UNBALANCED|SECTION - Storage media section
-#define EVENT_MEDIA_INSERTED        0x74  // 01110100 BALANCED|LEAF - Media inserted
-#define EVENT_MEDIA_REMOVED         0x75  // 01110101 UNBALANCED|LEAF - Media removed
-#define EVENT_MEDIA_FULL            0xF4  // 11110100 UNBALANCED|LEAF - Storage media full
-#define EVENT_MEDIA_ERROR           0xF5  // 11110101 UNBALANCED|LEAF - Storage media error
-
-// Section: Flash/EEPROM (0xEB)
-#define EVENT_FLASH_SEC             0xEB  // 11101011 UNBALANCED|SECTION - Flash/EEPROM section
-#define EVENT_FLASH_ERASE_START     0x76  // 01110110 UNBALANCED|LEAF - Flash erase started
-#define EVENT_FLASH_ERASE_DONE      0x77  // 01110111 UNBALANCED|TWIN|LEAF - Flash erase complete
-#define EVENT_FLASH_PROGRAM         0xF6  // 11110110 UNBALANCED|LEAF - Flash programmed
-#define EVENT_FLASH_VERIFY          0xF7  // 11110111 UNBALANCED|LEAF - Flash verification complete
-
-// -----------------------------------------------------------------------------
-// [QUADRANT 4/4] ROOT: 0xFF (UNBALANCED|ABSTRACT|TWIN|MIRROR|ROOT)
-// Hardware, Sensors & Display Events
-// -----------------------------------------------------------------------------
-
-#define EVENT_HARDWARE_ROOT         0xFF  // 11111111 UNBALANCED|ABSTRACT|TWIN|MIRROR|ROOT - Hardware root attractor
-
-// Domain: GPIO & Digital I/O (0x7E)
-#define EVENT_GPIO_DOMAIN           0x7E  // 01111110 UNBALANCED|MIRROR|DOMAIN - GPIO domain
-
-// Section: Pin State (0x3C)
-#define EVENT_PIN_SEC               0x3C  // 00111100 BALANCED|SHADOW|MIRROR|SECTION - Pin state section
-#define EVENT_PIN_HIGH              0x18  // 00011000 UNBALANCED|MIRROR|LEAF - Pin went high
-#define EVENT_PIN_LOW               0x19  // 00011001 UNBALANCED|LEAF - Pin went low
-#define EVENT_PIN_TOGGLE            0x98  // 10011000 UNBALANCED|LEAF - Pin toggled
-#define EVENT_PIN_CHANGE            0x99  // 10011001 BALANCED|TWIN|MIRROR|LEAF - Pin change interrupt
-
-// Section: Interrupts (0x3D)
-#define EVENT_INTERRUPT_SEC         0x3D  // 00111101 UNBALANCED|SECTION - Interrupt section
-#define EVENT_INT_RISING            0x1A  // 00011010 UNBALANCED|LEAF - Rising edge interrupt
-#define EVENT_INT_FALLING           0x1B  // 00011011 BALANCED|LEAF - Falling edge interrupt
-#define EVENT_INT_BOTH              0x9A  // 10011010 BALANCED|LEAF - Both edges interrupt
-#define EVENT_INT_LEVEL             0x9B  // 10011011 UNBALANCED|LEAF - Level-triggered interrupt
-
-// Section: PWM & Analog (0xBC)
-#define EVENT_PWM_SEC               0xBC  // 10111100 UNBALANCED|SECTION - PWM section
-#define EVENT_PWM_CYCLE_COMPLETE    0x58  // 01011000 UNBALANCED|LEAF - PWM cycle complete
-#define EVENT_PWM_DUTY_CHANGED      0x59  // 01011001 BALANCED|LEAF - PWM duty cycle changed
-#define EVENT_ADC_CONVERSION_DONE   0xD8  // 11011000 BALANCED|LEAF - ADC conversion complete
-#define EVENT_DAC_UPDATE            0xD9  // 11011001 UNBALANCED|LEAF - DAC output updated
-
-// Section: Timers & Counters (0xBD)
-#define EVENT_COUNTER_SEC           0xBD  // 10111101 UNBALANCED|MIRROR|SECTION - Counter section
-#define EVENT_COUNTER_OVERFLOW      0x5A  // 01011010 BALANCED|SHADOW|MIRROR|LEAF - Counter overflow
-#define EVENT_COUNTER_MATCH         0x5B  // 01011011 UNBALANCED|LEAF - Counter match event
-#define EVENT_COUNTER_CAPTURE       0xDA  // 11011010 UNBALANCED|LEAF - Input capture event
-#define EVENT_COUNTER_COMPARE       0xDB  // 11011011 UNBALANCED|MIRROR|LEAF - Compare match event
-
-// Domain: Sensors (0x7F)
-#define EVENT_SENSOR_DOMAIN         0x7F  // 01111111 UNBALANCED|DOMAIN - Sensor domain
-
-// Section: Motion Sensors (0x3E)
-#define EVENT_MOTION_SEC            0x3E  // 00111110 UNBALANCED|SECTION - Motion sensor section
-#define EVENT_ACCEL_DATA            0x1C  // 00011100 UNBALANCED|LEAF - Accelerometer data ready
-#define EVENT_GYRO_DATA             0x1D  // 00011101 BALANCED|LEAF - Gyroscope data ready
-#define EVENT_COMPASS_DATA          0x9C  // 10011100 BALANCED|LEAF - Compass/magnetometer data
-#define EVENT_IMU_CALIBRATED        0x9D  // 10011101 UNBALANCED|LEAF - IMU calibration complete
-
-// Section: Environmental (0x3F)
-#define EVENT_ENV_SEC               0x3F  // 00111111 UNBALANCED|SECTION - Environmental sensor section
-#define EVENT_TEMP_READING          0x1E  // 00011110 BALANCED|SHADOW|LEAF - Temperature reading ready
-#define EVENT_HUMIDITY_READING      0x1F  // 00011111 UNBALANCED|LEAF - Humidity reading ready
-#define EVENT_PRESSURE_READING      0x9E  // 10011110 UNBALANCED|LEAF - Pressure reading ready
-#define EVENT_LIGHT_READING         0x9F  // 10011111 UNBALANCED|LEAF - Light sensor reading
-
-// Section: Proximity & Distance (0xBE)
-#define EVENT_PROXIMITY_SEC         0xBE  // 10111110 UNBALANCED|SECTION - Proximity section
-#define EVENT_PROXIMITY_NEAR        0x5C  // 01011100 BALANCED|LEAF - Object near
-#define EVENT_PROXIMITY_FAR         0x5D  // 01011101 UNBALANCED|LEAF - Object far
-#define EVENT_DISTANCE_MEASURED     0xDC  // 11011100 UNBALANCED|LEAF - Distance measurement ready
-#define EVENT_ULTRASONIC_ECHO       0xDD  // 11011101 UNBALANCED|TWIN|LEAF - Ultrasonic echo received
-
-// Section: Biometric (0xBF)
-#define EVENT_BIOMETRIC_SEC         0xBF  // 10111111 UNBALANCED|SECTION - Biometric section
-#define EVENT_FINGERPRINT_MATCH     0x5E  // 01011110 UNBALANCED|LEAF - Fingerprint matched
-#define EVENT_HEARTRATE_READING     0x5F  // 01011111 UNBALANCED|LEAF - Heart rate reading
-#define EVENT_BIOMETRIC_TIMEOUT     0xDE  // 11011110 UNBALANCED|LEAF - Biometric scan timeout
-#define EVENT_BIOMETRIC_FAIL        0xDF  // 11011111 UNBALANCED|LEAF - Biometric authentication failed
-
-// Domain: Display & Graphics (0xFE)
-#define EVENT_DISPLAY_DOMAIN        0xFE  // 11111110 UNBALANCED|DOMAIN - Display domain
-
-// Section: Screen Events (0x7C)
-#define EVENT_SCREEN_SEC            0x7C  // 01111100 UNBALANCED|SECTION - Screen section
-#define EVENT_SCREEN_REFRESH        0x38  // 00111000 UNBALANCED|LEAF - Screen refresh complete
-#define EVENT_VSYNC                 0x39  // 00111001 BALANCED|LEAF - Vertical sync signal
-#define EVENT_HSYNC                 0xB8  // 10111000 BALANCED|LEAF - Horizontal sync signal
-#define EVENT_FRAME_COMPLETE        0xB9  // 10111001 UNBALANCED|LEAF - Frame rendering complete
-
-// Section: Rendering (0x7D)
-#define EVENT_RENDER_SEC            0x7D  // 01111101 UNBALANCED|SECTION - Rendering section
-#define EVENT_RENDER_START          0x3A  // 00111010 BALANCED|LEAF - Rendering started
-#define EVENT_RENDER_DONE           0x3B  // 00111011 UNBALANCED|LEAF - Rendering complete
-#define EVENT_BUFFER_SWAP           0xBA  // 10111010 UNBALANCED|LEAF - Display buffer swapped
-#define EVENT_SPRITE_UPDATE         0xBB  // 10111011 UNBALANCED|TWIN|LEAF - Sprite updated
-
-// Section: Window Events (0xFC)
-#define EVENT_WINDOW_SEC            0xFC  // 11111100 UNBALANCED|SECTION - Window section
-#define EVENT_WINDOW_RESIZE         0x78  // 01111000 BALANCED|SHADOW|LEAF - Window resized
-#define EVENT_WINDOW_FOCUS          0x79  // 01111001 UNBALANCED|LEAF - Window gained focus
-#define EVENT_WINDOW_BLUR           0xF8  // 11111000 UNBALANCED|LEAF - Window lost focus
-#define EVENT_WINDOW_MINIMIZE       0xF9  // 11111001 UNBALANCED|LEAF - Window minimized
-
-// Section: GUI Controls (0xFD)
-#define EVENT_GUI_SEC               0xFD  // 11111101 UNBALANCED|SECTION - GUI control section
-#define EVENT_BUTTON_CLICK          0x7A  // 01111010 UNBALANCED|LEAF - Button clicked
-#define EVENT_SLIDER_CHANGE         0x7B  // 01111011 UNBALANCED|LEAF - Slider value changed
-#define EVENT_DROPDOWN_SELECT       0xFA  // 11111010 UNBALANCED|LEAF - Dropdown item selected
-#define EVENT_CHECKBOX_TOGGLE       0xFB  // 11111011 UNBALANCED|LEAF - Checkbox toggled
-
-// -----------------------------------------------------------------------------
-// EVENT TAXONOMY OPERATORS & CLASSIFICATION MACROS
-// -----------------------------------------------------------------------------
-
-// Event type checking (mirrors error taxonomy structure)
-#define EVENT_IS_SYSTEM(e)      (((e) & 0x80) == 0x00)  // Quadrant 1: system/lifecycle
-#define EVENT_IS_INPUT(e)       (((e) & 0x80) == 0x40)  // Quadrant 2: user input
-#define EVENT_IS_IO(e)          (((e) & 0x80) == 0x80)  // Quadrant 3: communication/I/O
-#define EVENT_IS_HARDWARE(e)    (((e) & 0x80) == 0xC0)  // Quadrant 4: hardware/sensors
-
-// Root determination via center operation
-static inline uint8_t event_op_center(uint8_t ev) {
-    return (uint8_t)(((ev << 1) & 0xF0) | ((ev >> 1) & 0x0F));
-}
-
-static inline uint8_t event_op_root(uint8_t ev) {
-    uint8_t v = ev;
-    for (int i = 0; i < 8 && v != 0x00 && v != 0x55 && v != 0xAA && v != 0xFF; i++) {
-        v = event_op_center(v);
-    }
-    return v;
-}
-
-// Hierarchical depth (0=root, 1=domain, 2=section, 3=leaf)
-static inline uint8_t event_op_depth(uint8_t ev) {
-    uint8_t v = ev;
-    uint8_t d = 0;
-    while (v != 0x00 && v != 0x55 && v != 0xAA && v != 0xFF && d < 4) {
-        v = event_op_center(v);
-        d++;
-    }
-    return d;
-}
-
-#endif /* __EVENTS_H__ */
+//
+
+// =============================================================================
+// RESERVED KERNEL CODES (Process State Machine — shared with errors.h)
+// =============================================================================
+#define EVENT_NONE                                                             \
+  0x00 // No event / null                 => ~ERR_FINALIZED(0xFF)
+#define EVENT_INIT                                                             \
+  0x01 // Process init event              => ~ERR_DEADLOCK(0xFE)
+#define EVENT_POLL                                                             \
+  0x02 // Process poll request            => ~ERR_LOCK_CRITICAL(0xFD)
+#define EVENT_EXIT                                                             \
+  0x03 // Process exit event              => ~ERR_LOCK_ATOMIC(0xFC)
+#define EVENT_ERROR                                                            \
+  0xFF // Error occurred (carries error)  => ~ERR_SUCCESS(0x00)
+
+// Shared reserved aliases (same value as reserved codes above, named for
+// inverse clarity):
+#define EVENT_SYS_ACCESS_EV                                                    \
+  0xFD // IMPULSE  Dual of ERR_SYS_ACCESS(0x02)  [=EVENT_POLL]
+#define EVENT_SYS_HANDLE_EV                                                    \
+  0xFC // ASYMMETRY Dual of ERR_SYS_HANDLE(0x03) [=EVENT_EXIT]
+
+// Convenience aliases used by process.h
+#define PROCESS_EVENT_NONE EVENT_NONE
+#define PROCESS_EVENT_INIT EVENT_INIT
+#define PROCESS_EVENT_POLL EVENT_POLL
+#define PROCESS_EVENT_EXIT EVENT_EXIT
+#define PROCESS_EVENT_ERROR EVENT_ERROR
+
+// =============================================================================
+// QUADRANT 1: INIT / SYSTEM LIFECYCLE (root=0x00)
+// ROOTs dual: Q4 errors (security/storage/concurrency/lock)
+// Semantics: process lifecycle, memory, init, IPC, auth
+// =============================================================================
+
+// =============================================================================
+// DOMAIN Q1.1: PROCESS LIFECYCLE & CONCURRENCY  (0x00 -> 0x01 RESERVED)
+// Dual of Q4/Domain-4.3: ERR_DEADLOCK domain (lock, IPC, atomic, critical)
+// =============================================================================
+
+// Section Q1.1.1: Lock & Access Events  (0x01 -> 0x02 RESERVED)
+// Dual of Sec-4.3.4: ERR_LOCK_CRITICAL (atomic/critical section errors)
+#define EVENT_LOCK_ACQ 0x04   // IMPULSE   Resource/lock acquired
+#define EVENT_LOCK_REL 0x05   // ASYMMETRY Resource/lock released
+#define EVENT_CRIT_ENTER 0x84 // ASYMMETRY Critical section entered
+#define EVENT_CRIT_EXIT 0x85  // ASYMMETRY Critical section exited
+// Inverse Q4 leaves of this section (duals of 0x04,0x05,0x84,0x85):
+#define EVENT_ACCESS_REVOKE                                                    \
+  0xFB // IMPULSE   Access/lock forcibly revoked   [~ERR_ACCESS_DENIED]
+#define EVENT_ACCESS_ALLOW                                                     \
+  0xFA // ASYMMETRY Read-only resource made writable [~ERR_ACCESS_READONLY]
+#define EVENT_CRIT_UNLOCK                                                      \
+  0x7B // ASYMMETRY Lock forcibly released           [~ERR_ACCESS_LOCKED]
+#define EVENT_CRIT_PERMIT                                                      \
+  0x7A // ASYMMETRY Forbidden op now permitted        [~ERR_ACCESS_FORBIDDEN]
+
+// Section Q1.1.2: Handle & Descriptor Events  (0x01 -> 0x03 RESERVED)
+// Dual of Sec-4.3.3: ERR_LOCK_ATOMIC (atomic ops errors)
+#define EVENT_HANDLE_OPEN 0x06  // ASYMMETRY File handle / fd opened
+#define EVENT_HANDLE_CLOSE 0x07 // ASYMMETRY File handle / fd closed
+#define EVENT_HANDLE_READY 0x86 // ASYMMETRY Handle ready for I/O
+#define EVENT_HANDLE_WAKE 0x87  // ANTICODE  Stale/dormant handle resumed
+// Inverse Q4 leaves of this section (duals of 0x06,0x07,0x86,0x87):
+#define EVENT_HANDLE_VALID                                                     \
+  0xF9 // ASYMMETRY Handle validated/re-opened       [~ERR_HANDLE_INVALID]
+#define EVENT_HANDLE_REOPEN                                                    \
+  0xF8 // ASYMMETRY Closed handle reopened           [~ERR_HANDLE_CLOSED]
+#define EVENT_HANDLE_RETYPE                                                    \
+  0x79 // ASYMMETRY Handle type corrected/cast       [~ERR_HANDLE_TYPE]
+#define EVENT_HANDLE_FRESH                                                     \
+  0x78 // ANTICODE  Fresh handle replaced stale one   [~ERR_HANDLE_SHADOW]
+
+// Section Q1.1.3: IPC & Pipe Events  (0x01 -> 0x82)
+// Dual of Sec-4.3.2: ERR_LOCK_IPC (pipe/msg errors)
+#define EVENT_IPC 0x82        // ASYMMETRY [Section header]
+#define EVENT_PIPE_READY 0x44 // REPEATER  Pipe has data ready
+#define EVENT_PIPE_OPEN 0x45  // ASYMMETRY Pipe connection opened
+#define EVENT_PIPE_CLOSE 0xC4 // ASYMMETRY Pipe connection closed
+#define EVENT_PIPE_FLUSH 0xC5 // MARGIN    Pipe data flushed
+
+// Section Q1.1.4: Process State Events  (0x01 -> 0x83)
+// Dual of Sec-4.3.1: ERR_LOCK_STATE (lock state errors)
+#define EVENT_PROC_STATE 0x83   // ASYMMETRY [Section header]
+#define EVENT_PROC_STARTED 0x46 // ASYMMETRY Process scheduled/started
+#define EVENT_PROC_STOPPED 0x47 // MARGIN    Process removed/stopped
+#define EVENT_PROC_PAUSED 0xC6  // MARGIN    Process execution paused
+#define EVENT_PROC_RESUMED 0xC7 // ASYMMETRY Process execution resumed
+
+// =============================================================================
+// DOMAIN Q1.2: MEMORY & BUFFERS  (0x00 -> 0x80)
+// Dual of Q4/Domain-4.2: ERR_SEC_DOM (auth/encrypt/policy/audit)
+// =============================================================================
+
+// Section Q1.2.1: Heap / Memory Allocation Events  (0x80 -> 0x40)
+// Dual of Sec-4.2.4: ERR_SEC_AUDIT (audit errors)
+#define EVENT_MEM_DOM 0x80       // IMPULSE   [Domain header]
+#define EVENT_MEM_ALLOC_SEC 0x40 // IMPULSE   [Section header]
+#define EVENT_MEM_ALLOC 0x20     // IMPULSE   Memory block allocated
+#define EVENT_MEM_FREE 0x21      // ASYMMETRY Memory block freed
+#define EVENT_MEM_COMPACT 0xA0   // ASYMMETRY Memory compacted/defraged
+#define EVENT_MEM_GC 0xA1        // ASYMMETRY GC cycle completed
+
+// Section Q1.2.2: Stack & Buffer Events  (0x80 -> 0x41)
+// Dual of Sec-4.2.3: ERR_SEC_POLICY (policy/quota errors)
+#define EVENT_BUF_SEC 0x41   // ASYMMETRY [Section header]
+#define EVENT_BUF_ALLOC 0x22 // REPEATER  Buffer allocated
+#define EVENT_BUF_FREE 0x23  // ASYMMETRY Buffer freed
+#define EVENT_BUF_READY 0xA2 // ASYMMETRY Buffer ready for write
+#define EVENT_BUF_FLUSH 0xA3 // MARGIN    Buffer flushed to stream
+
+// Section Q1.2.3: Encrypt & Decrypt Events  (0x80 -> 0xC0)
+// Dual of Sec-4.2.2: ERR_SEC_ENCRYPT (encryption errors)
+#define EVENT_ENC_SEC 0xC0       // ASYMMETRY [Section header]
+#define EVENT_ENCRYPT_BEGIN 0x60 // ASYMMETRY Encryption operation started
+#define EVENT_ENCRYPT_DONE 0x61  // ASYMMETRY Encryption operation complete
+#define EVENT_DECRYPT_BEGIN 0xE0 // ASYMMETRY Decryption operation started
+#define EVENT_DECRYPT_DONE 0xE1  // ANTICODE  Decryption operation complete
+
+// Section Q1.2.4: Authentication Events  (0x80 -> 0xC1)
+// Dual of Sec-4.2.1: ERR_SEC_AUTH (auth failure errors)
+#define EVENT_AUTH_SEC 0xC1     // ASYMMETRY [Section header]
+#define EVENT_AUTH_REQUEST 0x62 // ASYMMETRY Auth challenge issued
+#define EVENT_AUTH_OK 0x63      // MARGIN    Authentication succeeded
+#define EVENT_AUTH_REVOKE 0xE2  // MARGIN    Auth token revoked
+#define EVENT_AUTH_EXPIRE 0xE3  // ASYMMETRY Auth token expired
+
+// =============================================================================
+// DOMAIN Q1.3: LIFECYCLE & INITIALIZATION  (0x00 -> 0x81)
+// Dual of Q4/Domain-4.1: ERR_STORAGE_DOM (file/volume/block errors)
+// =============================================================================
+
+// Section Q1.3.1: System Init Events  (0x81 -> 0x42)
+// Dual of Sec-4.1.4: ERR_STORAGE_BLOCK (block device errors)
+#define EVENT_LIFE_DOM 0x81    // ASYMMETRY [Domain header] MIRROR
+#define EVENT_INIT_SEC 0x42    // ASYMMETRY [Section header] MIRROR
+#define EVENT_SYS_READY 0x24   // ASYMMETRY System/module ready MIRROR
+#define EVENT_MODULE_INIT 0x25 // ASYMMETRY Module initialized
+#define EVENT_DEP_OK 0xA4      // ASYMMETRY Dependency satisfied
+#define EVENT_REINIT 0xA5      // ANTICODE  Module reinitialized MIRROR
+
+// Section Q1.3.2: State Transition Events  (0x81 -> 0x43)
+// Dual of Sec-4.1.3: ERR_STORAGE_VOLUME (volume/mount errors)
+#define EVENT_STATE_SEC 0x43    // ASYMMETRY [Section header]
+#define EVENT_STATE_ENTER 0x26  // ASYMMETRY FSM state entered
+#define EVENT_STATE_EXIT 0x27   // MARGIN    FSM state exited
+#define EVENT_STATE_STABLE 0xA6 // MARGIN    FSM state stabilized
+#define EVENT_STATE_CHANGE 0xA7 // ASYMMETRY FSM state transition
+
+// Section Q1.3.3: Reference Counting Events  (0x81 -> 0xC2)
+// Dual of Sec-4.1.2: ERR_STORAGE_ATTR (file attribute errors)
+#define EVENT_REF_SEC 0xC2     // ASYMMETRY [Section header]
+#define EVENT_REF_INC 0x64     // ASYMMETRY Reference count incremented
+#define EVENT_REF_DEC 0x65     // MARGIN    Reference count decremented
+#define EVENT_REF_ZERO 0xE4    // MARGIN    Reference count reached zero
+#define EVENT_REF_RELEASE 0xE5 // ASYMMETRY Object fully released
+
+// Section Q1.3.4: Cleanup & Finalization Events  (0x81 -> 0xC3)
+// Dual of Sec-4.1.1: ERR_STORAGE_FILE (file not found / corrupt)
+// ANTICODE section — balanced, complementary, handshake-style
+#define EVENT_CLEAN_SEC 0xC3     // ANTICODE  [Section header] SHADOW+MIRROR
+#define EVENT_CLEANUP_DONE 0x66  // MARGIN    Cleanup completed TWIN+MIRROR
+#define EVENT_RESOURCE_REL 0x67  // ASYMMETRY Resource released
+#define EVENT_RESOURCE_CLR 0xE6  // ASYMMETRY Resource cleared/reset
+#define EVENT_RESOURCE_FREE 0xE7 // ASYMMETRY Resource freed MIRROR
+
+// =============================================================================
+// QUADRANT 2: BEFORE / EXTERNAL I/O (root=0x55)
+// ROOTs dual: Q3 errors (parsing/queues/math)
+// Semantics: networking, IPC, user input, bus/serial, timers, ordering
+// =============================================================================
+#define EVENT_SYNC 0x55 // PARITY    [Root] External I/O oscillation
+
+// =============================================================================
+// DOMAIN Q2.1: NETWORKING & SOCKETS  (0x55 -> 0x2A)
+// Dual of Q3/Domain-3.3: ERR_MATH_DOM (arithmetic/float/logic/crypto)
+// =============================================================================
+
+// Section Q2.1.1: Socket Lifecycle Events  (0x2A -> 0x14)
+// Dual of Sec-3.3.4: ERR_MATH_CRYPTO (key/IV/tag/padding errors)
+#define EVENT_NET_DOM 0x2A     // ASYMMETRY [Domain header]
+#define EVENT_SOCK_SEC 0x14    // ASYMMETRY [Section header]
+#define EVENT_SOCK_BOUND 0x08  // IMPULSE   Socket bound to port
+#define EVENT_SOCK_LISTEN 0x09 // ASYMMETRY Socket entered listening state
+#define EVENT_SOCK_ACCEPT 0x88 // REPEATER  Incoming connection accepted TWIN
+#define EVENT_SOCK_OPEN 0x89   // ASYMMETRY Outbound connection established
+
+// Section Q2.1.2: Connection State Events  (0x2A -> 0x15)
+// Dual of Sec-3.3.3: ERR_MATH_LOGIC (assert/invariant/unreachable)
+#define EVENT_CONN_SEC 0x15    // ASYMMETRY [Section header]
+#define EVENT_CONN_ACTIVE 0x0A // ASYMMETRY Connection is active
+#define EVENT_CONN_RESET 0x0B  // ASYMMETRY Connection reset by peer
+#define EVENT_CONN_CLOSE 0x8A  // ASYMMETRY Connection closed
+#define EVENT_CONN_KEEP 0x8B   // MARGIN    Keepalive acknowledged
+
+// Section Q2.1.3: DNS & Resolution Events  (0x2A -> 0x94)
+// Dual of Sec-3.3.2: ERR_MATH_FLOAT (NaN/INF/denorm/inexact)
+#define EVENT_DNS_SEC 0x94    // ASYMMETRY [Section header]
+#define EVENT_DNS_QUERY 0x48  // ASYMMETRY DNS query sent
+#define EVENT_DNS_REPLY 0x49  // ASYMMETRY DNS reply received
+#define EVENT_DNS_CACHED 0xC8 // ASYMMETRY DNS result from cache
+#define EVENT_DNS_OK 0xC9     // MARGIN    DNS resolution complete
+
+// Section Q2.1.4: Protocol & Channel Events  (0x2A -> 0x95)
+// Dual of Sec-3.3.1: ERR_MATH_ARITH (division/overflow/underflow/precision)
+// MARGIN section — balanced operational states
+#define EVENT_PROTO_SEC 0x95    // MARGIN    [Section header]
+#define EVENT_PROTO_SHAKE 0x4A  // ASYMMETRY Protocol handshake initiated
+#define EVENT_PROTO_ACK 0x4B    // ANTICODE  Protocol step acknowledged
+#define EVENT_CHANNEL_UP 0xCA   // MARGIN    Channel/session established
+#define EVENT_CHANNEL_DOWN 0xCB // ASYMMETRY Channel/session closed
+
+// =============================================================================
+// DOMAIN Q2.2: TIMING, ORDERING & QUEUES  (0x55 -> 0x2B)
+// Dual of Q3/Domain-3.2: ERR_QUEUE_DOM (queue/collection/ordering errors)
+// MARGIN domain — high entropy, dynamic runtime
+// =============================================================================
+
+// Section Q2.2.1: Collection Events  (0x2B -> 0x16)
+// Dual of Sec-3.2.4: ERR_COLLECTION_STATE (lock/modified/index/key errors)
+#define EVENT_TIME_DOM 0x2B    // MARGIN    [Domain header]
+#define EVENT_COLL_SEC 0x16    // ASYMMETRY [Section header]
+#define EVENT_COLL_ADD 0x0C    // ASYMMETRY Item added to collection
+#define EVENT_COLL_REMOVE 0x0D // ASYMMETRY Item removed from collection
+#define EVENT_COLL_UPDATE 0x8C // ASYMMETRY Item in collection updated
+#define EVENT_COLL_READY 0x8D  // MARGIN    Collection ready for access
+
+// Section Q2.2.2: Ordering & Priority Events  (0x2B -> 0x17)
+// Dual of Sec-3.2.3: ERR_QUEUE_ORDER (sequence/priority/duplicate/conflict)
+// MARGIN section
+#define EVENT_ORDER_SEC 0x17    // MARGIN    [Section header]
+#define EVENT_PRIO_SET 0x0E     // ASYMMETRY Priority assigned
+#define EVENT_PRIO_ADJ 0x0F     // ANTICODE  Priority adjusted SHADOW
+#define EVENT_ORDER_DONE 0x8E   // MARGIN    Ordering/sort complete
+#define EVENT_ORDER_CHANGE 0x8F // ASYMMETRY Order changed/requeued
+
+// Section Q2.2.3: Message Queue Events  (0x2B -> 0x96)
+// Dual of Sec-3.2.2: ERR_QUEUE_OP (enqueue/dequeue/peek/clear errors)
+// ANTICODE section — shadow+balanced, handshake semantics
+#define EVENT_MSGQ_SEC 0x96 // ANTICODE  [Section header] SHADOW
+#define EVENT_MSG_PUSH                                                         \
+  0x4C // ASYMMETRY Message pushed to queue; also dual of ERR_QUEUE_CLEAR(0xB3)
+#define EVENT_MSG_POP 0x4D   // MARGIN    Message popped from queue
+#define EVENT_MSG_ACK 0xCC   // MARGIN    Message acknowledged TWIN
+#define EVENT_MSG_FLUSH 0xCD // ASYMMETRY Message queue flushed
+
+// Section Q2.2.4: Timer & Frame Events  (0x2B -> 0x97)
+// Dual of Sec-3.2.1: ERR_QUEUE_STATE (empty/full/overflow/underflow)
+#define EVENT_TIMER_SEC 0x97   // ASYMMETRY [Section header]
+#define EVENT_TIMER 0x4E       // MARGIN    Timer fired
+#define EVENT_INTERVAL 0x4F    // ASYMMETRY Periodic interval tick
+#define EVENT_HEARTBEAT 0xCE   // ASYMMETRY Heartbeat / health-check tick
+#define EVENT_FRAME_BEGIN 0xCF // ASYMMETRY Frame / cycle start
+
+// =============================================================================
+// DOMAIN Q2.3: PERIPHERALS, BUS & USER INPUT  (0x55 -> 0xAB)
+// Dual of Q3/Domain-3.1: ERR_PARSE_DOM (text/struct/binary/validation errors)
+// =============================================================================
+
+// Section Q2.3.1: Serial Communication Events  (0xAB -> 0x56)
+// Dual of Sec-3.1.4: ERR_PARSE_VALID (schema/constraint/pattern/required)
+// MARGIN section
+#define EVENT_IO_DOM 0xAB       // ASYMMETRY [Domain header]
+#define EVENT_SERIAL_SEC 0x56   // MARGIN    [Section header]
+#define EVENT_SERIAL_RX 0x2C    // ASYMMETRY UART / serial data received
+#define EVENT_SERIAL_TX 0x2D    // ANTICODE  UART / serial data sent SHADOW
+#define EVENT_SERIAL_OPEN 0xAC  // MARGIN    Serial port opened
+#define EVENT_SERIAL_CLOSE 0xAD // ASYMMETRY Serial port closed
+
+// Section Q2.3.2: Bus Communication Events  (0xAB -> 0x57)
+// Dual of Sec-3.1.3: ERR_PARSE_BINARY (header/magic/version/checksum)
+#define EVENT_BUS_SEC 0x57   // ASYMMETRY [Section header]
+#define EVENT_BUS_MATCH 0x2E // MARGIN    Bus slave addressed / matched
+#define EVENT_BUS_START 0x2F // ASYMMETRY Bus START condition
+#define EVENT_BUS_RX 0xAE    // ASYMMETRY Bus data received
+#define EVENT_BUS_TX 0xAF    // ASYMMETRY Bus transmit buffer sent
+
+// Section Q2.3.3: Text & Command Input Events  (0xAB -> 0xD6)
+// Dual of Sec-3.1.2: ERR_PARSE_STRUCT (JSON/YAML syntax/type/malformed)
+#define EVENT_INPUT_SEC 0xD6  // ASYMMETRY [Section header]
+#define EVENT_CMD_RECV 0x6C   // MARGIN    CLI/AT/RPC command received
+#define EVENT_TEXT_RECV 0x6D  // ASYMMETRY UTF-8 text string received
+#define EVENT_TEXT_START 0xEC // ASYMMETRY IME composition started
+#define EVENT_TEXT_END 0xED   // ASYMMETRY IME composition ended
+
+// Section Q2.3.4: Keyboard & Char Events  (0xAB -> 0xD7)
+// Dual of Sec-3.1.1: ERR_PARSE_TEXT (encode/decode/trunc/invalid)
+// Note: key value encoded as (process_data_t)(uintptr_t)keycode — no alloc
+#define EVENT_KEY_SEC 0xD7    // ASYMMETRY [Section header]
+#define EVENT_KEY_DOWN 0x6E   // ASYMMETRY Physical key pressed
+#define EVENT_KEY_UP 0x6F     // ASYMMETRY Physical key released
+#define EVENT_KEY_REPEAT 0xEE // REPEATER  Key auto-repeat event TWIN
+#define EVENT_KEY_ALT 0xEF    // IMPULSE   Non-printable / alternate key
+
+// =============================================================================
+// QUADRANT 3: AFTER / DATA FLOW (root=0xAA)
+// ROOTs dual: Q2 errors (networking/timing/peripherals)
+// Semantics: GPIO, ADC, bus completion, sync, IRQ, network data
+// =============================================================================
+#define EVENT_FLOW 0xAA // PARITY    [Root] Internal data flow
+
+// =============================================================================
+// DOMAIN Q3.1: SIGNAL DETECTION & ANALOG  (0xAA -> 0x54)
+// Dual of Q2/Domain-2.3: ERR_IO_DOM (serial/bus/analog/GPIO errors)
+// =============================================================================
+
+// Section Q3.1.1: GPIO Signal Events  (0x54 -> 0x28)
+// Dual of Sec-2.3.4: ERR_IO_GPIO (config/locked/state/interrupt errors)
+#define EVENT_PARSE_DOM 0x54    // ASYMMETRY [Domain header]
+#define EVENT_GPIO_SEC 0x28     // ASYMMETRY [Section header]
+#define EVENT_GPIO_RISING 0x10  // IMPULSE   GPIO rising edge detected
+#define EVENT_GPIO_FALLING 0x11 // REPEATER  GPIO falling edge detected TWIN
+#define EVENT_GPIO_CHANGE 0x90  // ASYMMETRY GPIO level change (both edges)
+#define EVENT_GPIO_MODE 0x91    // ASYMMETRY GPIO pin mode changed
+
+// Section Q3.1.2: Analog I/O Events  (0x54 -> 0x29)
+// Dual of Sec-2.3.3: ERR_IO_ANALOG (ADC saturated/timeout, DAC underrun)
+#define EVENT_ADC_SEC 0x29       // ASYMMETRY [Section header]
+#define EVENT_ADC_READY 0x12     // ASYMMETRY ADC result ready to read
+#define EVENT_SAMPLE_TICK 0x13   // ASYMMETRY Sample timer tick
+#define EVENT_DAC_DONE 0x92      // ASYMMETRY DAC output complete
+#define EVENT_CONV_COMPLETE 0x93 // MARGIN    ADC/DAC conversion complete
+
+// Section Q3.1.3: Bus Transfer Completion Events  (0x54 -> 0xA8)
+// Dual of Sec-2.3.2: ERR_IO_BUS (NACK/arbitration/timeout/bus error)
+#define EVENT_SDATA_SEC 0xA8   // ASYMMETRY [Section header]
+#define EVENT_BUS_STOP 0x50    // ASYMMETRY Bus STOP condition
+#define EVENT_BUS_TX_DONE 0x51 // ASYMMETRY Bus transmit acknowledged
+#define EVENT_BUS_RX_DONE 0xD0 // ASYMMETRY Bus receive complete
+#define EVENT_BUS_DONE 0xD1    // MARGIN    Bus transaction complete
+
+// Section Q3.1.4: Device Data Events  (0x54 -> 0xA9)
+// Dual of Sec-2.3.1: ERR_IO_SERIAL (baud/frame/parity/overrun errors)
+// MARGIN section
+#define EVENT_DATA_SEC 0xA9     // MARGIN    [Section header]
+#define EVENT_DEVICE_DATA 0x52  // ASYMMETRY Device data available
+#define EVENT_DEVICE_READY 0x53 // MARGIN    Device ready for next op
+#define EVENT_DATA_VALID 0xD2   // ANTICODE  Data validated / checked SHADOW
+#define EVENT_DATA_RECV 0xD3    // ASYMMETRY Data received and buffered
+
+// =============================================================================
+// DOMAIN Q3.2: TIMING, SYNC & IRQ  (0xAA -> 0xD4)
+// Dual of Q2/Domain-2.2: ERR_TIME_DOM (interrupt/clock/sync/watchdog errors)
+// MARGIN domain
+// =============================================================================
+
+// Section Q3.2.1: Watchdog & Power Events  (0xD4 -> 0x68)
+// Dual of Sec-2.2.4: ERR_TIME_WDT (expired/reset/early/config errors)
+#define EVENT_QUEUE_DOM 0xD4    // MARGIN    [Domain header]
+#define EVENT_WDT_SEC 0x68      // ASYMMETRY [Section header]
+#define EVENT_WDT_KICK 0x30     // ASYMMETRY Watchdog kicked / refreshed
+#define EVENT_WDT_ARMED 0x31    // ASYMMETRY Watchdog armed
+#define EVENT_WDT_DISARMED 0xB0 // ASYMMETRY Watchdog disarmed
+#define EVENT_POWER_OK 0xB1     // MARGIN    System power stable
+
+// Section Q3.2.2: Synchronization Events  (0xD4 -> 0x69)
+// Dual of Sec-2.2.3: ERR_TIME_SYNC (failed/timeout/barrier/lost errors)
+// ANTICODE section — shadow+balanced, handshake/acknowledge semantics
+#define EVENT_SYNC_SEC 0x69     // ANTICODE  [Section header] SHADOW
+#define EVENT_SYNC_DONE 0x32    // ASYMMETRY Synchronization complete
+#define EVENT_SYNC_LOCK 0x33    // MARGIN    Phase / clock locked TWIN
+#define EVENT_BARRIER_PASS 0xB2 // MARGIN    Barrier passed
+#define EVENT_PHASE_LOCK 0xB3   // ASYMMETRY Phase lock achieved
+
+// Section Q3.2.3: Clock & Frame Events  (0xD4 -> 0xE8)
+// Dual of Sec-2.2.2: ERR_TIME_CLOCK (not-ready/unstable/expired/overflow)
+// MARGIN section
+#define EVENT_CLK_SEC 0xE8    // MARGIN    [Section header]
+#define EVENT_CLK_READY 0x70  // ASYMMETRY Clock source ready
+#define EVENT_CLK_STABLE 0x71 // MARGIN    Clock stable / locked
+#define EVENT_FRAME_END 0xF0  // ANTICODE  Frame / cycle ended SHADOW
+#define EVENT_FRAME_SYNC 0xF1 // ASYMMETRY Frame synchronised
+
+// Section Q3.2.4: Interrupt Events  (0xD4 -> 0xE9)
+// Dual of Sec-2.2.1: ERR_TIME_IRQ (disabled/pending/nested/priority errors)
+#define EVENT_IRQ_SEC 0xE9   // ASYMMETRY [Section header]
+#define EVENT_IRQ_FIRED 0x72 // MARGIN    Hardware interrupt triggered
+#define EVENT_IRQ_ACK 0x73   // ASYMMETRY Interrupt acknowledged
+#define EVENT_IRQ_DONE 0xF2  // ASYMMETRY Interrupt service routine done
+#define EVENT_IRQ_CLEAR 0xF3 // ASYMMETRY Interrupt flag cleared
+
+// =============================================================================
+// DOMAIN Q3.3: NETWORK DATA & CHANNEL CONTROL  (0xAA -> 0xD5)
+// Dual of Q2/Domain-2.1: ERR_NET_DOM (socket/conn/DNS/protocol errors)
+// =============================================================================
+
+// Section Q3.3.1: Data Plane Events  (0xD5 -> 0x6A)
+// Dual of Sec-2.1.4: ERR_NET_PROTO (version/format/sequence/state errors)
+// MARGIN section
+#define EVENT_NET_DATA_DOM 0xD5   // ASYMMETRY [Domain header]
+#define EVENT_NETDATA_SEC 0x6A    // MARGIN    [Section header]
+#define EVENT_ECHO_REPLY 0x34     // ASYMMETRY Ping / echo response received
+#define EVENT_RECV_READY 0x35     // MARGIN    Receive buffer has data
+#define EVENT_HANDSHAKE_DONE 0xB4 // ANTICODE  TLS/WS handshake complete SHADOW
+#define EVENT_SEND_READY 0xB5     // ASYMMETRY Send buffer has free space
+
+// Section Q3.3.2: Network Control Events  (0xD5 -> 0x6B)
+// Dual of Sec-2.1.3: ERR_NET_DNS (nxdomain/timeout/servfail/config errors)
+#define EVENT_NETCTRL_SEC 0x6B    // ASYMMETRY [Section header]
+#define EVENT_SOCKET_RESOLVE 0x36 // MARGIN    Socket DNS resolved
+#define EVENT_OOB_DATA 0x37       // ASYMMETRY Out-of-band (urgent) data arrived
+#define EVENT_SOCKET_FRAME 0xB6 // ASYMMETRY UDP packet / WS data frame arrived
+#define EVENT_SOCKET_KEEP 0xB7  // ASYMMETRY Socket keepalive received
+
+// Section Q3.3.3: Connection State Events  (0xD5 -> 0xEA)
+// Dual of Sec-2.1.2: ERR_NET_CONN (refused/reset/closed/timeout errors)
+#define EVENT_NETSTATE_SEC 0xEA    // ASYMMETRY [Section header]
+#define EVENT_SOCKET_DISCONN 0x74  // MARGIN    Connection closed by peer
+#define EVENT_SOCKET_SHUTDOWN 0x75 // ASYMMETRY Half-close (shutdown) initiated
+#define EVENT_SOCKET_ERROR 0xF4    // ASYMMETRY Network error (data=error_code)
+#define EVENT_NET_DOWN 0xF5        // ASYMMETRY Network interface down
+
+// Section Q3.3.4: Channel & Application Events  (0xD5 -> 0xEB)
+// Dual of Sec-2.1.1: ERR_NET_SOCK (create/bind/listen/accept errors)
+#define EVENT_CHANNEL_SEC 0xEB  // ASYMMETRY [Section header]
+#define EVENT_CHANNEL_REQ 0x76  // ASYMMETRY HTTP/WS request received
+#define EVENT_CHANNEL_RESP 0x77 // REPEATER  HTTP/WS response received TWIN
+#define EVENT_CHANNEL_UPG 0xF6  // ASYMMETRY Protocol upgrade (HTTP->WS)
+#define EVENT_OOB_RECV 0xF7     // IMPULSE   Out-of-band receipt confirmed
+
+// =============================================================================
+// QUADRANT 4: RUN / STORAGE / SECURITY (root=0xFF)
+// ROOTs dual: Q1 errors (system state/memory/lifecycle/access)
+// Semantics: file/volume, auth, process running, arg validation
+// =============================================================================
+
+// =============================================================================
+// DOMAIN Q4.1: STORAGE & FILESYSTEM  (0xFF -> 0x7E)
+// Dual of Q1/Domain-1.3: ERR_LIFE_DOM (init/state/refcount/cleanup errors)
+// =============================================================================
+
+// Section Q4.1.1: File Operation Events  (0x7E -> 0x3C)
+// Dual of Sec-1.3.4: ERR_LIFE_CLEAN (cleanup/partial/busy/leaked errors)
+// ANTICODE+MIRROR section — handshake, bidirectional
+#define EVENT_STORAGE_DOM 0x7E // ASYMMETRY [Domain header] MIRROR
+#define EVENT_FILE_SEC 0x3C    // ANTICODE  [Section header] SHADOW+MIRROR
+#define EVENT_FILE_OPEN 0x18   // ASYMMETRY File opened MIRROR
+#define EVENT_FILE_CLOSE 0x19  // ASYMMETRY File closed
+#define EVENT_FILE_DELETE 0x98 // ASYMMETRY File deleted
+#define EVENT_FILE_RENAME 0x99 // MARGIN    File renamed TWIN+MIRROR
+
+// Section Q4.1.2: File Attribute Events  (0x7E -> 0x3D)
+// Dual of Sec-1.3.3: ERR_LIFE_REF (ref-zero/overflow/leak/dangling errors)
+#define EVENT_ATTR_SEC 0x3D    // ASYMMETRY [Section header]
+#define EVENT_ATTR_READ 0x1A   // ASYMMETRY File attributes read
+#define EVENT_ATTR_WRITE 0x1B  // MARGIN    File attributes written
+#define EVENT_ATTR_CHANGE 0x9A // MARGIN    File attributes changed
+#define EVENT_ATTR_WATCH 0x9B  // ASYMMETRY File attribute watch registered
+
+// Section Q4.1.3: Volume & Mount Events  (0x7E -> 0xBC)
+// Dual of Sec-1.3.2: ERR_LIFE_STATE (invalid/transition/locked/frozen errors)
+#define EVENT_VOL_SEC 0xBC     // ASYMMETRY [Section header]
+#define EVENT_VOL_MOUNT 0x58   // ASYMMETRY Volume mounted
+#define EVENT_VOL_SYNC 0x59    // MARGIN    Volume flushed/synced
+#define EVENT_VOL_UNMOUNT 0xD8 // MARGIN    Volume unmounted
+#define EVENT_VOL_TRIM 0xD9    // ASYMMETRY Volume TRIM/erase issued
+
+// Section Q4.1.4: Block Device Events  (0x7E -> 0xBD)
+// Dual of Sec-1.3.1: ERR_LIFE_INIT (failed/timeout/dependency/nosup errors)
+// MIRROR section
+#define EVENT_BLK_SEC 0xBD    // ASYMMETRY [Section header] MIRROR
+#define EVENT_BLK_READ 0x5A   // ANTICODE  Block read complete SHADOW+MIRROR
+#define EVENT_BLK_WRITE 0x5B  // ASYMMETRY Block write complete
+#define EVENT_BLK_ERASE 0xDA  // ASYMMETRY Block erased
+#define EVENT_BLK_VERIFY 0xDB // ASYMMETRY Block verify complete MIRROR
+
+// =============================================================================
+// DOMAIN Q4.2: SECURITY & POLICY  (0xFF -> 0x7F)
+// Dual of Q1/Domain-1.2: ERR_MEM_DOM (heap/stack/buffer/align errors)
+// IMPULSE domain
+// =============================================================================
+
+// Section Q4.2.1: Authentication Result Events  (0x7F -> 0x3E)
+// Dual of Sec-1.2.4: ERR_MEM_ALIGN (addr/size/pagefault/protect errors)
+#define EVENT_SEC_DOM 0x7F      // IMPULSE   [Domain header]
+#define EVENT_AUTH2_SEC 0x3E    // ASYMMETRY [Section header]
+#define EVENT_AUTH_GRANT 0x1C   // ASYMMETRY Auth/access granted
+#define EVENT_AUTH_DENY_EV 0x1D // MARGIN    Auth/access denied event
+#define EVENT_CERT_OK 0x9C      // MARGIN    Certificate/credential verified
+#define EVENT_CERT_ISSUE 0x9D   // ASYMMETRY Certificate/credential issued
+
+// Section Q4.2.2: Encryption Result Events  (0x7F -> 0x3F)
+// Dual of Sec-1.2.3: ERR_MEM_BUFFER (overflow/underflow/full/empty errors)
+#define EVENT_CRYPT_SEC 0x3F   // ASYMMETRY [Section header]
+#define EVENT_SIGN_DONE 0x1E   // ANTICODE  Signing operation complete SHADOW
+#define EVENT_VERIFY_OK 0x1F   // ASYMMETRY Signature verified
+#define EVENT_KEY_DERIVED 0x9E // ASYMMETRY Key derivation complete
+#define EVENT_HASH_DONE 0x9F   // ASYMMETRY Hash computation complete
+
+// Section Q4.2.3: Policy & Quota Events  (0x7F -> 0xBE)
+// Dual of Sec-1.2.2: ERR_MEM_BOUNDS (stack ov/underflow, bounds errors)
+#define EVENT_POLICY_SEC 0xBE   // ASYMMETRY [Section header]
+#define EVENT_POLICY_OK 0x5C    // MARGIN    Policy check passed
+#define EVENT_QUOTA_OK 0x5D     // ASYMMETRY Quota / rate-limit OK
+#define EVENT_RATE_OK 0xDC      // ASYMMETRY Rate limit not exceeded
+#define EVENT_POLICY_RESET 0xDD // REPEATER  Policy counters reset TWIN
+
+// Section Q4.2.4: Audit & Logging Events  (0x7F -> 0xBF)
+// Dual of Sec-1.2.1: ERR_MEM_HEAP (OOM/fragment/corrupt/double-free errors)
+// IMPULSE section
+#define EVENT_AUDIT_SEC 0xBF   // IMPULSE   [Section header]
+#define EVENT_AUDIT_WRITE 0x5E // ASYMMETRY Audit log entry written
+#define EVENT_AUDIT_DONE 0x5F  // ASYMMETRY Audit cycle complete
+#define EVENT_LOG_SYNC 0xDE    // ASYMMETRY Audit log flushed/synced
+#define EVENT_LOG_OK 0xDF      // IMPULSE   Log integrity verified
+
+// =============================================================================
+// DOMAIN Q4.3: PROCESS STATE & ARGUMENT VALIDITY  (0xFF -> 0xFE)
+// Dual of Q1/Domain-1.1: ERR_SYS_STATE (access/handle/proc/arg errors)
+// IMPULSE domain
+// =============================================================================
+
+// Section Q4.3.1: Argument & Validation Events  (0xFE -> 0x7C)
+// Dual of Sec-1.1.4: ERR_SYS_ARGUMENT (null/invalid/range/type errors)
+#define EVENT_DEADLOCK_DOM 0xFE      // IMPULSE   [Domain header]
+#define EVENT_ARG_SEC 0x7C           // ASYMMETRY [Section header]
+#define EVENT_LOCK_OK 0x38           // ASYMMETRY Lock operation succeeded
+#define EVENT_LOCK_TIMEOUT_EV 0x39   // MARGIN   Lock acquired after wait
+#define EVENT_DEADLOCK_RESOLVED 0xB8 // MARGIN Deadlock resolved
+#define EVENT_OWNER_CHANGED 0xB9     // ASYMMETRY Lock owner changed
+
+// Section Q4.3.2: Process State Machine Events  (0xFE -> 0x7D)
+// Dual of Sec-1.1.3: ERR_SYS_PROC (cancelled/killed/orphan/zombie errors)
+#define EVENT_PSCHED_SEC 0x7D    // ASYMMETRY [Section header]
+#define EVENT_PROC_ALIVE 0x3A    // MARGIN    Process is alive/running
+#define EVENT_PROC_IDLE 0x3B     // ASYMMETRY Process is idle/waiting
+#define EVENT_MSG_SENT 0xBA      // ASYMMETRY IPC message sent
+#define EVENT_MSG_DELIVERED 0xBB // REPEATER  IPC message delivered TWIN
+
+// Section Q4.3.3: Atomic & Race Events  (0xFE -> 0xFC=RESERVED=EVENT_EXIT)
+// Dual of Sec-1.1.2: ERR_SYS_HANDLE (handle errors)
+// Note: section header 0xFC is shared with reserved EVENT_EXIT
+#define EVENT_ATOMIC_OK 0x87 // ANTICODE  Atomic CAS succeeded (see also Q1.1.2)
+// Note: leaf codes here overlap with Q1.1.2 leaves when expanded — these are
+// the SAME leaf codes viewed from the opposite direction (events driving guard
+// checks). They are intentionally aliased below for clarity in different
+// contexts:
+#define EVENT_HANDLE_ACQ                                                       \
+  0x87 // ANTICODE  Handle atomically acquired (=EVENT_HANDLE_WAKE)
+#define EVENT_HANDLE_REL                                                       \
+  0x86 // ASYMMETRY Handle atomically released (=EVENT_HANDLE_READY)
+#define EVENT_CAS_DONE                                                         \
+  0x07 // ASYMMETRY Compare-and-swap succeeded (=EVENT_HANDLE_CLOSE)
+#define EVENT_CAS_RETRY                                                        \
+  0x06 // ASYMMETRY Compare-and-swap retry (=EVENT_HANDLE_OPEN)
+
+// Section Q4.3.4: Access Control Events  (0xFE -> 0xFD=RESERVED=EVENT_POLL)
+// Dual of Sec-1.1.1: ERR_SYS_ACCESS (denied/readonly/locked/forbidden errors)
+// Note: section header 0xFD is shared with reserved EVENT_POLL
+// These leaf codes alias Q1.1.1 leaves viewed from the "granted access"
+// perspective:
+#define EVENT_ACCESS_GRANTED 0x04 // IMPULSE   Access granted (=EVENT_LOCK_ACQ)
+#define EVENT_ACCESS_OK_EV                                                     \
+  0x05 // ASYMMETRY Access check passed (=EVENT_LOCK_REL)
+#define EVENT_UNLOCK_DONE                                                      \
+  0x84                       // ASYMMETRY Resource unlocked (=EVENT_CRIT_ENTER)
+#define EVENT_PERMIT_OK 0x85 // ASYMMETRY Permission verified (=EVENT_CRIT_EXIT)
+
+// =============================================================================
+// CONTROLLER / SENSOR: Rich input (use ipc_msg_t* payload, not event code)
+// post as EVENT_MOTION / EVENT_TOUCH / EVENT_BUTTON with ipc_msg_t* data
+// ipc_msg_t.type disambiguates the sub-type (AXIS, BALL, HAT, FINGER, etc.)
+// ipc_msg_t.argv[0] carries the coordinate/sensor struct pointer
+// =============================================================================
+
+// User input event types (scalar values cast directly to process_data_t):
+#define EVENT_CHAR                                                             \
+  0x6D // UTF-8 / rune16 char (=EVENT_TEXT_RECV, data=codepoint)
+#define EVENT_BUTTON 0xAE // Button/finger DOWN  (=EVENT_BUS_RX, data=button_id)
+#define EVENT_BUTTON_UP                                                        \
+  0xAF // Button/finger UP    (=EVENT_BUS_TX, data=button_id)
+#define EVENT_BUTTON_DBL                                                       \
+  0xEC // Button double-click (=EVENT_TEXT_START, data=button_id)
+
+// User input event types (vector data via ipc_msg_t*):
+#define EVENT_MOTION                                                           \
+  0xED // Axis/Ball/Hat moved  (=EVENT_TEXT_END, data=ipc_msg_t*)
+#define EVENT_MOUSE                                                            \
+  0x6C // Mouse moved          (=EVENT_CMD_RECV, data=ipc_msg_t*)
+#define EVENT_WHEEL                                                            \
+  0xCC // Wheel/scroll turned  (=EVENT_MSG_ACK,  data=ipc_msg_t*)
+#define EVENT_TOUCH                                                            \
+  0xCD // Multi-touch event    (=EVENT_MSG_FLUSH, data=ipc_msg_t*)
+#define EVENT_GESTURE                                                          \
+  0xCE // Gesture detected     (=EVENT_HEARTBEAT, data=ipc_msg_t*)
+#define EVENT_SENSOR                                                           \
+  0xCF // Sensor value changed (=EVENT_FRAME_BEGIN, data=ipc_msg_t*)
+#define EVENT_CALIBRATE                                                        \
+  0x4D // Sensor calibration   (=EVENT_MSG_POP,  data=ipc_msg_t*)
+
+// =============================================================================
+// SHUTDOWN / IDLE helpers
+// =============================================================================
+#define EVENT_IDLE_ENTER 0xB1 // System entered idle  (=EVENT_POWER_OK)
+#define EVENT_SHUTDOWN 0xB8   // System shutdown req  (=EVENT_DEADLOCK_RESOLVED)
+#define EVENT_PRIO_ADJ_EV                                                      \
+  0x0F // Priority adjusted    (=EVENT_PRIO_ADJ ANTICODE)
+
+// =============================================================================
+// DUALITY MACROS
+// =============================================================================
+#define EVENT_TO_ERROR(ev) ((uint8_t)(~(ev) & 0xFF))
+#define ERROR_TO_EVENT(err) ((uint8_t)(~(err) & 0xFF))
+
+#endif // __EVENTS_H__
