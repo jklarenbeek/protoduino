@@ -58,7 +58,8 @@ struct error_info {
   uint8_t severity : 3; /* Non = 0/Debug = 1/Flow/Verbose/Info/Warn/Error/Fatal
                            => Least signifant 3 bits */
   uint8_t reserved : 5;
-  uint8_t event; /* the event that triggered the error (e.g. PROCESS_EVENT_MSG) */
+  uint8_t
+      event; /* the event that triggered the error (e.g. PROCESS_EVENT_MSG) */
   uint8_t error; /* raw ptstate_t error code (>= PT_ERROR) */
 };
 
@@ -106,8 +107,6 @@ struct process {
 
 }; /* struct process */
 
-/* TODO: how do we deal with these extensions PROCESS_CONF_PIPELINES AND
- * PROCESS_CONF_EVENT_INBOX? */
 #ifndef PROCESS_CONF_NO_PROCESS_NAMES
 #if PROCESS_CONF_PIPELINES
 #if PROCESS_CONF_EVENT_INBOX
@@ -117,6 +116,7 @@ struct process {
       process_name_##name,                                                     \
       priority,                                                                \
       PROCESS_STATE_NONE,                                                      \
+      0,                                                                       \
       0,                                                                       \
       0,                                                                       \
       0,                                                                       \
@@ -141,6 +141,7 @@ struct process {
       0,                                                                       \
       0,                                                                       \
       0,                                                                       \
+      0,                                                                       \
       {0}, /* struct pt */                                                     \
       process_thread_##name,                                                   \
       NULL, /* stdin */                                                        \
@@ -158,6 +159,7 @@ struct process {
                          0,                                                    \
                          0,                                                    \
                          0,                                                    \
+                         0,                                                    \
                          {0}, /* struct pt */                                  \
                          process_thread_##name}
 
@@ -165,7 +167,7 @@ struct process {
 #else /* no process names */
 #define PROCESS_INSTANCE(name, priority)                                       \
   struct process name = {NULL, /* next */                                      \
-                         priority, PROCESS_STATE_NONE, 0, 0, 0, 0,             \
+                         priority, PROCESS_STATE_NONE, 0, 0, 0, 0, 0,          \
                          {0}, /* struct pt */                                  \
                          process_thread_##name
 }

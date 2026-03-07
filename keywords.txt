@@ -37,7 +37,7 @@ timer_expired              KEYWORD2
 timer_reset              KEYWORD2
 timer_restart              KEYWORD2
 timer_remaining              KEYWORD2
-PT_WAIT_DELAY              KEYWORD2
+PT_STATIC_DELAY              KEYWORD2
 
 utf8_ecpy               KEYWORD2
 utf8_torune16               KEYWORD2

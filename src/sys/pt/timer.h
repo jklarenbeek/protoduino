@@ -63,12 +63,13 @@
  *
  */
 
-#define PT_WAIT_DELAY(pt, milliseconds) \
-  do { \
-    static struct timer CC_CONCAT2(__DELAY__, __LINE__); \
-    timer_set(&CC_CONCAT2(__DELAY__, __LINE__), clock_from_millis(milliseconds)); \
-    PT_WAIT_UNTIL(pt, timer_expired(&CC_CONCAT2(__DELAY__, __LINE__))); \
-  } while(0);
+#define PT_STATIC_DELAY(pt, milliseconds)                                      \
+  do {                                                                         \
+    static struct timer CC_CONCAT2(__DELAY__, __LINE__);                       \
+    timer_set(&CC_CONCAT2(__DELAY__, __LINE__),                                \
+              clock_from_millis(milliseconds));                                \
+    PT_WAIT_UNTIL(pt, timer_expired(&CC_CONCAT2(__DELAY__, __LINE__)));        \
+  } while (0);
 
 #endif
 

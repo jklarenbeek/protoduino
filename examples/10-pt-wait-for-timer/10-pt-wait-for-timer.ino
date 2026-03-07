@@ -1,12 +1,11 @@
 /**
  * examples/pt-wait-for-timer.ino
  *
- * PT_WAIT_DELAY / timer example
+ * PT_STATIC_DELAY / timer example
  */
+#include <dbg/print.h>
 #include <protoduino.h>
 #include <sys/pt/timer.h>
-#include <dbg/print.h>
-
 
 struct timer_pt {
   lc_t lc;
@@ -39,9 +38,9 @@ static ptstate_t protothread2(struct pt *pt) {
   print_line_P(
       PSTR("Protothread 2: Setting timer2 for 5000 milliseconds and awaits."));
 
-  /* Be weary of the static variable being used by PT_WAIT_DELAY().
+  /* Be weary of the static variable being used by PT_STATIC_DELAY().
      This protothread should not be used in a multiple pt instances. */
-  PT_WAIT_DELAY(pt, 5000);
+  PT_STATIC_DELAY(pt, 5000);
 
   print_line_P(PSTR("Protothread 2: Timer2 expired"));
 
@@ -67,7 +66,7 @@ void loop() {
   while (PT_ISRUNNING(protothread1(&pt1)))
     print_count++;
 
-  print_line_P(PSTR("void loop(): using PT_WAIT_DELAY()"));
+  print_line_P(PSTR("void loop(): using PT_STATIC_DELAY()"));
 
   while (PT_ISRUNNING(protothread2(&pt2)))
     print_count++;
