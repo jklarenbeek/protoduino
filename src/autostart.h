@@ -1,13 +1,11 @@
-// file: ./src/main.h
+// file: ./src/autostart.h
 
-#ifndef __MAIN_H__
-#define __MAIN_H__
+#ifndef __AUTOSTART_H__
+#define __AUTOSTART_H__
 
 #include "protoduino.h"
-#include "sys/process.h"
 #include "sys/ipc.h"    // Required for ipc_pool_init and ipc_msg_t size
-
-struct process *system_log_process;
+#include "sys/process.h"
 
 /* ------------------------------------------------------------------ */
 /* Auto-configuration for System-Wide IPC Message Pool                */
@@ -35,4 +33,4 @@ extern struct ipc_pool g_sys_msg_pool;
 
 CC_EXTERN void protoduino_start(void);
 
-#endif // __MAIN_H__
+#endif // __AUTOSTART_H__

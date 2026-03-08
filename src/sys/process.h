@@ -12,9 +12,10 @@
  */
 
 #include <protoduino.h>
-#if PROCESS_CONF_PIPELINES
-#include "process/pipelines.h"
+#if PROCESS_CONF_PIPELINES > 0
+#include "pt/pipe.h"
 #endif
+
 
 /* ------------------------------------------------------------------ */
 /* Basic types & events                                               */
@@ -83,16 +84,16 @@ struct process {
   psstate_t state : 3;
   uint8_t is_service : 1; /* this is a process that can only be started once!*/
   uint8_t needs_poll : 1;
-  uint8_t has_stdin : 1;
-  uint8_t has_stdout : 1;
+  uint8_t has_pipein : 1;
+  uint8_t has_pipeout : 1;
   uint8_t reserved_flag : 1;
 
   struct pt pt;
   process_thread_t thread;
 
-#if PROCESS_CONF_PIPELINES
-  ipc_pipe_t *stdin;
-  ipc_pipe_t *stdout;
+#if PROCESS_CONF_PIPELINES > 0
+  ipc_pipe_t *pipein;
+  ipc_pipe_t *pipeout;
   size_t written;
 #endif
 
@@ -108,7 +109,7 @@ struct process {
 }; /* struct process */
 
 #ifndef PROCESS_CONF_NO_PROCESS_NAMES
-#if PROCESS_CONF_PIPELINES
+#if PROCESS_CONF_PIPELINES > 0
 #if PROCESS_CONF_EVENT_INBOX
 #define PROCESS_INSTANCE(name, priority)                                       \
   struct process name = {                                                      \
@@ -123,8 +124,8 @@ struct process {
       0,                                                                       \
       {0}, /* struct pt */                                                     \
       process_thread_##name,                                                   \
-      NULL, /* stdin */                                                        \
-      NULL, /* stdout */                                                       \
+      NULL, /* pipein */                                                        \
+      NULL, /* pipeout */                                                       \
       0,    /* written */                                                      \
       {0},  /* struct inbox[] */                                               \
       0,    /* inbox_head */                                                   \
@@ -144,8 +145,8 @@ struct process {
       0,                                                                       \
       {0}, /* struct pt */                                                     \
       process_thread_##name,                                                   \
-      NULL, /* stdin */                                                        \
-      NULL, /* stdout */                                                       \
+      NULL, /* pipein */                                                        \
+      NULL, /* pipeout */                                                       \
       0     /* written */                                                      \
   }
 #endif
@@ -203,45 +204,72 @@ CC_EXTERN struct process *process_current;
 /* ------------------------------------------------------------------ */
 
 /* Initialize scheduler. Pass an optional error_logger process (may be NULL) */
-void process_init(struct process *error_logger);
+CC_EXTERN void process_init(struct process *error_logger);
 
 /* Register and start a process (sends INIT) */
-void process_start(struct process *p);
+CC_EXTERN void process_start(struct process *p);
 
 /* Stop and remove a process from scheduler */
-void process_exit(struct process *p);
+CC_EXTERN void process_exit(struct process *p);
 
 /* Game-loop scheduler: handle polls first if poll_requested, otherwise handle
  * exactly one event */
-void process_run(void);
+CC_EXTERN void process_run(void);
 
 /* Callback type for process iteration */
 typedef void (*process_iterate_cb_t)(struct process *p);
 
 /* Lookup active process by name with length limit. */
-struct process *process_lookup_n(const char *name_segment, size_t len);
+CC_EXTERN struct process *process_lookup_n(const char *name_segment, size_t len);
 
 /* Post event to global queue (atomic). Returns 1 on success, 0 if queue full.
  * p == NULL => broadcast.
  * Safe to call from ISR (uses CC_ATOMIC_RESTORE()).
  */
-int process_post(struct process *p, process_event_t ev, process_data_t data);
+CC_EXTERN int process_post(struct process *p, process_event_t ev, process_data_t data);
 
 /* Alias for ISR explicitness (same behavior as process_post) */
-int process_post_from_isr(struct process *p, process_event_t ev,
+CC_EXTERN int process_post_from_isr(struct process *p, process_event_t ev,
                           process_data_t data);
 
 /* Request a poll for a process (sets needs_poll and poll_requested) */
-void process_poll(struct process *p);
+CC_EXTERN void process_poll(struct process *p);
 
 /* Convenience: report error to configured logger (if any) */
-void process_debug(struct process *src, process_event_t ev, uint8_t code);
-void process_flow(struct process *src, process_event_t ev, uint8_t code);
-void process_verbose(struct process *src, process_event_t ev, uint8_t code);
-void process_info(struct process *src, process_event_t ev, uint8_t code);
-void process_warn(struct process *src, process_event_t ev, uint8_t code);
-void process_error(struct process *src, process_event_t ev, uint8_t code);
-void process_fatal(struct process *src, process_event_t ev, uint8_t code);
+CC_EXTERN void process_debug(struct process *src, process_event_t ev, uint8_t code);
+CC_EXTERN void process_flow(struct process *src, process_event_t ev, uint8_t code);
+CC_EXTERN void process_verbose(struct process *src, process_event_t ev, uint8_t code);
+CC_EXTERN void process_info(struct process *src, process_event_t ev, uint8_t code);
+CC_EXTERN void process_warn(struct process *src, process_event_t ev, uint8_t code);
+CC_EXTERN void process_error(struct process *src, process_event_t ev, uint8_t code);
+CC_EXTERN void process_fatal(struct process *src, process_event_t ev, uint8_t code);
+
+#if PROCESS_CONF_PIPELINES > 0
+
+// process IPC pipes helpers
+#define PROCESS_SET_PIPEIN(pipe) (process_current->pipein = (pipe), process_current->has_pipein = 1)
+#define PROCESS_SET_PIPEOUT(pipe) (process_current->pipeout = (pipe), process_current->has_pipeout = 1)
+#define PROCESS_PIPEIN()  (process_current->pipein)
+#define PROCESS_PIPEOUT() (process_current->pipeout)
+
+#define PROCESS_PIPE_AVAILABLE() ((process_current->has_pipein) && (ipc_pipe_available(PROCESS_PIPEIN()) > 0))
+#define PROCESS_PIPE_SPACE() ((process_current->has_pipeout) && (ipc_pipe_space(PROCESS_PIPEOUT()) > 0))
+
+#define PROCESS_PIPE_READ(buf, max_len, read_len_ptr) \
+  PT_PIPE_READ_EX(&process_current->pt, PROCESS_PIPEIN(), buf, max_len, read_len_ptr)
+
+#define PROCESS_PIPE_WRITE_ATOMIC(buf, len) \
+  PT_PIPE_WRITE_ATOMIC_EX(&process_current->pt, PROCESS_PIPEOUT(), buf, len)
+
+#define PROCESS_PIPE_WRITE(buf, len) \
+  PT_PIPE_WRITE_EX(&process_current->pt, PROCESS_PIPEOUT(), buf, len, process_current->written)
+
+#define PROCESS_PIPE_WRITE_BATCH(buf, len) \
+  PT_PIPE_WRITE_BATCH_EX(&process_current->pt, PROCESS_PIPEOUT(), buf, len, process_current->written)
+
+CC_EXTERN void process_ipc_wake(void *ctx);
+
+#endif
 
 /* End of header */
 #endif /* __PROCESS_H__ */

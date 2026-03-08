@@ -1,7 +1,6 @@
-// file: ./src/main.c
+// file: ./src/autostart.c
 
-#include "main.h"
-#include "sys/process.h"
+#include "autostart.h"
 #include "sys/process/logger.h"
 
 #if PROCESS_CONF_AUTO_IPC_POOL
@@ -10,8 +9,6 @@
 static uint8_t sys_pool_buffer[sizeof(ipc_msg_t) * IPC_CONF_MSG_BLOCK_COUNT];
 struct ipc_pool g_sys_msg_pool;
 #endif
-
-struct process *system_log_process = NULL;
 
 void protoduino_start() {
 
@@ -27,12 +24,5 @@ void protoduino_start() {
 
   // 2. Initialize the scheduler and link the error logger.
   // The error logger can now safely rely on g_sys_msg_pool if it handles leaks.
-  struct process *logger = system_log_process == NULL
-    ? &error_logger_process
-    : system_log_process;
-
-  process_init(logger);
-
-  procinit_init();           // starts processes defined with PROCINIT
-  autostart_start();          // starts processes defined with AUTOSTART_PROCESSES
+  process_init(&error_logger_process);
 }

@@ -9,13 +9,16 @@
 struct ipc_pt
 {
   lc_t lc;
-  struct ipc_pipe *stdin;
-  struct ipc_pipe *stdout;
+  struct ipc_pipe pipein;
+  struct ipc_pipe pipeout;
   size_t written;
 };
 
-#define PT_STDIN(pt) ((pt)->stdin)
-#define PT_STDOUT(pt) ((pt)->stdout)
+#define PT_STDIN(pt) ((pt)->pipein)
+#define PT_STDOUT(pt) ((pt)->pipeout)
+
+#define PT_PIPE_AVAILABLE(pt) (ipc_pipe_available(PT_STDIN(pt)) > 0)
+#define PT_PIPE_SPACE(pt) (ipc_pipe_space(PT_STDOUT(pt)) > 0)
 
 /**
  * Efficient Blocking Read

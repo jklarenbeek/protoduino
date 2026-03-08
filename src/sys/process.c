@@ -395,3 +395,12 @@ void process_error(struct process *src, process_event_t ev, uint8_t code) {
 void process_fatal(struct process *src, process_event_t ev, uint8_t code) {
   process_log(src, 7, ev, code);
 }
+
+#if PROCESS_CONF_PIPELINES > 0
+void process_ipc_wake(void *ctx)
+{
+  struct process *p = (struct process *)ctx;
+  if (p)
+    process_poll(p);
+}
+#endif

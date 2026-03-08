@@ -1,12 +1,10 @@
 // file: 14-sys-shell.ino
 
-#define PROCESS_CONF_PIPELINES 1
-
-#include <lib/utf/vt100.h>
 #include <protoduino.h>
+#include <autostart.h>
 #include <sys/process.h>
-#include <sys/process/pipelines.h>
 #include <sys/uart.h>
+#include <lib/utf/vt100.h>
 
 
 static uint8_t rx_buf[64];
@@ -41,8 +39,8 @@ static void tx_wake_cb(void *ctx) { uart0_tx_enable_int(); }
 PROCESS_THREAD(shell_process, ev, data) {
   PROCESS_BEGIN();
 
-  PROCESS_STDIN() = &rx_pipe;
-  PROCESS_STDOUT() = &tx_pipe;
+  PROCESS_SET_PIPEIN(&rx_pipe);
+  PROCESS_SET_PIPEOUT(&tx_pipe);
 
   static uint8_t input_buf[32];
   static uint8_t input_idx = 0;
@@ -61,7 +59,7 @@ PROCESS_THREAD(shell_process, ev, data) {
     static uint8_t ch;
     static size_t read_len;
 
-    while (ipc_pipe_available(PROCESS_STDIN()) > 0) {
+    while (PROCESS_PIPE_AVAILABLE()) {
       PROCESS_PIPE_READ(&ch, 1, &read_len);
       if (read_len == 0)
         continue;
@@ -119,7 +117,8 @@ PROCESS_THREAD(shell_process, ev, data) {
 }
 
 void setup() {
-  process_init(NULL);
+
+  protoduino_start();
 
   ipc_pipe_init(&rx_pipe, rx_buf, sizeof(rx_buf), process_ipc_wake,
                 &shell_process);
