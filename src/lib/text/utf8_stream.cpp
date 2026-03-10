@@ -1,5 +1,5 @@
 
-#include "utf8-stream.h"
+#include "utf8_stream.h"
 
 
 int8_t utf8_getr(Stream *st, rune16_t *rune)

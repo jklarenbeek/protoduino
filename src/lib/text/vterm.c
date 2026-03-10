@@ -1,5 +1,5 @@
 #include <sys/errors.h>
-#include "vt100.h"
+#include "vterm.h"
 #include "utf8.h"
 
 // VT400 INPUT CODES

@@ -4,7 +4,7 @@
 #include <autostart.h>
 #include <sys/process.h>
 #include <sys/uart.h>
-#include <lib/utf/vt100.h>
+#include <lib/text/vterm.h>
 
 
 static uint8_t rx_buf[64];

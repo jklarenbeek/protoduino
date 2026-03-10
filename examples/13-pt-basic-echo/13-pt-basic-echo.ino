@@ -7,8 +7,8 @@
  */
 #include <protoduino.h>
 #include <sys/serial/SerialClass.hpp>
-#include <lib/utf/utf8-stream.h>
-#include <lib/utf/vt100.h>
+#include <lib/text/utf8_stream.h>
+#include <lib/text/vterm.h>
 
 
 static int count = 0;

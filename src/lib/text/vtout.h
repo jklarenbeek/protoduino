@@ -1,5 +1,5 @@
 /**
- * @file ./src/lib/utf/vtcodes.h
+ * @file vtout.h
  * @brief Complete VT100/VT220/VT420 Terminal Control Codes
  *
  * This header provides comprehensive ANSI/DEC escape sequences for
