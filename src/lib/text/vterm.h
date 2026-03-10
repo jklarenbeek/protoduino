@@ -141,10 +141,10 @@
 #define VT_ERR_BUFFER_OVERFLOW -2
 #define VT_ERR_KEY_NOT_FOUND -3
 
-CC_EXTERN int8_t vt_esc_add(char * buffer, uint8_t * idx, const rune16_t ch);
+CC_EXTERN int8_t vt_esc_add16(char * buffer, uint8_t * idx, const rune16_t ch);
 
-CC_EXTERN rune16_t vt_esc_match(const char * buffer, const uint8_t len);
+CC_EXTERN rune16_t vt_esc_match16(const char * buffer, const uint8_t len);
 
-CC_EXTERN rune16_t vt_esc_symbol(rune16_t rune);
+CC_EXTERN rune16_t vt_esc_symbol16(rune16_t rune);
 
 #endif

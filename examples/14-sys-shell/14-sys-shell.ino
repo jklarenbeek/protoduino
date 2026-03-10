@@ -65,9 +65,9 @@ PROCESS_THREAD(shell_process, ev, data) {
         continue;
 
       if (state == ESCAPE) {
-        int8_t ret = vt_esc_add((char *)esc_buf, &esc_idx, ch);
+        int8_t ret = vt_esc_add16((char *)esc_buf, &esc_idx, ch);
         if (ret == ERR_SUCCESS) {
-          rune16_t rune = vt_esc_match((const char *)esc_buf, esc_idx);
+          rune16_t rune = vt_esc_match16((const char *)esc_buf, esc_idx);
           state = NORMAL;
           // Optionally handle VT100 keys (e.g. arrows) here
         } else if (ret != ERR_YIELDING) {
@@ -79,7 +79,7 @@ PROCESS_THREAD(shell_process, ev, data) {
       if (ch == KEY_ESCAPE) {
         state = ESCAPE;
         esc_idx = 0;
-        vt_esc_add((char *)esc_buf, &esc_idx, ch);
+        vt_esc_add16((char *)esc_buf, &esc_idx, ch);
       } else if (ch == KEY_BACKSPACE || ch == KEY_DELETE || ch == '\b' ||
                  ch == 127) {
         if (input_idx > 0) {

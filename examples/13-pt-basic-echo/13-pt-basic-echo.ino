@@ -44,13 +44,13 @@ forever:
       // until we reach an escape terminator code.
       do {
         PT_GETR(self);
-        ret = vt_esc_add((char *)self->buf, &self->idx, self->value);
+        ret = vt_esc_add16((char *)self->buf, &self->idx, self->value);
       } while (ret > 0);
 
       // the escape sequence was buffered correctly
       if (ret == ERR_SUCCESS) {
         // find the rune keycode for the escape sequence
-        rune = vt_esc_match((const char *)self->buf, self->idx);
+        rune = vt_esc_match16((const char *)self->buf, self->idx);
         if (rune == UTF8_DECODE_ERROR) {
           /* Fix: Since ERR_INPUT_INVALID does not exist, use ERR_TEXT_INVALID
            */
@@ -76,7 +76,7 @@ static ptstate_t main_driver(struct pt *self, Stream *stream) {
   pt1.stream = stream;
 
   PT_FOREACH(self, &pt1, getch(&pt1)) {
-    pt1.value = vt_esc_symbol(pt1.value);
+    pt1.value = vt_esc_symbol16(pt1.value);
 
     stream->print("echo '");
     stream->flush();

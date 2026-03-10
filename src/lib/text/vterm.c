@@ -148,7 +148,7 @@ const char VT_SEQ_CURSOR_VIS[]          CC_PROGMEM = "\e[?25";  // set cursor vi
 
 const size_t vt_key_mappings_size = (sizeof(vt_key_mappings) / sizeof(struct vt_key_map));
 
-int8_t vt_esc_add(char * buffer, uint8_t * idx, const rune16_t ch)
+int8_t vt_esc_add16(char * buffer, uint8_t * idx, const rune16_t ch)
 {
     if (ch > 0x7F)
         return ERR_ARG_INVALID;
@@ -168,7 +168,7 @@ int8_t vt_esc_add(char * buffer, uint8_t * idx, const rune16_t ch)
     }
 }
 
-rune16_t vt_esc_match(const char * buffer, const uint8_t len)
+rune16_t vt_esc_match16(const char * buffer, const uint8_t len)
 {
     for(int idx = 0; idx < vt_key_mappings_size; ++idx)
     {
@@ -181,7 +181,7 @@ rune16_t vt_esc_match(const char * buffer, const uint8_t len)
     return UTF8_DECODE_ERROR;
 }
 
-rune16_t vt_esc_symbol(const rune16_t rune)
+rune16_t vt_esc_symbol16(const rune16_t rune)
 {
     switch(rune)
     {
