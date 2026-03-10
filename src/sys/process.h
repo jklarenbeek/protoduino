@@ -59,8 +59,7 @@ struct error_info {
   uint8_t severity : 3; /* Non = 0/Debug = 1/Flow/Verbose/Info/Warn/Error/Fatal
                            => Least signifant 3 bits */
   uint8_t reserved : 5;
-  uint8_t
-      event; /* the event that triggered the error (e.g. PROCESS_EVENT_MSG) */
+  uint8_t event; /* the event that triggered the error (e.g. PROCESS_EVENT_MSG) */
   uint8_t error; /* raw ptstate_t error code (>= PT_ERROR) */
 };
 
@@ -82,11 +81,10 @@ struct process {
   process_prio_t prio;
 
   psstate_t state : 3;
-  uint8_t is_service : 1; /* this is a process that can only be started once!*/
+  uint8_t type : 2; /* 0 = process (multiple instances), 1 = driver (single instance), 2 = reserved, 3 = reserved */
   uint8_t needs_poll : 1;
   uint8_t has_pipein : 1;
   uint8_t has_pipeout : 1;
-  uint8_t reserved_flag : 1;
 
   struct pt pt;
   process_thread_t thread;
@@ -117,15 +115,14 @@ struct process {
       process_name_##name,                                                     \
       priority,                                                                \
       PROCESS_STATE_NONE,                                                      \
-      0,                                                                       \
-      0,                                                                       \
+      0, /* type */                                                            \
       0,                                                                       \
       0,                                                                       \
       0,                                                                       \
       {0}, /* struct pt */                                                     \
       process_thread_##name,                                                   \
-      NULL, /* pipein */                                                        \
-      NULL, /* pipeout */                                                       \
+      NULL, /* pipein */                                                       \
+      NULL, /* pipeout */                                                      \
       0,    /* written */                                                      \
       {0},  /* struct inbox[] */                                               \
       0,    /* inbox_head */                                                   \
@@ -138,15 +135,14 @@ struct process {
       process_name_##name,                                                     \
       priority,                                                                \
       PROCESS_STATE_NONE,                                                      \
-      0,                                                                       \
-      0,                                                                       \
+      0, /* type */                                                            \
       0,                                                                       \
       0,                                                                       \
       0,                                                                       \
       {0}, /* struct pt */                                                     \
       process_thread_##name,                                                   \
-      NULL, /* pipein */                                                        \
-      NULL, /* pipeout */                                                       \
+      NULL, /* pipein */                                                       \
+      NULL, /* pipeout */                                                      \
       0     /* written */                                                      \
   }
 #endif
@@ -156,8 +152,7 @@ struct process {
                          process_name_##name,                                  \
                          priority,                                             \
                          PROCESS_STATE_NONE,                                   \
-                         0,                                                    \
-                         0,                                                    \
+                         0, /* type */                                         \
                          0,                                                    \
                          0,                                                    \
                          0,                                                    \
@@ -168,7 +163,10 @@ struct process {
 #else /* no process names */
 #define PROCESS_INSTANCE(name, priority)                                       \
   struct process name = {NULL, /* next */                                      \
-                         priority, PROCESS_STATE_NONE, 0, 0, 0, 0, 0,          \
+                         priority,                                             \
+                         PROCESS_STATE_NONE,                                   \
+                         0, /* type */                                         \
+                         0, 0, 0,                                              \
                          {0}, /* struct pt */                                  \
                          process_thread_##name
 }
