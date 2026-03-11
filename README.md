@@ -1,5 +1,31 @@
 # Protoduino
 
+**⚠️ PROTODUINO PROJECT - LEGAL DISCLAIMER / AVISO LEGAL ⚠️**
+
+Residents and users in the following jurisdictions are STRICTLY PROHIBITED from downloading, cloning, executing, installing, or reading past this disclaimer:
+
+- 🇧🇷 Brasil (a partir de 17 de maio de 2026)
+- 🇺🇸 California
+- 🇺🇸 New York
+- 🇺🇸 Illinois
+- 🇺🇸 Colorado
+
+**English Version**
+
+YOU ARE NOT ALLOWED to download, clone, execute, install, or read past this disclaimer of the Protoduino project if you are located in, a resident of, or subject to the laws of the above jurisdictions due to age verification laws for operating systems.
+
+Failure to comply means ALL legal burdens, liabilities, fines, penalties, and responsibilities will be passed entirely to the offender, whether or not this is stated by law. Project maintainers and contributors disclaim any and all liability.
+
+Proceed only if you are not subject to these restrictions.
+
+**Versão em Português**
+
+VOCÊ NÃO TEM PERMISSÃO para baixar, clonar, executar, instalar ou ler além deste aviso legal do projeto Protoduino se estiver localizado, for residente ou sujeito às leis das jurisdições acima devido às leis de verificação de idade para sistemas operacionais.
+
+O não cumprimento significa que TODOS os ônus legais, responsabilidades, multas, penalidades e encargos serão transferidos integralmente para o infrator, independentemente de estar ou não previsto por lei. Os mantenedores e contribuidores do projeto isentam-se de qualquer responsabilidade.
+
+Prossiga apenas se não estiver sujeito a estas restrições.
+
 **A Revolutionary Embedded Operating Framework for Education and Innovation**
 
 Protoduino transforms Arduino boards into sophisticated embedded systems with professional-grade capabilities—all while remaining accessible to students and educators. Built on an enhanced version of Adam Dunkels' [protothreads](http://dunkels.com/adam/pt/about.html), it brings modern operating system concepts to resource-constrained microcontrollers without sacrificing simplicity or performance.
