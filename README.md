@@ -173,7 +173,7 @@ A groundbreaking **8-bit error classification system** that goes beyond simple e
 
 **Looking ahead:** The taxonomy provides a foundation for quantum error correction in the emerging Quantum-AI era.
 
-📖 [**Read the Error Taxonomy Documentation**](./docs/errors.md) for the mathematical framework and future quantum applications.
+📖 [**Read the Event/Error Ontology Documentation**](./docs/ontology.md) for the mathematical framework and future quantum applications.
 
 ---
 
@@ -211,8 +211,8 @@ Protoduino includes extensive, professional-grade documentation:
 | [**Protothreads v2**](./docs/protothreads.md) | Enhanced cooperative multitasking with exception handling |
 | [**IPC Layer**](./docs/ipc.md) | Messages and streaming pipes for inter-process communication |
 | [**Kernel Scheduler**](./docs/scheduler.md) | Game-loop scheduler design, debugging, and integration |
-| [**Error Taxonomy**](./docs/errors.md) | Ontological 8-bit error classification system |
-| [**Module Loader**](./docs/loader.md) | Dynamic code loading and runtime extensibility |
+| [**Event/Error Ontology**](./docs/ontology.md) | Ontological 8-bit event-error classification system |
+| [**Module Loader**](./docs/loader.md) | Dynamic code loading and runtime extensibility (TODO: NOT IMPLEMENTED) |
 
 Each document includes theory, practical examples, debugging guides, and Mermaid diagrams.
 

@@ -1,549 +1,1061 @@
-# Protoduino Kernel Scheduler — design, use, and debugging
-
-This document explains the protoduino kernel scheduler implemented in `process.h` and `process.c`, how it integrates with Protothreads v2 (`pt.h`), how messaging and pipes work via `ipc.h`/`ipc.c`, how to design state machines with protothreads, and practical tests & debugging tips for very small MCUs (AVR/Arduino). It includes step-by-step explanations and mermaid diagrams to visualize the scheduler behaviour and message flows.
-
----
-
-## Table of contents
-
-1. Overview — What this scheduler provides
-2. Inner workings of the kernel scheduler
-3. Scheduler ↔ Protothreads integration (lifecycle & semantics)
-4. Messaging & streaming pipes (`ipc.h`/`ipc.c`)
-5. Flow and sequence diagrams (Mermaid)
-6. Tutorial — designing state machines with protothreads
-7. Verification checklist for tiny MCU scheduling
-8. Debugging guide — typical problems and resolutions
-9. Examples — Arduino Studio (producer/consumer, pipe usage, error logger)
-10. Appendix — tips & advanced notes
+# Protoduino Process Scheduler
+### Developer & Maintainer Reference — v2.0
+> Cooperative multitasking on 2 KB of SRAM
 
 ---
 
-# 1. Overview — What this scheduler provides
+## Table of Contents
 
-This scheduler is small, deterministic, and designed for resource-constrained microcontrollers. Key properties:
-
-* Global event queue (ring buffer) connecting all processes.
-* Optional compile-time per-process inbox (small ring) for direct messages.
-* Hybrid IPC: structured messages (`ipc_msg_t*`) for packet/RPC style, and zero-copy streaming **pipes** (ring buffers) for efficient byte streams.
-* Protothreads v2 integration: `PROCESS_THREAD` functions use `pt.h` semantics (PT_WAITING, PT_YIELDED, PT_EXITED, PT_ENDED, PT_ERROR, PT_FINALIZED).
-* `process_run()` follows a game-loop style: do all polls first, then handle exactly one event — keeps cycles small and predictable.
-* ISR-safe `process_post()` (uses atomic sections via `CC_ATOMIC_RESTORE()`).
-* Error reporting: PT errors posted as `PROCESS_EVENT_ERROR` with raw ptstate_t error codes (4–254).
-
----
-
-# 2. Inner workings of kernel scheduler
-
-### Key data structures
-
-* `struct process`: describes a process (priority, state, protothread control block, optional inbox).
-* `events[]` (global ring): each entry `{ dest, ev, data }` where dest==NULL means broadcast.
-* `process_list`: linked list of registered processes, sorted by priority (smaller numeric prio == higher priority).
-* `poll_requested` flag and per-process `needs_poll` flag to indicate polls to be serviced.
-
-### Core loop (`process_run()`)
-
-1. If `poll_requested` is set, call `do_poll()` which scans process_list and calls each process with `PROCESS_EVENT_POLL` for those whose `needs_poll` is set. `do_poll()` services *all* polls and returns if it ran any.
-2. If no polls were handled, `process_run()` handles *exactly one* event from the global queue (or one per-process inbox item if enabled) and returns quickly. This is the "game loop" constraint: one event -> return.
-
-Why this pattern? On tiny MCUs, processing all polls first ensures responsive streaming (pipes) while bounding event processing time to a single event per `process_run()` call to keep frame/tick latency predictable.
-
-### Posting events
-
-* `process_post(dest, ev, data)`:
-
-  * Atomic: uses `CC_ATOMIC_RESTORE()` to safely update ring indices.
-  * If `PROCESS_CONF_EVENT_INBOX` is enabled and dest != NULL, the scheduler first tries to push into the recipient's inbox (fast path). If inbox full or not enabled, falls back to global queue.
-  * Returns 1 on success, 0 if the queue is full.
-
-* `process_poll(proc)`: sets `proc->needs_poll = 1` and `poll_requested = 1`. Used by IPC pipes to notify readers that data arrived.
-
-### Event dispatch
-
-* If event is broadcast (dest==NULL): the scheduler calls every registered process (in priority order) once with the event.
-* If directed: only destination process receives the event.
-* For per-process inbox: inbox items may be popped before global events to prioritize direct messages.
-
-### Error reporting
-
-* If a protothread returns an error code (PT_ISERROR(ret)), the scheduler posts `PROCESS_EVENT_ERROR` to the configured `process_error_logger` using a small rotating `error_pool` so the message pointer remains valid temporarily.
+1. [Introduction](#1-introduction)
+2. [Core Concepts](#2-core-concepts)
+3. [Struct Layout & Cast Safety](#3-struct-layout--cast-safety)
+4. [Defining Process Types](#4-defining-process-types)
+5. [Writing Thread Bodies](#5-writing-thread-bodies)
+6. [The Scheduler Loop](#6-the-scheduler-loop)
+7. [Events & Polling](#7-events--polling)
+8. [IPC Pipes](#8-ipc-pipes)
+9. [Structured Logging](#9-structured-logging)
+10. [Pools & Multiple Instances](#10-pools--multiple-instances)
+11. [Configuration Reference](#11-configuration-reference)
+12. [Migration Guide (v1 → v2)](#12-migration-guide-v1--v2)
+13. [Internals for Maintainers](#13-internals-for-maintainers)
+- [Appendix A — Complete API Quick-Reference](#appendix-a--complete-api-quick-reference)
 
 ---
 
-# 3. How the scheduler works with protothreads
+## 1. Introduction
 
-### PT lifecycle recap (as implemented)
+Protoduino is a cooperative process scheduler for resource-constrained AVR microcontrollers — think Arduino Uno or Mega: 2 KB of SRAM, no heap, no `malloc`. It lets you write multiple concurrent tasks (processes) using a clean, readable macro API while the entire runtime fits in a few hundred bytes of flash.
 
-* `PT_INIT(&pt)`: initialize the protothread.
-* `pt_thread(&pt, ev, data)` returns a `ptstate_t`:
+This document is the single authoritative reference for anyone writing code that uses the scheduler (**developers**) or maintaining the scheduler itself (**maintainers**). It covers every public API, explains the design decisions behind them, and gives concrete, copy-pasteable examples for every feature.
 
-  * `PT_WAITING` / `PT_YIELDED` — running/paused: scheduler should return and not finalize.
-  * `PT_EXITED`, `PT_ENDED` — thread indicates it will exit; scheduler must arm finalization (call `PT_FINAL(&pt)`) and then schedule the protothread until it returns `PT_FINALIZED`.
-  * `PT_ERROR` (4..254) — real error. Scheduler must post error to logger, call `PT_FINAL(&pt)`, schedule until `PT_FINALIZED`, then remove.
-  * `PT_FINALIZED` — thread is finished and can be removed.
+### What makes this scheduler different
 
-### Scheduler behavior when calling a process
+| Property | Detail |
+|---|---|
+| **Zero dynamic allocation** | Every byte of SRAM is accounted for at link time. Processes, pipes, and event queues are all static arrays. |
+| **Predictable latency** | One call to `process_run()` handles at most one event or one round of polls — worst case is O(N processes). |
+| **Ergonomic API** | The Clay-inspired macro system lets you describe a process as a type with named fields, not as a struct full of `static` locals. |
+| **Fully scalable** | Strip everything you don't need via config knobs: names, inboxes, pipelines. The minimal build is as small as Contiki's original protothread core. |
 
-`call_process(p, ev, data)`:
-
-1. Mark `p->state = PROCESS_STATE_RUNNING`.
-2. Call `ret = p->thread(&p->pt, ev, data)`.
-3. If `PT_ISRUNNING(ret)` (i.e., `ret < PT_EXITED`), mark `p->state = PROCESS_STATE_CALLED` and return.
-4. If `ret == PT_EXITED || ret == PT_ENDED || PT_ISERROR(ret)`:
-
-   * If `PT_ISERROR(ret)`, post `PROCESS_EVENT_ERROR` with raw `ret`.
-   * Call `PT_FINAL(&p->pt)` to set LC to final-state.
-   * Repeatedly call `p->thread(&p->pt, ev, data)` until it returns `PT_FINALIZED`. Any errors in finalizer are also forwarded to error logger.
-   * After `PT_FINALIZED`, remove process (`process_exit`).
-5. If `ret == PT_FINALIZED` (rare), remove process immediately.
-
-### Design rules for process authors
-
-* **Never use `switch`/`case` inside `PROCESS_THREAD`** (protothread LC uses switch internally): use `if/else`.
-* Use `PROCESS_WAIT_EVENT()` / `PROCESS_WAIT_EVENT_UNTIL()` / `PROCESS_WAIT_EVENT()` patterns.
-* For child protothreads, use `PT_SPAWN`, `PT_WAIT_THREAD`, etc., and follow error-catching macros (`PT_CATCH`, `PT_CATCHANY`) as needed.
-* Finalization (`PT_FINALLY`) must be written in the protothread; the scheduler only *arms* finalization (calls `PT_FINAL`) when exit/error occurs.
+> **TARGET HARDWARE** — All examples assume an AVR ATmega328P (Arduino Uno) unless stated otherwise. The scheduler compiles clean on any C99 toolchain including ARM Cortex-M and host GCC for unit testing.
 
 ---
 
-# 4. Messages and pipes (`ipc.h` / `ipc.c`)
+## 2. Core Concepts
 
-### Two IPC primitives
+### 2.1 Cooperative multitasking
 
-* **Messages (packets):** `ipc_msg_t` objects (type, argc, argv[]) allocated from a fixed-size `ipc_pool`. Use for RPC or multi-argument messages. Sent via `process_post(dest, PROCESS_EVENT_MSG, (process_data_t)msg)`.
+The scheduler is **cooperative**, not preemptive. A process runs until it explicitly yields control by calling one of the `PROCESS_WAIT_*` macros. No task can be interrupted mid-execution by another task (only by hardware ISRs). This means no mutexes are needed between processes — just careful use of yield points.
 
-  * Ownership: sender allocates message (or static), sets args, posts. Receiver is responsible for freeing message back to pool via `ipc_pool_free()` or using agreed ownership.
-  * Good for case-by-case, discrete packet semantics (command requests, responses, notifications).
+The trade-off: a process that never yields will starve everything else. Design every process to yield frequently, especially in loops that poll hardware.
 
-* **Streaming pipes:** `ipc_pipe_t` ring buffers for bytes. Writers call `ipc_pipe_write(pipe, data, len)` which writes bytes into buffer and, if the buffer was empty, calls a user-provided `wake_cb(wake_ctx)` callback (commonly `process_poll(reader_proc)` or a small wrapper that `process_post()`s `PROCESS_EVENT_POLL` — you decide). Readers call `ipc_pipe_read(pipe, dst, len)` in response to `PROCESS_EVENT_POLL` to consume bytes.
+```mermaid
+sequenceDiagram
+    participant mainloop as loop()
+    participant sched as process_run()
+    participant A as Process A
+    participant B as Process B
 
-### Why both?
+    mainloop->>sched: call
+    sched->>A: dispatch event
+    A->>A: execute until PROCESS_WAIT_*
+    A-->>sched: yield (PT_YIELDED)
+    sched-->>mainloop: return
 
-* Packets are structured and can carry typed arguments; perfect for RPC.
-* Pipes deliver high-throughput, low-overhead streaming without creating many events or allocating messages per byte. Pipe writes are zero-copy into the ring buffer and wake the reader only when necessary.
+    mainloop->>sched: call
+    sched->>B: dispatch event
+    B->>B: execute until PROCESS_WAIT_*
+    B-->>sched: yield (PT_YIELDED)
+    sched-->>mainloop: return
+```
 
----
+### 2.2 Protothreads
 
-# 5. Flow & sequence diagrams (Mermaid)
+A protothread is a **stackless coroutine** that resumes from the same point it last yielded. The underlying mechanism is a Duff's Device `switch` statement stored in a single `lc_t` (line counter) field inside `struct pt`. The scheduler carries one `struct pt` per process inside `struct process`.
 
-Below are diagrams illustrating the scheduler's main run loop, posting, event dispatch, and pipe writer/reader flow. Paste these to any Mermaid renderer (e.g., VSCode Mermaid preview, GitHub, Mermaid Live Editor).
+Because protothreads are stackless, **local variables inside a thread body do not survive a yield**. Use per-process struct fields (declared in `PROCESS_DEFINE`) for any state that must persist across yields.
 
-### Scheduler main loop (activity)
+> ⚠️ **IMPORTANT** — Never use plain `static` local variables for state that must survive a `PROCESS_WAIT_*` call. Static locals are shared across all re-entries and all instances of the same process type. Store persistent state in the concrete process struct accessed via `PROCESS_SELF`.
+
+### 2.3 Events
+
+Processes communicate via **events**. An event is a small record `(dest, ev, data)`. Events are enqueued atomically into a fixed-size ring buffer. Each call to `process_run()` dequeues and dispatches exactly one event — keeping latency bounded.
+
+If `dest == NULL`, the event is **broadcast** to every active process.
+
+### 2.4 Polls
+
+A poll is a **lightweight notification** without ring-buffer overhead. Calling `process_poll(p)` sets a flag on `p` and raises `poll_requested`. On the next `process_run()` call, all flagged processes are called with `PROCESS_EVENT_POLL` before any queued events. Polls are the right tool for ISR-to-process wakeup.
 
 ```mermaid
 flowchart TD
-  A[Start: process_run()] --> B{poll_requested?}
-  B -- yes --> C[do_poll(): iterate processes]
-  C --> D[call each process with PROCESS_EVENT_POLL]
-  D --> E[return to caller]
-  B -- no --> F[do_event(): pop one event]
-  F --> G{event present?}
-  G -- no --> H[return (idle)]
-  G -- yes --> I{dest==NULL?}
-  I -- yes --> J[broadcast: call_process each process]
-  I -- no --> K[call_process(dest)]
-  J --> H
-  K --> H
+    ISR["Hardware ISR\n(e.g. UART RX byte)"]
+    ipc["ipc_pipe_write()"]
+    wake["process_ipc_wake()\n→ process_poll(p)"]
+    flag["p->needs_poll = 1\npoll_requested = 1"]
+    run["process_run()"]
+    poll["do_poll() sweeps list\ndispatches PROCESS_EVENT_POLL"]
+    thread["Process thread\ndrains pipe"]
+
+    ISR --> ipc --> wake --> flag
+    run --> poll --> thread
 ```
 
-### Event posting (sequence)
+---
+
+## 3. Struct Layout & Cast Safety
+
+Understanding the three-level struct hierarchy is essential. Get it wrong and you will corrupt the protothread `lc` or overwrite scheduler metadata.
+
+### 3.1 The three levels
+
+| Level | Type | Role |
+|---|---|---|
+| 1 — protothread engine | `struct pt` | Contains only `lc_t lc`. The Duff's Device resume point. |
+| 2 — scheduler base | `struct process` | First member is `struct pt pt`. Holds all scheduler metadata: `next`, `name`, `prio`, `state`, thread pointer, optional pipe/inbox fields. |
+| 3 — concrete process | `process_XYZ_t` | First member is `struct process base`. User fields follow. Produced by `PROCESS_DEFINE`. |
 
 ```mermaid
-sequenceDiagram
-  participant ISR as ISR or Task
-  participant Scheduler as process_post()
-  Note over Scheduler: global event ring + optional inbox
-  ISR->>Scheduler: process_post(dest, ev, data)
-  alt per-process inbox enabled & dest != NULL
-    Scheduler-->>Scheduler: try inbox_push(dest, ev, data)
-    alt success
-      Scheduler-->>Recipient: (no global queue used)
-    else inbox full
-      Scheduler-->>Queue: enqueue_event(dest, ev, data)
-    end
-  else per-process inbox disabled or dest==NULL
-    Scheduler-->>Queue: enqueue_event(dest, ev, data)
-  end
-  Scheduler-->>ISR: return (success/fail)
-```
-
-### Pipe writer -> reader (sequence)
-
-```mermaid
-sequenceDiagram
-  participant Writer
-  participant Pipe as ipc_pipe
-  participant Reader
-  Writer->>Pipe: ipc_pipe_write(buf,len)
-  Pipe-->>Pipe: write to ring buffer (atomic)
-  alt transitioned empty->non-empty
-    Pipe->>Reader: wake_cb(wake_ctx)  // typically process_poll(reader)
-  end
-  Note over Reader: Reader receives PROCESS_EVENT_POLL later in process_run()
-  Reader->>Pipe: ipc_pipe_read(dst,len)
-  Pipe-->>Reader: return bytes read
-```
-
-### Protothread lifecycle on dispatch (sequence)
-
-```mermaid
-sequenceDiagram
-  participant Scheduler
-  participant Process as p->thread()
-  Scheduler->>Process: call p->thread(pt, ev, data)
-  alt PT_ISRUNNING (WAITING/YIELDED)
-    Process-->>Scheduler: return PT_WAITING/PT_YIELDED
-    Scheduler-->>Process: mark CALLED
-  else EXITED/ENDED/ERROR
-    Process-->>Scheduler: return PT_EXITED/PT_ENDED/PT_ERROR
-    Scheduler->>Process: PT_FINAL(&pt)
-    loop finalizer
-      Scheduler->>Process: call p->thread(pt, ev, data)
-      alt PT_ISERROR
-         Process-->>Scheduler: ret=error; Scheduler posts to error logger
+block-beta
+  columns 1
+  block:concrete["process_shell_t (concrete)"]
+    block:base["struct process base  ← offset 0"]
+      block:pt["struct pt pt  ← offset 0"]
+        lc["lc_t lc  ← offset 0  (resume point)"]
       end
+      meta["next · name · prio · state · type\nneeds_poll · thread · pipein · pipeout"]
     end
-    Process-->>Scheduler: ret==PT_FINALIZED
-    Scheduler-->>Process: process_exit()
-  else PT_FINALIZED
-    Process-->>Scheduler: ret==PT_FINALIZED
-    Scheduler-->>Process: process_exit()
+    user["uint8_t input_buf[32]\nuint8_t input_idx\n...user fields..."]
   end
 ```
 
----
+### 3.2 C99 §6.7.2.1 cast safety
 
-# 6. Tutorial — designing state machines with protothreads
-
-This section teaches how to turn a state machine into a protothread-based process. Protothreads let you express state machines naturally with local variables preserved across yields, without creating full threads.
-
-### The pattern
-
-General protothread state machine pattern:
+Because each level's first member is the level below, all three pointer types refer to the **same address**. These casts are valid C99:
 
 ```c
-PROCESS(foo_process, "foo", 1);
+// All three point to the same address:
+process_shell_t  *concrete  = &shell_proc;
+struct process   *base      = &shell_proc.base;    // explicit field
+struct pt        *pt_engine = &shell_proc.base.pt; // explicit field
 
-PROCESS_THREAD(foo_process, ev, data)
+// Also valid via §6.7.2.1:
+(struct process *) concrete  == base       // true
+(struct pt *)      base      == pt_engine  // true
+```
+
+The scheduler always stores and accepts `struct process *`. Inside a thread body, cast back to the concrete type with `PROCESS_SELF(name)`.
+
+---
+
+## 4. Defining Process Types
+
+### 4.1 `PROCESS_DEFINE` — the primary macro
+
+Use `PROCESS_DEFINE` to declare a named process type with per-instance state. The `...` argument is a verbatim C struct body — field declarations exactly as they would appear inside `struct { }`. No special syntax.
+
+```c
+PROCESS_DEFINE(blink, "blink", 2,
+  uint8_t  led_pin;
+  uint16_t interval_ms;
+  uint8_t  state;
+);
+```
+
+This single macro emits four things:
+
+```mermaid
+flowchart LR
+    macro["PROCESS_DEFINE(blink, ...)"]
+    n["① PROGMEM name string\nprocess_name_blink[]"]
+    f["② Thread forward-decl\nprocess_thread_blink(...)"]
+    t["③ Concrete struct type\nprocess_blink_t"]
+    d["④ PROGMEM type descriptor\nprocess_type_blink"]
+
+    macro --> n
+    macro --> f
+    macro --> t
+    macro --> d
+```
+
+### 4.2 `DEVICE_DEFINE` — singleton variant
+
+Identical to `PROCESS_DEFINE` but sets `.type = PROCESS_TYPE_DEVICE` in the descriptor. The scheduler enforces the singleton rule: if a process with the same `thread` pointer is already in the list, `process_start()` silently returns.
+
+```c
+DEVICE_DEFINE(uart_driver, "uart0", 0,
+  ipc_pipe_t *rx;
+  ipc_pipe_t *tx;
+);
+```
+
+### 4.3 `PROCESS` — zero-field shorthand
+
+For processes that carry no user state, `PROCESS(name, caption, prio)` is a one-liner that expands to `PROCESS_DEFINE` + `PROCESS_INSTANCE`. Fully compatible with existing protoduino sketches.
+
+```c
+// Simplest possible process:
+PROCESS(heartbeat, "heartbeat", 5);
+
+// Start it:
+process_start(&heartbeat.base);
+```
+
+> **COMPATIBILITY** — Old code that wrote `PROCESS(name, c, p)` and then `process_start(&name)` still compiles. `&name` is `process_name_t*` which passes as `struct process*` because `base` is the first member.
+
+### 4.4 `PROCESS_INSTANCE` — static single instance
+
+Declares one static, zero-initialised instance of a type. C's default static storage ensures all fields (`lc`, child `struct pt`, user data) start at zero. `process_start()` fills in the scheduler metadata (`name`, `thread`, `prio`, `type`) from the PROGMEM type descriptor before inserting the process into the list.
+
+```c
+PROCESS_DEFINE(shell, "shell", 2,
+  uint8_t input_buf[32];
+  uint8_t input_idx;
+);
+
+PROCESS_INSTANCE(shell, shell_proc);
+
+// Initialise any non-zero user fields, then start:
+process_start(&shell_proc.base);
+```
+
+### 4.5 Macro expansion summary
+
+```mermaid
+flowchart TD
+    pd["PROCESS_DEFINE(shell, 'shell', 2,\n  uint8_t input_buf[32];\n  uint8_t input_idx;\n)"]
+    pi["PROCESS_INSTANCE(shell, shell_proc)"]
+
+    pd -->|"emits"| type["process_shell_t {\n  struct process base;\n  uint8_t input_buf[32];\n  uint8_t input_idx;\n}"]
+    pd -->|"emits"| desc["process_type_shell (PROGMEM) {\n  .name   = process_name_shell\n  .thread = process_thread_shell\n  .size   = sizeof(process_shell_t)\n  .prio   = 2\n  .type   = PROCESS_TYPE_PROCESS\n}"]
+    pi -->|"declares"| inst["static process_shell_t shell_proc\n(zero-initialised)"]
+```
+
+---
+
+## 5. Writing Thread Bodies
+
+### 5.1 `PROCESS_THREAD`
+
+The thread function is opened with `PROCESS_THREAD(name, ev, data)`. The implicit first parameter `pt_process` is `struct process *` — all `PROCESS_*` macros inside the body use it directly.
+
+```c
+PROCESS_THREAD(blink, ev, data)
 {
-    PROCESS_BEGIN();
+  blink_t *self = PROCESS_SELF(blink);  // cast once at the top
 
-    while (1) {
-        // state A: wait for event
-        PROCESS_WAIT_EVENT_UNTIL(ev == MY_EVENT_START);
-        // run some action, then go to waiting for event B
-        do_action();
-        PROCESS_WAIT_EVENT_UNTIL(ev == MY_EVENT_STEP);
-        // step, possibly yield periodically for long operations
-        for (int i=0; i<1000; ++i) {
-            // if heavy compute, yield occasionally:
-            if ((i & 0xF) == 0) {
-                PROCESS_YIELD(); // uses PT_YIELD, but we avoid switching to 'switch' in thread
-            }
-        }
-    }
+  PROCESS_BEGIN();
 
-    PROCESS_END();
+  self->led_pin     = 13;
+  self->interval_ms = 500;
+
+  while (1) {
+    PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
+    digitalWrite(self->led_pin, !digitalRead(self->led_pin));
+  }
+
+  PROCESS_END();
 }
 ```
 
-Key tips:
+### 5.2 `PROCESS_SELF` — accessing user fields
 
-* Use `PROCESS_WAIT_EVENT_UNTIL()` rather than `switch(ev)` inside the thread.
-* Keep `if/else` for branching on event values, not `switch`.
-* Use `PT_SPAWN`, `PT_WAIT_THREAD` for child protothreads (nested state machines).
-* For long-running tasks, break into smaller chunks and `PROCESS_YIELD()` (or `PT_WAIT_ONE`) to let scheduler run other processes.
-
-### Example: simple UART echo state machine
+`PROCESS_SELF(name)` casts `pt_process` (`struct process *`) back to `process_name_t *`. Always safe because `struct process base` is the first member of the concrete struct.
 
 ```c
-PROCESS(uart_reader, "uart", 1);
+// At the top of every thread body that has user fields:
+blink_t *self = PROCESS_SELF(blink);
 
-PROCESS_THREAD(uart_reader, ev, data)
-{
-    PROCESS_BEGIN();
+// Then use self-> for all persistent state:
+self->led_pin     = 13;
+self->interval_ms = 500;
+```
 
-    static uint8_t buf[32];
-    while (1) {
-        // wait for poll from pipe
-        PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
-        // read bytes from pipe (the pipe buffer is shared)
-        size_t got;
-        while ((got = ipc_pipe_read(&uart_pipe, buf, sizeof(buf))) > 0) {
-            // echo or process
-            uart_write(buf, got);
-        }
-    }
+### 5.3 Control flow macros
 
-    PROCESS_END();
+| Macro | Underlying PT call | Behaviour |
+|---|---|---|
+| `PROCESS_BEGIN()` | `PT_BEGIN(&pt_process->pt)` | Opens the protothread. Must be the first statement. |
+| `PROCESS_END()` | `PT_END(&pt_process->pt)` | Closes the protothread. Process finalises when reached. |
+| `PROCESS_EXIT()` | `PT_EXIT(&pt_process->pt)` | Early exit — triggers PT_FINALLY cleanup blocks. |
+| `PROCESS_WAIT_EVENT()` | `PT_YIELD(...)` | Yield unconditionally. Resumes on next event. |
+| `PROCESS_WAIT_EVENT_UNTIL(c)` | `PT_YIELD_UNTIL(..., c)` | Yield and retry until condition `c` is true. |
+| `PROCESS_SPAWN(child, thread)` | `PT_SPAWN(...)` | Run a child protothread to completion before continuing. |
+| `PROCESS_WAIT_THREAD(child)` | `PT_WAIT_THREAD(...)` | Wait for a child protothread to finish. |
+
+### 5.4 Child protothreads
+
+Child protothreads are declared as `struct pt` fields inside `PROCESS_DEFINE`. They receive their own resume point and are passed to `PT_SPAWN` / `PROCESS_WAIT_THREAD` by address.
+
+```c
+PROCESS_DEFINE(parser, "parser", 3,
+  struct pt child_vt;   // child protothread state
+  uint8_t   esc_buf[8];
+  uint8_t   esc_idx;
+);
+
+PROCESS_THREAD(parser, ev, data) {
+  parser_t *self = PROCESS_SELF(parser);
+  PROCESS_BEGIN();
+
+  // Spawn child — suspends this process until child returns
+  PT_SPAWN(&pt_process->pt, &self->child_vt,
+           vt_parse_thread(&self->child_vt,
+                           self->esc_buf, &self->esc_idx));
+
+  PROCESS_END();
 }
 ```
 
-### Converting a hand-rolled state machine into a protothread
-
-1. Identify event triggers and internal states.
-2. For each blocking wait, replace with `PROCESS_WAIT_EVENT()` or `PROCESS_WAIT_EVENT_UNTIL()`.
-3. Use local static variables for state storage (they persist across yields).
-4. For sub-steps, use loops and `PROCESS_YIELD()` as needed.
-5. For cleanup, write a `PT_FINALLY` block inside the thread — the scheduler will call it on exit/error.
-
----
-
-# 7. Verification checklist for tiny MCU scheduling
-
-Before labeling behavior "correct", run this checklist on target hardware (AVR / ATmega variants):
-
-### Configuration & compile-time checks
-
-* [ ] `PROCESS_CONF_EVENT_QUEUE_SIZE` set suitably for your memory and expected concurrency.
-* [ ] `PROCESS_CONF_EVENT_INBOX` configured as intended.
-* [ ] `CC_ATOMIC_RESTORE()` defined and maps to `ATOMIC_BLOCK(ATOMIC_RESTORESTATE)` on AVR.
-* [ ] `ipc_pool` buffers sized and aligned: `block_size >= sizeof(void*)`.
-
-### Functional tests
-
-* [ ] Register two simple processes; verify `process_start()` sets INIT delivered and both execute.
-* [ ] Post directed events and confirm only target process receives them.
-* [ ] Post broadcast events and confirm all active processes receive them.
-* [ ] Call `process_poll()` and ensure `do_poll()` delivers `PROCESS_EVENT_POLL` (test with `ipc_pipe`).
-* [ ] Use `ipc_pipe_write()` in ISR and confirm reader wakes and reads data.
-* [ ] Allocate a message from `ipc_pool` and post as `PROCESS_EVENT_MSG`; verify receiver uses and frees it.
-* [ ] Raise a PT error using `PT_RAISE()` inside a process and verify `PROCESS_EVENT_ERROR` posted with raw PT error code.
-
-### Stress tests
-
-* [ ] Fill the global queue to capacity; ensure `process_post()` fails gracefully (returns 0).
-* [ ] Fill per-process inbox (if enabled) and confirm fallback or failure behavior.
-* [ ] Write to a pipe faster than the reader; confirm backpressure (write returns 0 when full).
-* [ ] Run with interrupts posting events and verify no queue corruption.
-
----
-
-# 8. Debugging guide
-
-### Symptoms → root causes → fixes
-
-#### 1) Queue overflow: `process_post()` returns 0 (events not accepted)
-
-* Cause: global queue full (too many events outstanding) or per-process inbox full.
-* Fixes:
-
-  * Increase `PROCESS_CONF_EVENT_QUEUE_SIZE` (if memory allows).
-  * Use per-process inbox (reduces global queue pressure).
-  * Reduce event frequency: group events or use a single message with multiple data items.
-  * Apply backpressure: drop, retry later, or reduce ISR event generation frequency.
-
-#### 2) Missed polls (reader never wakes)
-
-* Cause: your `ipc_pipe_write()` wake callback not wired to `process_poll()` or you forgot to set `wake_cb`.
-* Fix:
-
-  * Ensure `ipc_pipe_init(pipe, buf, size, pipe_wake_cb, (void*)reader_process)` with `pipe_wake_cb` implementing `process_poll(reader_proc)`.
-  * Verify `process_poll()` sets `poll_requested = 1` and `needs_poll` for process.
-
-#### 3) Processes never run after `PROCESS_START` or INIT ignored
-
-* Cause: process never inserted into `process_list` (maybe `process_start()` not called), or process incorrectly initialized state not PROCESS_STATE_NONE.
-* Fix:
-
-  * Confirm `process_start()` call and verify `p->state` changed.
-  * Check priority insertion logic — lower numeric prio should be handled earlier.
-
-#### 4) Lost or corrupted message pointers
-
-* Cause: message freed too early or pointer to stack memory passed as `process_data_t`.
-* Fix:
-
-  * Use `ipc_pool_alloc()` for messages or ensure message payloads are static/global or in a safe pool.
-  * Receiver must `ipc_pool_free()` the message if ownership is specified that way.
-
-#### 5) Complex arrays/strings sent as argv[] pointers appear invalid
-
-* Cause: sender used stack-allocated buffer that went out of scope.
-* Fix:
-
-  * Always allocate payloads from pool or static storage (or copy into a pool-allocated buffer).
-
-#### 6) Unexpected `PT_FINALIZED` / process removal
-
-* Cause: process returned `PT_EXITED` / `PT_ENDED` or threw an error, scheduler executed finalization and removed it.
-* Fix:
-
-  * Inspect code: if you need the process to continue, ensure returns are PT_WAITING or PT_YIELDED, not EXITED/ENDED.
-  * Check `PT_RAISE()` usage — ensure it is intended.
-
-#### 7) Errors not reaching logger
-
-* Cause: `process_error_logger` not set in `process_init()` or logger queue full.
-* Fix:
-
-  * Call `process_init(&error_logger_proc)` or set `process_error_logger` appropriately.
-  * Ensure error logger process exists and can accept `PROCESS_EVENT_ERROR`.
-
----
-
-# 9. Examples — Using the kernel with Arduino Studio
-
-Below are minimal, copy-paste-friendly examples showing common uses. Use the Arduino IDE (or PlatformIO) and include the `src` directory in your sketch.
-
-> Note: adapt includes to your project layout.
-
-### Example 1 — Simple producer/consumer with message pool
-
-`main.ino` (simplified):
+### 5.5 Handling events
 
 ```c
-#include "Arduino.h"
-#include "sys/process.h"
-#include "sys/ipc.h"
+PROCESS_THREAD(sensor, ev, data) {
+  PROCESS_BEGIN();
 
-/* message pool: 4 messages */
-static uint8_t msgpool_buf[sizeof(ipc_msg_t) * 4];
-static struct ipc_pool msgpool;
+  while (1) {
+    PROCESS_WAIT_EVENT();
 
-/* define two processes */
-PROCESS(producer_proc, "producer", 2);
-PROCESS(consumer_proc, "consumer", 2);
+    if (ev == PROCESS_EVENT_INIT) {
+      // First call — initialise hardware
 
-PROCESS_THREAD(producer_proc, ev, data)
-{
-    PROCESS_BEGIN();
+    } else if (ev == PROCESS_EVENT_POLL) {
+      // ISR woke us — read sensor
 
-    while (1) {
-        /* create message and post to consumer */
-        ipc_msg_t *m = ipc_msg_alloc_from_pool(&msgpool);
-        if (!m) {
-            /* pool empty: wait a bit and retry */
-            delay(10);
-        } else {
-            void *argv[1] = { (void*) "hello" };
-            ipc_msg_init(m, 1, 1, argv);
-            if (!process_post(&consumer_proc, PROCESS_EVENT_MSG, (process_data_t)m)) {
-                /* queue full: free and try later */
-                ipc_msg_free_to_pool(&msgpool, m);
-            }
-            /* sleep 1 second */
-            delay(1000);
-        }
-        PROCESS_WAIT_EVENT(); /* yields to scheduler */
+    } else if (ev == PROCESS_EVENT_MSG) {
+      // Directed message with payload
+      struct my_msg *m = (struct my_msg *)data;
+      handle_message(m);
+
+    } else if (ev == PROCESS_EVENT_EXIT) {
+      // Another process asked us to shut down
+      PROCESS_EXIT();
     }
+  }
 
-    PROCESS_END();
+  PROCESS_END();
 }
+```
 
-PROCESS_THREAD(consumer_proc, ev, data)
-{
-    PROCESS_BEGIN();
-    while (1) {
-        PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_MSG);
-        ipc_msg_t *m = (ipc_msg_t*)data;
-        if (m) {
-            // use m->argv[0] ...
-            Serial.println((char*)m->argv[0]);
-            ipc_msg_free_to_pool(&msgpool, m);
-        }
-    }
-    PROCESS_END();
-}
+---
 
-/* Arduino setup/loop */
+## 6. The Scheduler Loop
+
+### 6.1 `process_init`
+
+Call once at startup before any other scheduler function. Pass an optional error-logger process (or `NULL`).
+
+```c
 void setup() {
-    Serial.begin(115200);
-    ipc_pool_init(&msgpool, msgpool_buf, sizeof(ipc_msg_t), 4);
-    process_init(NULL);
-    process_start(&consumer_proc);
-    process_start(&producer_proc);
-}
+  protoduino_start();
 
-void loop() {
-    process_run();
+  process_init(NULL);                   // no logger
+  // — or —
+  process_init(&logger_proc.base);      // structured logging
+
+  process_start(&shell_proc.base);
 }
 ```
 
-Notes:
+### 6.2 `process_run`
 
-* `delay()` is blocking and not ideal in PTs — prefer `PROCESS_WAIT_EVENT_UNTIL()` with a timer process.
-* On real AVR, replace `delay()` with a timer-based event or `millis()` checks in the PT to stay cooperative.
+Call from Arduino's `loop()`. Each call performs **at most one unit of work**:
 
-### Example 2 — Pipe between ISR writer and process reader
+```mermaid
+flowchart TD
+    run["process_run()"]
+    poll_check{"poll_requested?"}
+    do_poll["do_poll()\nSweep all needs_poll flags\nDispatch PROCESS_EVENT_POLL to each"]
+    early["return early\n(polls always win)"]
+    do_event["do_event()\nDequeue one entry\nfrom ring buffer"]
+    inbox_check{"Per-process inbox\nenabled & non-empty?"}
+    inbox["Pop from inbox\nDispatch to owner"]
+    global_check{"Global queue\nnon-empty?"}
+    broadcast_check{"dest == NULL?"}
+    broadcast["Broadcast to all\nactive processes"]
+    directed["Dispatch to\nnamed process"]
+    idle["return 0\n(nothing to do)"]
 
-`main.ino`:
+    run --> poll_check
+    poll_check -- yes --> do_poll --> early
+    poll_check -- no --> do_event
+    do_event --> inbox_check
+    inbox_check -- yes --> inbox
+    inbox_check -- no --> global_check
+    global_check -- no --> idle
+    global_check -- yes --> broadcast_check
+    broadcast_check -- yes --> broadcast
+    broadcast_check -- no --> directed
+```
 
 ```c
-#include "Arduino.h"
-#include "sys/process.h"
-#include "sys/ipc.h"
-
-/* static pipe buffer */
-static uint8_t uart_pipe_buf[64];
-static ipc_pipe_t uart_pipe;
-
-/* reader process */
-PROCESS(uart_reader, "uart_reader", 2);
-
-void pipe_wake_cb(void *ctx) {
-    /* glue: ctx is pointer to process; we poll it */
-    process_poll((struct process*)ctx);
-}
-
-PROCESS_THREAD(uart_reader, ev, data)
-{
-    PROCESS_BEGIN();
-    uint8_t tmp[16];
-    while (1) {
-        PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL || ev == PROCESS_EVENT_INIT);
-        /* read all available bytes */
-        size_t n;
-        while ((n = ipc_pipe_read(&uart_pipe, tmp, sizeof(tmp))) > 0) {
-            // handle bytes (print to serial)
-            for (size_t i = 0; i < n; ++i) Serial.write(tmp[i]);
-        }
-    }
-    PROCESS_END();
-}
-
-/* Imagine a UART RX ISR that calls this small routine. On real hardware,
-   put it in the ISR. Here we simulate it in loop(). */
-void uart_rx_sim_push(const uint8_t *buf, size_t len) {
-    ipc_pipe_write(&uart_pipe, buf, len);
-}
-
-void setup() {
-    Serial.begin(115200);
-    process_init(NULL);
-    ipc_pipe_init(&uart_pipe, uart_pipe_buf, sizeof(uart_pipe_buf), pipe_wake_cb, &uart_reader);
-    process_start(&uart_reader);
-}
-
 void loop() {
-    // Simulator: occasionally push bytes as if from ISR
-    static unsigned long last = 0;
-    if (millis() - last > 1000) {
-        const char *s = "tick\n";
-        uart_rx_sim_push((const uint8_t*)s, strlen(s));
-        last = millis();
-    }
-    process_run();
+  process_run();   // one tick — call repeatedly
 }
 ```
 
-Key notes:
+### 6.3 `process_start`
 
-* `ipc_pipe_write()` should be safe to call from ISR if your `CC_ATOMIC_RESTORE()` is ISR-safe (on AVR `ATOMIC_BLOCK` is used). If calling from ISR, ensure `wake_cb` is ISR-safe or simply calls `process_post_from_isr()`/`process_poll()` using a safe wrapper.
+Registers a pre-allocated static instance and sends `PROCESS_EVENT_INIT`. Only resets the protothread `lc` — user fields are the caller's responsibility. For `PROCESS_TYPE_DEVICE`, rejects if an instance with the same `thread` pointer already runs.
+
+```c
+// Initialise any fields the thread needs on first INIT, then start:
+shell_proc.input_idx = 0;
+process_start(&shell_proc.base);  // &base is struct process *
+```
+
+### 6.4 `process_new`
+
+The preferred way to start a dynamically-managed process from a pool. Zero-inits the entire concrete struct via `memset`, reads scheduler metadata from the PROGMEM type descriptor, then calls `process_start()`.
+
+```c
+shell_t *s = shell_pool_alloc();
+if (s) {
+  // process_new zero-inits s entirely — user fields start at 0.
+  struct process *p = process_new(&process_type_shell, s);
+  if (!p) { /* queue full or singleton conflict */ }
+}
+```
+
+### 6.5 `process_destroy`
+
+Requests orderly shutdown. Sets state to `PROCESS_STATE_EXITING` and arms `PT_FINAL`. The next scheduler call runs any `PT_FINALLY` / cleanup blocks, then `process_unlink()` removes the process from the list and resets its state to `PROCESS_STATE_NONE`, freeing the pool slot.
+
+```c
+process_destroy(&shell_proc.base);
+// shell_proc.base.state == PROCESS_STATE_NONE after cleanup completes
+```
+
+> **DEVICES** — `process_destroy()` is silently ignored for `PROCESS_TYPE_DEVICE` instances. Devices run until system reset by design.
 
 ---
 
-# 10. Appendix — tips & advanced notes
+## 7. Events & Polling
 
-* Keep per-process work short inside `PROCESS_THREAD` to keep system responsive.
-* Prefer `PROCESS_WAIT_EVENT_UNTIL()` over `delay()` to avoid blocking.
-* Use per-process inbox for high-volume directed messaging to reduce pressure on the global queue.
-* When memory is tight, keep `PROCESS_CONF_EVENT_QUEUE_SIZE` small (4–8) but test the application under worst-case loads.
-* When migrating to multi-core or richer RTOS, keep the same event and pipe semantics; you can implement a lock around queues instead of atomic blocks.
+### 7.1 `process_post` — enqueue an event
+
+Atomically enqueues one event. Returns `1` on success, `0` if the ring buffer is full. Safe to call from ISR context. `p == NULL` broadcasts to all active processes.
+
+```c
+// Directed event with payload:
+process_post(&logger_proc.base, PROCESS_EVENT_MSG, &my_payload);
+
+// Broadcast — every active process receives it:
+process_post(NULL, MY_CUSTOM_EVENT, NULL);
+
+// From an ISR (identical behaviour, self-documenting name):
+process_post_from_isr(&sensor_proc.base, PROCESS_EVENT_POLL, NULL);
+```
+
+### 7.2 Event flow: directed vs broadcast
+
+```mermaid
+sequenceDiagram
+    participant Sender
+    participant Queue as Ring Buffer
+    participant Sched as process_run()
+    participant A as Process A
+    participant B as Process B
+    participant C as Process C
+
+    Note over Sender,Queue: Directed post  (dest = Process B)
+    Sender->>Queue: process_post(&B, ev, data)
+    Queue-->>Sender: ok=1
+    Sched->>Queue: dequeue
+    Sched->>B: call_process(ev, data)
+    B-->>Sched: PT_YIELDED
+
+    Note over Sender,Queue: Broadcast post  (dest = NULL)
+    Sender->>Queue: process_post(NULL, ev, data)
+    Sched->>Queue: dequeue
+    Sched->>A: call_process(ev, data)
+    Sched->>B: call_process(ev, data)
+    Sched->>C: call_process(ev, data)
+```
+
+### 7.3 `process_poll` — lightweight ISR wakeup
+
+Sets a flag on `p` — no ring-buffer slot consumed. On the next `process_run()`, the process is called with `PROCESS_EVENT_POLL` before any queued events. This is the preferred wake mechanism for ISRs that produce data for a pipe.
+
+```c
+// Inside an ISR — ipc_pipe_write() calls the wake_cb automatically:
+static void on_rx_byte(uint_fast8_t b) {
+  uint8_t byte = b;
+  ipc_pipe_write(&rx_pipe, &byte, 1);
+  // wake_cb = process_ipc_wake → process_poll(&shell_proc.base)
+}
+```
+
+### 7.4 Standard event reference
+
+| Event | Value | When sent | `data` payload |
+|---|---|---|---|
+| `PROCESS_EVENT_NONE` | `0x00` | Never sent; used as queue sentinel. | `NULL` |
+| `PROCESS_EVENT_INIT` | `0x01` | `process_start()` / `process_new()` — first event a process ever receives. | `NULL` |
+| `PROCESS_EVENT_POLL` | `0x02` | `process_poll()` sets a flag; dispatched by `do_poll()` before events. | `NULL` |
+| `PROCESS_EVENT_EXIT` | `0x03` | Convention: send to ask a process to clean up. Not auto-sent by scheduler. | `NULL` or reason code |
+| `PROCESS_EVENT_ERROR` | `0x04` | Sent to the logger by `process_log()` for every log entry. | `struct error_info *` |
+| `PROCESS_EVENT_MSG` | varies | User-directed message. If leaked on exit, a warning is logged. | application-defined |
+| `PROCESS_EVENT_PIPE` | varies | Pipe data ready notification. | `ipc_pipe_t *` |
+
+### 7.5 Custom events
+
+```c
+#define EVT_SENSOR_READY   0x10
+#define EVT_CMD_PARSE_DONE 0x11
+#define EVT_DISPLAY_UPDATE 0x12
+
+// Post a custom event with a typed payload:
+static sensor_reading_t reading = { .temp = 245, .hum = 68 };
+process_post(&display_proc.base, EVT_SENSOR_READY, &reading);
+```
+
+Define your own events as `uint8_t` constants above `0x10` to avoid collisions with the reserved range.
+
+### 7.6 Per-process inbox (`PROCESS_CONF_EVENT_INBOX`)
+
+When enabled, each process has a small private inbox (depth `PROCESS_CONF_INBOX_SIZE`, default 4). Directed posts are placed in the inbox first; this reduces contention on the shared global queue and improves directed-message latency.
+
+```c
+// Enable in protoduino_config.h:
+#define PROCESS_CONF_EVENT_INBOX  1
+#define PROCESS_CONF_INBOX_SIZE   8   // tune to your burst rate
+```
+
+> **MEMORY COST** — Each inbox slot costs `sizeof(process_event_t) + sizeof(process_data_t)` bytes. On AVR that is 3 bytes/slot. An inbox of depth 8 costs 24 bytes per process.
 
 ---
 
-## Final words
+## 8. IPC Pipes
 
-This scheduler is deliberately tiny and deterministic. It fits very well on AVR-class MCUs while still providing expressive, powerful protothread-based concurrency and a flexible IPC layer (messages + pipes). Use the verification checklist to test on real boards, and follow the debugging guide to root-cause the most common issues.
+Pipes provide a **byte-stream channel** between two processes (or between an ISR and a process). A pipe is a fixed-size ring buffer (`ipc_pipe_t`) with an optional wake callback that fires when the pipe transitions from empty to non-empty.
+
+### 8.1 Pipe architecture
+
+```mermaid
+sequenceDiagram
+    participant ISR as UART ISR
+    participant pipe as ipc_pipe (rx_pipe)
+    participant wake as process_ipc_wake()
+    participant sched as process_run()
+    participant proc as Process (shell)
+
+    ISR->>pipe: ipc_pipe_write(&rx_pipe, &byte, 1)
+    pipe->>wake: wake_cb(ctx) — pipe was empty
+    wake->>sched: process_poll(&shell_proc.base)
+    Note over sched: next process_run() tick
+    sched->>proc: PROCESS_EVENT_POLL
+    proc->>pipe: PROCESS_PIPE_READ(buf, 1, &n)
+    pipe-->>proc: byte data
+    proc->>pipe: PROCESS_PIPE_WRITE_ATOMIC(response, len)
+    pipe-->>ISR: TX ISR drains tx_pipe
+```
+
+### 8.2 Declaring and initialising pipes
+
+Pipe buffers must have static lifetime and must be declared **outside** the process struct — they are shared with ISR callbacks.
+
+```c
+// Declare at file scope:
+static uint8_t    rx_buf[64];
+static ipc_pipe_t rx_pipe;
+
+static uint8_t    tx_buf[64];
+static ipc_pipe_t tx_pipe;
+
+// Initialise in setup() before starting the process:
+ipc_pipe_init(&rx_pipe, rx_buf, sizeof(rx_buf),
+              process_ipc_wake, &shell_proc.base);
+ipc_pipe_init(&tx_pipe, tx_buf, sizeof(tx_buf),
+              tx_wake_cb, NULL);
+```
+
+### 8.3 Attaching pipes to a process
+
+Use `PROCESS_SET_PIPEIN` and `PROCESS_SET_PIPEOUT` inside the thread body after `PROCESS_BEGIN()`. These macros set the pipe pointers on `pt_process` directly — no global variable required.
+
+```c
+PROCESS_THREAD(shell, ev, data) {
+  shell_t *self = PROCESS_SELF(shell);
+  PROCESS_BEGIN();
+
+  PROCESS_SET_PIPEIN(&rx_pipe);   // read from UART RX
+  PROCESS_SET_PIPEOUT(&tx_pipe);  // write to UART TX
+
+  // Now use PROCESS_PIPE_* macros...
+  PROCESS_END();
+}
+```
+
+### 8.4 Pipe read / write macros
+
+| Macro | Description |
+|---|---|
+| `PROCESS_PIPE_AVAILABLE()` | True if the input pipe has at least one byte ready. |
+| `PROCESS_PIPE_SPACE()` | True if the output pipe has space for at least one byte. |
+| `PROCESS_PIPE_READ(buf, max, &n)` | Read up to `max` bytes into `buf`. Stores actual count in `n`. Yields if no data. |
+| `PROCESS_PIPE_WRITE_ATOMIC(buf, len)` | Write `len` bytes atomically (all or nothing). Yields until space is available. |
+| `PROCESS_PIPE_WRITE(buf, len)` | Write `len` bytes, yielding between chunks as needed. |
+| `PROCESS_PIPE_WRITE_BATCH(buf, len)` | Optimised batch write — best for large blocks. |
+
+### 8.5 Complete pipe echo example
+
+```c
+PROCESS_THREAD(echo, ev, data) {
+  echo_t *self = PROCESS_SELF(echo);
+  PROCESS_BEGIN();
+
+  PROCESS_SET_PIPEIN(&rx_pipe);
+  PROCESS_SET_PIPEOUT(&tx_pipe);
+
+  while (1) {
+    PROCESS_WAIT_EVENT_UNTIL(
+        ev == PROCESS_EVENT_POLL || ev == PROCESS_EVENT_INIT);
+
+    while (PROCESS_PIPE_AVAILABLE()) {
+      uint8_t ch;
+      size_t  n;
+      PROCESS_PIPE_READ(&ch, 1, &n);
+      if (n == 0) break;
+      PROCESS_PIPE_WRITE_ATOMIC(&ch, 1);  // echo back
+    }
+  }
+
+  PROCESS_END();
+}
+```
+
+### 8.6 `process_ipc_wake`
+
+A ready-made wake callback for `ipc_pipe_init()`. Calls `process_poll(ctx)`. Pass `&my_proc.base` as `ctx`. ISR-safe.
+
+```c
+ipc_pipe_init(&rx_pipe, rx_buf, sizeof(rx_buf),
+              process_ipc_wake, &my_proc.base);
+// Every ipc_pipe_write() that fills an empty pipe
+// automatically wakes my_proc via process_poll.
+```
+
+---
+
+## 9. Structured Logging
+
+The scheduler includes a lightweight log sink. Register a logger process in `process_init()` and it will receive every log entry as a `PROCESS_EVENT_ERROR` event with a `struct error_info *` payload.
+
+### 9.1 Log flow
+
+```mermaid
+sequenceDiagram
+    participant proc as Any Process
+    participant log as process_log()
+    participant pool as error_pool[]
+    participant post as process_post()
+    participant logger as Logger Process
+
+    proc->>log: process_error(pt_process, ev, ERR_HW_INIT)
+    log->>pool: rotate index, fill slot:\n{source, severity=6, event, error}
+    log->>post: process_post(logger, PROCESS_EVENT_ERROR, &slot)
+    Note over logger: next process_run() tick
+    post-->>logger: PROCESS_EVENT_ERROR + error_info*
+    logger->>logger: read severity/source/error\nprint to Serial / send upstream
+```
+
+### 9.2 Severity levels
+
+| Function | Severity | Use for |
+|---|---|---|
+| `process_debug()` | 1 | Detailed trace output — disable in production |
+| `process_flow()` | 2 | Control-flow checkpoints |
+| `process_verbose()` | 3 | Verbose operational data |
+| `process_info()` | 4 | Normal operational milestones |
+| `process_warn()` | 5 | Unexpected but recoverable conditions |
+| `process_error()` | 6 | Errors that affect functionality |
+| `process_fatal()` | 7 | Unrecoverable errors — system must reset |
+
+### 9.3 Calling the log functions
+
+```c
+PROCESS_THREAD(sensor, ev, data) {
+  PROCESS_BEGIN();
+
+  if (!sensor_init()) {
+    process_error(pt_process, PROCESS_EVENT_ERROR, ERR_HW_INIT);
+    PROCESS_EXIT();  // triggers PT_FINALLY cleanup
+  }
+
+  process_info(pt_process, PROCESS_EVENT_INIT, 0);
+  PROCESS_END();
+}
+```
+
+### 9.4 Writing a logger process
+
+```c
+PROCESS_DEFINE(logger, "logger", 0,  // priority 0 = highest
+  /* no user fields needed */
+);
+PROCESS_INSTANCE(logger, logger_proc);
+
+PROCESS_THREAD(logger, ev, data) {
+  PROCESS_BEGIN();
+  while (1) {
+    PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_ERROR);
+    struct error_info *e = (struct error_info *)data;
+    Serial.print(PROCESS_NAME_STRING(e->source));
+    Serial.print(" sev=");
+    Serial.println(e->severity);
+  }
+  PROCESS_END();
+}
+
+// In setup():
+process_init(&logger_proc.base);
+process_start(&logger_proc.base);
+```
+
+> **POOL SIZE** — Log entries use a rotating pool of `PROCESS_CONF_ERROR_POOL_SIZE` slots. If the logger is slow and logs arrive in bursts, old entries are silently overwritten. Tune `PROCESS_CONF_ERROR_POOL_SIZE` in `protoduino_config.h`.
+
+---
+
+## 10. Pools & Multiple Instances
+
+Most embedded applications run one static instance of each process type. When you need multiple instances — multiple serial ports, multiple sensor nodes — use `PROCESS_POOL`.
+
+### 10.1 `PROCESS_POOL`
+
+Declares a static array of N instances plus an inline allocator `pool_name_alloc()`. Freeing is **automatic**: when `process_destroy()` finishes its cleanup phase, the scheduler sets the state back to `PROCESS_STATE_NONE`, making the slot available again on the next `pool_name_alloc()` call.
+
+```c
+PROCESS_DEFINE(sensor, "sensor", 3,
+  uint8_t  pin;
+  uint16_t last_reading;
+);
+
+PROCESS_POOL(sensor, sensor_pool, 4);  // 4 concurrent sensors
+
+void add_sensor(uint8_t pin) {
+  sensor_t *s = sensor_pool_alloc();
+  if (!s) return;  // all slots busy
+
+  // process_new: zero-inits, copies metadata, calls process_start()
+  struct process *p = process_new(&process_type_sensor, s);
+  if (p) {
+    s->pin = pin;  // set before INIT event is processed
+  }
+}
+```
+
+### 10.2 Pool lifecycle
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> NONE : static initialisation\n(all slots start here)
+    NONE --> INIT : process_new() /\nprocess_start()
+    INIT --> RUNNING : process_run()\ndispatches INIT event
+    RUNNING --> CALLED : thread yields\n(PROCESS_WAIT_*)
+    CALLED --> RUNNING : process_run()\nnext event/poll
+    CALLED --> EXITING : process_destroy()\nor thread PROCESS_EXIT()
+    RUNNING --> EXITING : thread returns\nPT_ISEXITING
+    EXITING --> RUNNING : process_run()\nruns PT_FINALLY block
+    RUNNING --> NONE : thread returns\nPT_FINALIZED\n→ process_unlink()
+    NONE --> [*] : slot available\nfor pool_alloc()
+```
+
+### 10.3 Identifying instances
+
+Because every instance of the same type shares the same `thread` pointer, you cannot use that to distinguish them. Use a user field or compare `struct process *` pointers directly.
+
+```c
+// Find a specific sensor instance by pin:
+sensor_t *find_sensor(uint8_t pin) {
+  for (uint8_t i = 0; i < 4; i++) {
+    if (sensor_pool[i].base.state != PROCESS_STATE_NONE
+        && sensor_pool[i].pin == pin)
+      return &sensor_pool[i];
+  }
+  return NULL;
+}
+```
+
+### 10.4 Priority ordering
+
+Processes are inserted into a singly-linked list sorted by `prio` (lower numeric = higher priority). Equal priorities are stable: they run in insertion order.
+
+| Priority | Typical use |
+|---|---|
+| `0` | Critical drivers: logger, watchdog |
+| `1` | Hardware interrupt handlers, UART drivers |
+| `2` | Protocol processing, shell |
+| `3` | Sensor readers, application logic |
+| `4+` | Background tasks, telemetry, display updates |
+
+---
+
+## 11. Configuration Reference
+
+Override any knob in `src/protoduino_config.h`. Never edit `process_conf.h` directly — that file only provides the defaults.
+
+| Knob | Default | Memory impact | Description |
+|---|---|---|---|
+| `PROCESS_CONF_EVENT_QUEUE_SIZE` | `4` | `3 bytes × N` | Global event ring capacity. Increase if you post many events before `process_run()` drains them. |
+| `PROCESS_CONF_ERROR_POOL_SIZE` | `4` | `4 bytes × N` | Rotating error_info pool. Increase if your logger can be slow. |
+| `PROCESS_CONF_MAX_ARGS` | `4` | `2 + 2×N bytes` | Depth of `process_args_t argv[]`. |
+| `PROCESS_CONF_EVENT_INBOX` | `0` | `0` or `3×INBOX_SIZE` per proc | Per-process inbox. Enable for lower directed-message latency. |
+| `PROCESS_CONF_INBOX_SIZE` | `4` | see above | Inbox depth per process. Active only when `EVENT_INBOX=1`. |
+| `PROCESS_CONF_PIPELINES` | `1` | `6 bytes` per process | Enable IPC pipe fields. Set to `0` to strip pipes entirely. |
+| `PROCESS_CONF_PIPELINES_MAX_STAGES` | `3` | compile-time only | Maximum stages in a pipeline chain. |
+| `PROCESS_CONF_NO_PROCESS_NAMES` | *(undef)* | ~20 bytes flash saved per process | Define to strip PROGMEM name strings. |
+
+### 11.1 Minimal-footprint configuration
+
+```c
+// src/protoduino_config.h  — for a deeply constrained sensor node
+#define PROCESS_CONF_NO_PROCESS_NAMES  1   // strip name strings (~20B/process)
+#define PROCESS_CONF_PIPELINES         0   // strip pipe fields (6B/process)
+#define PROCESS_CONF_EVENT_INBOX       0   // no per-process inbox
+#define PROCESS_CONF_EVENT_QUEUE_SIZE  4   // minimum queue
+#define PROCESS_CONF_ERROR_POOL_SIZE   2   // minimum error pool
+```
+
+### 11.2 High-throughput configuration
+
+```c
+// src/protoduino_config.h  — for a system with heavy inter-process messaging
+#define PROCESS_CONF_EVENT_QUEUE_SIZE  16
+#define PROCESS_CONF_ERROR_POOL_SIZE   8
+#define PROCESS_CONF_EVENT_INBOX       1
+#define PROCESS_CONF_INBOX_SIZE        8
+#define PROCESS_CONF_PIPELINES         1
+```
+
+---
+
+## 12. Migration Guide (v1 → v2)
+
+All changes are source-compatible unless marked **breaking**.
+
+| Old (v1) | New (v2) | Breaking? |
+|---|---|---|
+| `PROCESS(name, c, p)` | Unchanged. Still works. | No |
+| `process_start(&name)` | `process_start(&name.base)` when using `PROCESS_DEFINE` + `PROCESS_INSTANCE`. Unchanged for `PROCESS()` shorthand. | Only for new-style |
+| `process_exit(p)` | `process_destroy(p)` — old name kept as a `#define` alias. | No (alias provided) |
+| `PROCESS_BEGIN()` with `struct pt *` | `PROCESS_BEGIN()` with `struct process *` — macro references `&pt_process->pt` internally. | No (transparent) |
+| `static` locals in thread body | Fields in `PROCESS_DEFINE`, accessed via `PROCESS_SELF(name)`. | Manual refactor needed |
+| Pipeline macros using `process_current->` | Pipeline macros now use `pt_process->` directly. | No (transparent) |
+
+### Step-by-step migration of a single process
+
+1. Wrap any `static` locals that survive yields into a `PROCESS_DEFINE` field block.
+2. Add `type_t *self = PROCESS_SELF(name);` as the first line inside the thread body.
+3. Replace all references to those static locals with `self->field`.
+4. Change `process_start(&name)` to `process_start(&name.base)` if you used `PROCESS_INSTANCE`.
+5. Replace `process_exit(p)` with `process_destroy(p)` (or leave as-is — the alias handles it).
+
+---
+
+## 13. Internals for Maintainers
+
+This chapter documents the internal design of `process.c` for anyone working on the scheduler itself.
+
+### 13.1 Static storage map
+
+| Variable | Type | Purpose |
+|---|---|---|
+| `events[]` | `process_event_entry[QUEUE_SIZE]` | Global ring buffer. Entries: `(dest, ev, data)`. |
+| `event_head` | `process_num_events_t` | Index of the most recently written slot. Advances on enqueue. |
+| `event_tail` | `process_num_events_t` | Index of the next slot to read. Advances on dequeue. |
+| `process_list` | `struct process *` | Head of the priority-sorted intrusive linked list. |
+| `poll_requested` | `volatile uint8_t` | Non-zero when at least one process has `needs_poll` set. |
+| `process_error_logger` | `struct process *` | Logger sink registered in `process_init()`. |
+| `error_pool[]` | `struct error_info[POOL_SIZE]` | Rotating pool of log entries posted to the logger. |
+| `error_pool_idx` | `uint8_t` | Monotonically incrementing index; wraps mod `POOL_SIZE`. |
+
+### 13.2 Process lifecycle state machine
+
+```mermaid
+stateDiagram-v2
+    direction TB
+
+    [*] --> NONE : static / memset init
+
+    NONE --> INIT : process_start() or process_new()\nenqueues PROCESS_EVENT_INIT
+
+    INIT --> RUNNING : process_run() dispatches\nPROCESS_EVENT_INIT\n→ call_process()
+
+    RUNNING --> CALLED : thread returns PT_YIELDED\nor PT_WAITING
+
+    CALLED --> RUNNING : process_run() dispatches\nnext event or poll\n→ call_process()
+
+    CALLED --> EXITING : process_destroy() called\nOR thread calls PROCESS_EXIT()
+
+    RUNNING --> EXITING : thread returns PT_EXITED\nor PT_ENDED or error
+
+    EXITING --> RUNNING : PT_FINAL armed\nnext process_run() tick\nruns PT_FINALLY block
+
+    RUNNING --> NONE : thread returns PT_FINALIZED\n→ process_unlink()\nslot freed for pool reuse
+```
+
+### 13.3 `call_process` internals
+
+```mermaid
+flowchart TD
+    enter["call_process(p, ev, data)"]
+    guard{"p == NULL or\nstate == NONE?"}
+    abort["return (no-op)"]
+    mark_running["p->state = RUNNING\nprocess_current = p"]
+    invoke["ret = p->thread(p, ev, data)"]
+    clear["process_current = NULL\nrestore state (CALLED or EXITING)"]
+    isrunning{"PT_ISRUNNING(ret)?"}
+    yield_return["return (thread is\nsuspended)"]
+    isfinalized{"ret ==\nPT_FINALIZED?"}
+    unlink["process_unlink(p)\nstate → NONE\nreturn"]
+    isexiting{"PT_ISEXITING(ret)?"}
+    set_exiting["p->state = EXITING"]
+    log_error{"PT_ISERROR(ret)\n& logger set?"}
+    log["process_error(p, ev, ret)"]
+    leaked{"ev ==\nPROCESS_EVENT_MSG?"}
+    warn["process_warn(p, ev,\nERR_CLEAN_LEAKED)"]
+    arm["PT_FINAL(&p->pt)\n(arm cleanup)"]
+    done["return"]
+
+    enter --> guard
+    guard -- yes --> abort
+    guard -- no --> mark_running --> invoke --> clear
+    clear --> isrunning
+    isrunning -- yes --> yield_return
+    isrunning -- no --> isfinalized
+    isfinalized -- yes --> unlink
+    isfinalized -- no --> isexiting
+    isexiting -- yes --> set_exiting --> log_error
+    log_error -- yes --> log --> leaked
+    log_error -- no --> leaked
+    leaked -- yes --> warn --> arm --> done
+    leaked -- no --> arm
+```
+
+### 13.4 `do_poll` vs `do_event` ordering
+
+`process_run()` always calls `do_poll()` first. If any process had `needs_poll` set, `do_poll()` runs them and **returns early** — `do_event()` is not called in that tick. This ensures poll notifications (e.g., ISR wakeup) are never starved by a full event queue.
+
+`poll_requested` is cleared **before** the sweep, not after. This means an ISR that calls `process_poll()` *during* the sweep sets the flag again for the next tick without being lost.
+
+### 13.5 Atomicity model
+
+| Operation | Protection | Reason |
+|---|---|---|
+| `enqueue_event_nolock()` | `CC_ATOMIC_RESTORE()` | ISR may call `process_post` concurrently |
+| `dequeue_event_nolock()` | `CC_ATOMIC_RESTORE()` | ISR may enqueue while main loop dequeues |
+| Inbox push/fallback | Same `CC_ATOMIC_RESTORE()` block as fallback | Ensures a post lands in exactly one of inbox or queue |
+| `process_poll()` | None needed | `needs_poll` and `poll_requested` are `uint8_t`; writes are atomic on AVR |
+
+### 13.6 `process_unlink` vs `process_destroy`
+
+```mermaid
+sequenceDiagram
+    participant user as User Code
+    participant pub as process_destroy()
+    participant sched as call_process()
+    participant internal as process_unlink()
+
+    user->>pub: process_destroy(&p)
+    pub->>pub: p->state = EXITING\nPT_FINAL(&p->pt)
+    Note over sched: next process_run() tick
+    sched->>sched: call_process(p, next_ev, data)
+    sched->>sched: p->thread runs PT_FINALLY block
+    sched->>sched: thread returns PT_FINALIZED
+    sched->>internal: process_unlink(p)
+    internal->>internal: remove from process_list\np->state = NONE\np->next = NULL
+    Note over user: p is now a free pool slot
+```
+
+### 13.7 Error pool rotation
+
+The rotating error pool is a circular array of `PROCESS_CONF_ERROR_POOL_SIZE` entries indexed by `error_pool_idx++`. When the pool is full, new entries **silently overwrite** the oldest. This is intentional: the pool is sized to handle a burst of log entries between logger ticks. If entries are being lost, increase `PROCESS_CONF_ERROR_POOL_SIZE` or give the logger process a higher priority (lower `prio` number).
+
+### 13.8 Files that must not be changed
+
+| File | Reason |
+|---|---|
+| `lc-switch.h` | Upstream protothread lc implementation. Changes break `PT_BEGIN`/`PT_END`/`PT_YIELD`. |
+| `pt.h` | Upstream protothread macros. Changing breaks the protothread ABI. |
+| `process_conf.h` | Only provides defaults. User overrides in `protoduino_config.h` must remain valid. |
+| `types.h` | Shared type definitions used across the entire codebase. |
+
+---
+
+## Appendix A — Complete API Quick-Reference
+
+### Declaration macros
+
+| Macro | Description |
+|---|---|
+| `PROCESS_DEFINE(name, caption, prio, ...)` | Declare a process type with user fields in `...`. |
+| `DEVICE_DEFINE(name, caption, prio, ...)` | Same, but singleton: only one instance at a time. |
+| `PROCESS(name, caption, prio)` | Zero-field shorthand: `PROCESS_DEFINE` + `PROCESS_INSTANCE`. |
+| `DEVICE(name, caption, prio)` | Zero-field singleton shorthand. |
+| `PROCESS_INSTANCE(type, var)` | Declare one static instance of a type. |
+| `PROCESS_POOL(type, pool, N)` | Declare N static instances + inline allocator. |
+| `PROCESS_EXTERN(name)` | Forward-declare a process defined in another file. |
+
+### Thread body macros
+
+| Macro | Description |
+|---|---|
+| `PROCESS_THREAD(name, ev, data)` | Open the thread function body. |
+| `PROCESS_SELF(name)` | Cast `pt_process` to `process_name_t *`. |
+| `PROCESS_BEGIN()` | Open protothread — must be the first statement. |
+| `PROCESS_END()` | Close protothread — process finalises when reached. |
+| `PROCESS_EXIT()` | Early exit — runs `PT_FINALLY` cleanup. |
+| `PROCESS_WAIT_EVENT()` | Yield unconditionally. |
+| `PROCESS_WAIT_EVENT_UNTIL(c)` | Yield and retry until `c` is true. |
+| `PROCESS_SPAWN(child, thread)` | Run child protothread to completion. |
+| `PROCESS_WAIT_THREAD(child)` | Wait for child protothread to finish. |
+| `PROCESS_CURRENT()` | Returns the currently-running `struct process *`. |
+
+### Scheduler functions
+
+| Function | Description |
+|---|---|
+| `process_init(logger)` | Initialise scheduler. `logger` may be `NULL`. |
+| `process_start(p)` | Register and start a static instance. |
+| `process_new(type, storage)` | Zero-init storage, copy metadata, then start. |
+| `process_destroy(p)` | Initiate orderly shutdown (runs `PT_FINALLY`). |
+| `process_run()` | One scheduler tick. Call from `loop()`. |
+| `process_poll(p)` | Request `PROCESS_EVENT_POLL` — ISR-safe. |
+| `process_post(p, ev, data)` | Enqueue event atomically — ISR-safe. |
+| `process_post_from_isr(p, ev, data)` | Identical to `process_post`; ISR call-site alias. |
+| `process_lookup_n(segment, len)` | Find first process matching RAM name fragment. |
+
+### Logging functions
+
+| Function | Severity |
+|---|---|
+| `process_debug(src, ev, code)` | 1 — debug |
+| `process_flow(src, ev, code)` | 2 — flow |
+| `process_verbose(src, ev, code)` | 3 — verbose |
+| `process_info(src, ev, code)` | 4 — info |
+| `process_warn(src, ev, code)` | 5 — warn |
+| `process_error(src, ev, code)` | 6 — error |
+| `process_fatal(src, ev, code)` | 7 — fatal |
+
+### Pipeline macros (requires `PROCESS_CONF_PIPELINES > 0`)
+
+| Macro | Description |
+|---|---|
+| `PROCESS_SET_PIPEIN(pipe)` | Attach input pipe to this process. |
+| `PROCESS_SET_PIPEOUT(pipe)` | Attach output pipe to this process. |
+| `PROCESS_PIPEIN()` | Returns the attached input `ipc_pipe_t *`. |
+| `PROCESS_PIPEOUT()` | Returns the attached output `ipc_pipe_t *`. |
+| `PROCESS_PIPE_AVAILABLE()` | True if input pipe has data. |
+| `PROCESS_PIPE_SPACE()` | True if output pipe has space. |
+| `PROCESS_PIPE_READ(buf, max, &n)` | Read up to `max` bytes; yields if empty. |
+| `PROCESS_PIPE_WRITE_ATOMIC(buf, len)` | Write `len` bytes atomically; yields for space. |
+| `PROCESS_PIPE_WRITE(buf, len)` | Write with per-chunk yields. |
+| `PROCESS_PIPE_WRITE_BATCH(buf, len)` | Optimised batch write. |
+| `process_ipc_wake(ctx)` | Wake callback for `ipc_pipe_init()` — calls `process_poll(ctx)`. |
+
+---
+
+*Protoduino Process Scheduler · Developer & Maintainer Reference · v2.0*
