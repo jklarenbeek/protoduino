@@ -1,4 +1,4 @@
-// file: ./src/sys/process.h
+﻿// file: ./src/sys/process.h
 #ifndef __PROCESS_H__
 #define __PROCESS_H__
 
@@ -163,6 +163,23 @@ struct error_info {
 #endif
 
 /* ------------------------------------------------------------------ */
+/* §6  process_thread_t  –  the one true thread signature              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every process thread function has this exact signature.
+ *
+ * pt_process  –  struct process * for this instance.
+ *                Cast to your concrete type via PROCESS_SELF(name).
+ *                &pt_process->pt  is the protothread state for PT_BEGIN/END.
+ * ev          –  the event that woke this invocation.
+ * data        –  optional payload (may be NULL).
+ */
+typedef ptstate_t (*process_thread_t)(struct process  *pt_process,
+                                      process_event_t  ev,
+                                      process_data_t   data);
+
+/* ------------------------------------------------------------------ */
 /* §5  struct process  –  the scheduler base type                      */
 /* ------------------------------------------------------------------ */
 
@@ -211,23 +228,6 @@ struct process {
   uint8_t inbox_tail;
 #endif
 };
-
-/* ------------------------------------------------------------------ */
-/* §6  process_thread_t  –  the one true thread signature              */
-/* ------------------------------------------------------------------ */
-
-/**
- * Every process thread function has this exact signature.
- *
- * pt_process  –  struct process * for this instance.
- *                Cast to your concrete type via PROCESS_SELF(name).
- *                &pt_process->pt  is the protothread state for PT_BEGIN/END.
- * ev          –  the event that woke this invocation.
- * data        –  optional payload (may be NULL).
- */
-typedef ptstate_t (*process_thread_t)(struct process  *pt_process,
-                                      process_event_t  ev,
-                                      process_data_t   data);
 
 /* ------------------------------------------------------------------ */
 /* §7  process_type_t  –  compile-time type descriptor (PROGMEM)       */
@@ -281,11 +281,11 @@ typedef struct {
     __VA_ARGS__                                                                \
   } process_##name##_t;                                                        \
   static const process_type_t process_type_##name CC_PROGMEM = {              \
-    .name   = process_name_##name,                                             \
-    .thread = process_thread_##name,                                           \
-    .size   = sizeof(process_##name##_t),                                      \
-    .prio   = (priority),                                                      \
-    .type   = PROCESS_TYPE_PROCESS                                             \
+    /*  */ process_name_##name,                                             \
+     process_thread_##name,                                           \
+     sizeof(process_##name##_t),                                      \
+     (priority),                                                      \
+     PROCESS_TYPE_PROCESS                                             \
   }
 
 /** Singleton variant – only one instance may run at a time. */
@@ -299,11 +299,11 @@ typedef struct {
     __VA_ARGS__                                                                \
   } process_##name##_t;                                                        \
   static const process_type_t process_type_##name CC_PROGMEM = {              \
-    .name   = process_name_##name,                                             \
-    .thread = process_thread_##name,                                           \
-    .size   = sizeof(process_##name##_t),                                      \
-    .prio   = (priority),                                                      \
-    .type   = PROCESS_TYPE_DEVICE                                              \
+    /*  */ process_name_##name,                                             \
+     process_thread_##name,                                           \
+     sizeof(process_##name##_t),                                      \
+     (priority),                                                      \
+     PROCESS_TYPE_DEVICE                                              \
   }
 
 #else /* PROCESS_CONF_NO_PROCESS_NAMES */
@@ -317,11 +317,11 @@ typedef struct {
     __VA_ARGS__                                                                \
   } process_##name##_t;                                                        \
   static const process_type_t process_type_##name CC_PROGMEM = {              \
-    .name   = NULL,                                                            \
-    .thread = process_thread_##name,                                           \
-    .size   = sizeof(process_##name##_t),                                      \
-    .prio   = (priority),                                                      \
-    .type   = PROCESS_TYPE_PROCESS                                             \
+    /*  */ NULL,                                                            \
+     process_thread_##name,                                           \
+     sizeof(process_##name##_t),                                      \
+     (priority),                                                      \
+     PROCESS_TYPE_PROCESS                                             \
   }
 
 #define DEVICE_DEFINE(name, caption, priority, ...)                            \
@@ -333,11 +333,11 @@ typedef struct {
     __VA_ARGS__                                                                \
   } process_##name##_t;                                                        \
   static const process_type_t process_type_##name CC_PROGMEM = {              \
-    .name   = NULL,                                                            \
-    .thread = process_thread_##name,                                           \
-    .size   = sizeof(process_##name##_t),                                      \
-    .prio   = (priority),                                                      \
-    .type   = PROCESS_TYPE_DEVICE                                              \
+    /*  */ NULL,                                                            \
+     process_thread_##name,                                           \
+     sizeof(process_##name##_t),                                      \
+     (priority),                                                      \
+     PROCESS_TYPE_DEVICE                                              \
   }
 
 #endif /* PROCESS_CONF_NO_PROCESS_NAMES */

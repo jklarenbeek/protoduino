@@ -129,7 +129,7 @@ void setup() {
   uart0_on_tx_complete(on_tx_complete);
   uart0_open(9600);
 
-  process_start(&shell_process);
+  process_start(&shell_process.base);
 }
 
 void loop() { process_run(); }
