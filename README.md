@@ -1,364 +1,127 @@
 # Protoduino
 
-**⚠️ PROTODUINO PROJECT - LEGAL DISCLAIMER / AVISO LEGAL ⚠️**
+**A Lightweight Operating Framework for AVR Microcontrollers**
 
-Residents and users in the following jurisdictions are STRICTLY PROHIBITED from downloading, cloning, executing, installing, or reading past this disclaimer:
+Protoduino transforms Arduino/AVR boards into sophisticated embedded systems using a cooperative, event-driven architecture. Built on an enhanced **Protothreads v2** core, it provides professional-grade multitasking, IPC, and error handling for resource-constrained environments (e.g., ATmega328P with 2KB SRAM).
 
+---
+
+### ⚠️ LEGAL DISCLAIMER / AVISO LEGAL
+
+Users in the following jurisdictions are **STRICTLY PROHIBITED** from using or reading this project due to age verification laws for operating systems:
 - 🇧🇷 Brasil (a partir de 17 de maio de 2026)
-- 🇺🇸 California
-- 🇺🇸 New York
-- 🇺🇸 Illinois
-- 🇺🇸 Colorado
+- 🇺🇸 California, New York, Illinois, Colorado
 
-**English Version**
-
-YOU ARE NOT ALLOWED to download, clone, execute, install, or read past this disclaimer of the Protoduino project if you are located in, a resident of, or subject to the laws of the above jurisdictions due to age verification laws for operating systems.
-
-Failure to comply means ALL legal burdens, liabilities, fines, penalties, and responsibilities will be passed entirely to the offender, whether or not this is stated by law. Project maintainers and contributors disclaim any and all liability.
-
-Proceed only if you are not subject to these restrictions.
-
-**Versão em Português**
-
-VOCÊ NÃO TEM PERMISSÃO para baixar, clonar, executar, instalar ou ler além deste aviso legal do projeto Protoduino se estiver localizado, for residente ou sujeito às leis das jurisdições acima devido às leis de verificação de idade para sistemas operacionais.
-
-O não cumprimento significa que TODOS os ônus legais, responsabilidades, multas, penalidades e encargos serão transferidos integralmente para o infrator, independentemente de estar ou não previsto por lei. Os mantenedores e contribuidores do projeto isentam-se de qualquer responsabilidade.
-
-Prossiga apenas se não estiver sujeito a estas restrições.
-
-**A Revolutionary Embedded Operating Framework for Education and Innovation**
-
-Protoduino transforms Arduino boards into sophisticated embedded systems with professional-grade capabilities—all while remaining accessible to students and educators. Built on an enhanced version of Adam Dunkels' [protothreads](http://dunkels.com/adam/pt/about.html), it brings modern operating system concepts to resource-constrained microcontrollers without sacrificing simplicity or performance.
-
-## Why Protoduino?
-
-Traditional Arduino programming forces students into blocking, sequential code that quickly becomes unwieldy for real-world applications. Protoduino bridges the gap between simple sketches and professional embedded systems by providing:
-
-- **Cooperative multitasking** without the overhead of traditional RTOSes
-- **Native exception handling** for robust error management
-- **Professional IPC mechanisms** (messages and streaming pipes)
-- **Deterministic, real-time behavior** perfect for teaching embedded systems concepts
-- **Zero malloc() design** ensuring predictable memory usage
-
-Perfect for courses in embedded systems, IoT, robotics, and computer engineering—or for hobbyists ready to level up their Arduino projects.
+*Please see the full disclaimer in the [LICENSE](./LICENSE) or previous versions for details.*
 
 ---
 
-## 🎓 For Educators
+## 🚀 Core Components
 
-Protoduino provides a **progressive learning path** from basic Arduino to professional embedded development:
+Protoduino is structured into several modular layers, each with dedicated documentation and implementation:
 
-1. **Start Simple**: Students begin with familiar Arduino functions
-2. **Add Concurrency**: Introduce lightweight protothreads for multitasking
-3. **Learn IPC**: Teach inter-process communication with messages and pipes
-4. **Master Error Handling**: Explore exception handling and recovery patterns
-5. **Understand Schedulers**: Dive into kernel design and real-time systems
+### 1. [Process Scheduler](./docs/scheduler.md) (Kernel)
+A tiny, deterministic cooperative scheduler that manages process lifecycles and event dispatching.
+- **Implementation**: [`src/sys/process.h`](./src/sys/process.h), [`src/sys/process.c`](./src/sys/process.c)
+- **Features**: Priority-based scheduling, zero-malloc design, ISR-safe event posting.
 
-Each concept builds naturally on the previous one, with extensive documentation and examples.
+### 2. [Protothreads v2](./docs/protothreads.md) (Multitasking)
+An enhanced version of Adam Dunkels' stackless coroutines, adding native exception handling.
+- **Implementation**: [`src/sys/pt.h`](./src/sys/pt.h)
+- **Features**: `PT_RAISE`, `PT_CATCH`, and `PT_FINALLY` for robust error management without stack overhead.
 
----
+### 3. [Inter-Process Communication](./docs/ipc.md) (IPC)
+Flexible primitives for data exchange between processes and ISRs.
+- **Implementation**: [`src/sys/ipc.h`](./src/sys/ipc.h), [`src/sys/pt/pipe.h`](./src/sys/pt/pipe.h)
+- **Mechanisms**: Structured **Messages** (RPC-style) and Streaming **Pipes** (ring buffers).
 
-## 🚀 Key Features
+### 4. [Event-Error Ontology](./docs/ontology.md)
+A mathematically rigorous 8-bit taxonomy for system states, events, and errors.
+- **Implementation**: [`src/sys/errors.h`](./src/sys/errors.h), [`src/sys/events.h`](./src/sys/events.h)
+- **Reference**: [Common Error Codes](./docs/common-errors.md), [Common Events](./docs/common-events.md)
 
-### 1. **Protothreads v2: Cooperative Multitasking Made Easy**
-
-Run multiple tasks simultaneously without stack overhead. Enhanced with native exception handling and finalization semantics.
-
-```mermaid
-stateDiagram-v2
-    [*] --> PT_INIT: Initialize
-    PT_INIT --> PT_WAITING: Start execution
-    PT_WAITING --> PT_YIELDED: PT_YIELD()
-    PT_YIELDED --> PT_WAITING: Resume
-    PT_WAITING --> PT_ERROR: Exception raised
-    PT_ERROR --> PT_CATCHANY: Handle error
-    PT_CATCHANY --> PT_FINALLY: Cleanup
-    PT_WAITING --> PT_EXITED: Normal exit
-    PT_EXITED --> PT_FINALLY: Cleanup
-    PT_FINALLY --> PT_FINALIZED: Complete
-    PT_FINALIZED --> [*]
-```
-
-**Key enhancements over v1.4:**
-- **Exception handling**: `PT_RAISE()`, `PT_CATCH()`, `PT_CATCHANY()` for robust error management
-- **Finalization**: `PT_FINALLY()` blocks ensure cleanup always runs
-- **State encoding**: Error codes embedded in return values (PT_ERROR + code)
-- **Iterator support**: `PT_FOREACH()` and `PT_YIELD()` for elegant generator patterns
-
-📖 [**Read the Protothreads v2 Documentation**](./docs/protothreads.md) for detailed API reference and examples.
+### 5. Unicode & UTF-8 Support
+Professional text handling ported from Plan 9, suitable for internationalized displays.
+- **Implementation**: [`src/lib/text/utf8.h`](./src/lib/text/utf8.h), [`src/lib/text/rune16.h`](./src/lib/text/rune16.h)
 
 ---
 
-### 2. **Professional IPC Layer: Messages & Pipes**
+## 🛠️ Quick Start
 
-Two complementary communication primitives designed for microcontrollers:
-
-**Structured Messages** - RPC-style typed packets
-```c
-ipc_msg_t *m = ipc_msg_alloc_from_pool(&pool);
-void *argv[] = {"/dev/uart0", (void*)115200};
-ipc_msg_init(m, MSG_UART_INIT, 2, argv);
-process_post(uart_proc, PROCESS_EVENT_MSG, m);
-```
-
-**Streaming Pipes** - Zero-copy ring buffers for high-throughput data
-```c
-// ISR writes bytes
-ISR(USART_RX_vect) {
-    uint8_t b = UDR0;
-    ipc_pipe_write(&uart_pipe, &b, 1);  // Wakes reader automatically
-}
-
-// Process reads bytes
-uint8_t buf[16];
-size_t n = ipc_pipe_read(&uart_pipe, buf, sizeof(buf));
-```
-
-**Design principles:**
-- ✅ Zero malloc - fixed-size pools
-- ✅ ISR-safe with atomic operations
-- ✅ O(1) deterministic operations
-- ✅ Scheduler-agnostic (reusable across systems)
-
-📖 [**Read the IPC Documentation**](./docs/ipc.md) for architecture details and integration patterns.
-
----
-
-### 3. **Protoduino Kernel: Game-Loop Scheduler**
-
-A tiny, deterministic cooperative scheduler designed for predictable real-time behavior:
-
-```mermaid
-flowchart TD
-    A[process_run] --> B{Poll requested?}
-    B -->|Yes| C[do_poll: Service all polls]
-    C --> D[Call processes with PROCESS_EVENT_POLL]
-    D --> E[Return]
-    B -->|No| F[do_event: Pop one event]
-    F --> G{Event present?}
-    G -->|No| H[Return idle]
-    G -->|Yes| I{Broadcast?}
-    I -->|Yes| J[Call all processes]
-    I -->|No| K[Call destination only]
-    J --> H
-    K --> H
-```
-
-**Features:**
-- Priority-based process scheduling
-- Global event queue + optional per-process inboxes
-- Automatic error propagation to error logger
-- Integrates seamlessly with protothreads lifecycle
-- Under 2KB code footprint
-
-📖 [**Read the Scheduler Documentation**](./docs/scheduler.md) for complete design details, debugging guides, and Arduino examples.
-
----
-
-### 4. **Ontological Error Taxonomy**
-
-A groundbreaking **8-bit error classification system** that goes beyond simple error codes:
-
-- **256 error codes (0-255)** organized hierarchically
-- **Mathematical foundation**: Hamming weights, inversions, symmetry classes
-- **Four primordial roots**: Init/Success (0x00), Before/IO (0x55), After/Data (0xAA), Run/Fatal (0xFF)
-- **Programmatic analysis**: Error relationships, depths, entropy, balance
-- **Embedded-optimized**: Fits in uint8_t, minimal overhead
-
-**Why an ontology matters:**
-- Enables **automated error recovery** by inferring related errors
-- Improves **debugging** through hierarchical classification
-- Provides **semantic structure** for AI-powered log analysis
-- Ensures **interoperability** across distributed systems
-
-**Looking ahead:** The taxonomy provides a foundation for quantum error correction in the emerging Quantum-AI era.
-
-📖 [**Read the Event/Error Ontology Documentation**](./docs/ontology.md) for the mathematical framework and future quantum applications.
-
----
-
-### 5. **UTF-8 and Unicode Support**
-
-Professional text handling ported from Plan 9's proven implementation:
-
-```c
-// UTF-8 string manipulation
-const char *str = "Hello 世界";
-int len = utflen(str);           // Character count (not bytes)
-Rune r = utfrune(str, L'世');    // Find Unicode character
-
-// Stream integration
-Stream *s = &Serial;
-Rune rune;
-utf8_stream_getrune(s, &rune);   // Read UTF-8 from serial
-utf8_stream_putrune(s, rune);    // Write UTF-8 to serial
-
-// 16-bit Unicode (Rune16)
-Rune16 wstr[64];
-rune16cpy(wstr, L"Unicode text");
-```
-
-Perfect for internationalized displays, GPS coordinates, or any application requiring proper text handling.
-
----
-
-## 📚 Complete Documentation
-
-Protoduino includes extensive, professional-grade documentation:
-
-| Document | Description |
-|----------|-------------|
-| [**Protothreads v2**](./docs/protothreads.md) | Enhanced cooperative multitasking with exception handling |
-| [**IPC Layer**](./docs/ipc.md) | Messages and streaming pipes for inter-process communication |
-| [**Kernel Scheduler**](./docs/scheduler.md) | Game-loop scheduler design, debugging, and integration |
-| [**Event/Error Ontology**](./docs/ontology.md) | Ontological 8-bit event-error classification system |
-| [**Module Loader**](./docs/loader.md) | Dynamic code loading and runtime extensibility (TODO: NOT IMPLEMENTED) |
-
-Each document includes theory, practical examples, debugging guides, and Mermaid diagrams.
-
----
-
-## 🎯 Getting Started
-
-### Installation
-
-1. Download the latest release from [GitHub](https://github.com/jklarenbeek/protoduino)
-2. Extract to your Arduino libraries folder
-3. Restart Arduino IDE
-
-### Your First Protothread
-
+### 1. Define your process
 ```cpp
 #include <protoduino.h>
 
-PROCESS(blink_process, "blink", 1);
+// 1. Define process type with persistent state
+PROCESS_DEFINE(blink, "Blinker", 2,
+    uint8_t pin;
+    uint16_t delay_ms;
+);
 
-PROCESS_THREAD(blink_process, ev, data)
-{
-    static unsigned long last = 0;
-    static bool state = false;
+// 2. Create an instance
+PROCESS_INSTANCE(blink, blink_proc);
 
+// 3. Implementation
+PROCESS_THREAD(blink, ev, data) {
+    blink_t *self = PROCESS_SELF(blink);
     PROCESS_BEGIN();
 
-    pinMode(LED_BUILTIN, OUTPUT);
+    self->pin = LED_BUILTIN;
+    self->delay_ms = 1000;
+    pinMode(self->pin, OUTPUT);
 
     while(1) {
-        PROCESS_WAIT_UNTIL(millis() - last > 1000);
-
-        state = !state;
-        digitalWrite(LED_BUILTIN, state);
-        last = millis();
+        digitalWrite(self->pin, HIGH);
+        PROCESS_WAIT_EVENT_UNTIL(millis() % (self->delay_ms * 2) > self->delay_ms);
+        
+        digitalWrite(self->pin, LOW);
+        PROCESS_WAIT_EVENT_UNTIL(millis() % (self->delay_ms * 2) < self->delay_ms);
     }
 
     PROCESS_END();
 }
+```
 
+### 2. Run the Kernel
+```cpp
 void setup() {
-    process_init(NULL);
-    process_start(&blink_process);
+    process_init(NULL); // Initialize scheduler
+    process_start(&blink_proc.base);
 }
 
 void loop() {
-    process_run();  // Run scheduler
+    process_run(); // Drive the cooperative engine
 }
 ```
 
-### Learning Path
+---
 
-1. **Basics**: Start with examples in `examples/01-10` for protothread fundamentals
-2. **IPC**: Explore `examples/11-20` for message passing and pipes
-3. **Advanced**: Study `examples/21-30` for error handling and modules
-4. **Projects**: Build complete systems combining all concepts
+## 📚 Documentation Index
+
+| File | Description |
+|------|-------------|
+| [**Scheduler**](./docs/scheduler.md) | Kernel architecture, priority, and lifecycle. |
+| [**Protothreads v2**](./docs/protothreads.md) | Exception handling, yielding, and state machines. |
+| [**IPC**](./docs/ipc.md) | Deep dive into Messages and Pipes. |
+| [**Ontology**](./docs/ontology.md) | The mathematical framework for error/event duality. |
+| [**Common Errors**](./docs/common-errors.md) | Comprehensive list of ontological error codes. |
+| [**Common Events**](./docs/common-events.md) | Comprehensive list of ontological event codes. |
+| [**Module Loader**](./docs/loader.md) | *Experimental* runtime code loading. |
 
 ---
 
-## 🔬 For Students
+## 📂 Project Structure
 
-Protoduino is an ideal platform for learning embedded systems:
-
-- **Hands-on**: Write real firmware, not simulations
-- **Progressive**: Start simple, scale to complexity
-- **Professional**: Learn patterns used in production systems
-- **Accessible**: Runs on affordable Arduino hardware
-- **Well-documented**: Every concept explained with examples
-
-**Course topics covered:**
-- Cooperative vs. preemptive multitasking
-- Inter-process communication patterns
-- Real-time scheduling and determinism
-- Error handling and recovery
-- Memory management in constrained systems
-- State machine design
+- `src/sys/`: Core kernel, protothreads, and IPC implementation.
+- `src/lib/`: Utility libraries (UTF-8, math, ring buffers).
+- `src/cpu/avr/`: Hardware-specific UART and clock drivers.
+- `examples/`: Step-by-step tutorials from basic to advanced.
+- `docs/`: In-depth technical references and specifications.
 
 ---
 
-## 🛠️ For Professionals
+## 🤝 Contributing & License
 
-Protoduino provides production-ready patterns:
+Protoduino is an open-source project. See the [LICENSE](./LICENSE) file for distribution rights and jurisdictional restrictions.
 
-- **Deterministic timing**: O(1) operations, predictable behavior
-- **Zero dynamic allocation**: No malloc, no fragmentation
-- **ISR-safe primitives**: Atomic operations throughout
-- **Comprehensive error handling**: Exception-like semantics in C
-- **Modular architecture**: Clean separation of concerns
-
-**Real-world applications:**
-- Industrial sensor networks
-- Battery-powered IoT devices
-- Real-time data acquisition
-- Robotics control systems
-- Protocol gateways
-
----
-
-## 🌟 Why Choose Protoduino?
-
-| Feature | Traditional Arduino | Protoduino |
-|---------|---------------------|------------|
-| Multitasking | Blocking delays, state machines | Cooperative protothreads |
-| Error Handling | Return codes, global errno | Native exceptions, ontological taxonomy |
-| IPC | Global variables | Messages and pipes |
-| Scheduler | Manual loop() management | Priority-based kernel |
-| Extensibility | Recompile and reflash | Dynamic module loading |
-| Memory Safety | malloc/free risks | Fixed pools, zero fragmentation |
-
----
-
-## 🤝 Contributing
-
-Protoduino is open-source and welcomes contributions:
-
-- **Bug reports**: Open issues on GitHub
-- **Documentation**: Help improve examples and guides
-- **Features**: Propose new capabilities
-- **Education**: Share classroom experiences
-
----
-
-## 📖 License
-
-Protoduino is released under an open-source license. See LICENSE file for details.
-
----
-
-## 🔗 Resources
-
-- **GitHub Repository**: https://github.com/jklarenbeek/protoduino
-- **Original Protothreads**: http://dunkels.com/adam/pt/about.html
-- **Plan9Port (UTF-8 library source)**: https://github.com/9fans/plan9port
-- **Contiki-OS**: https://github.com/contiki-os/contiki
-
----
-
-## 🎓 Academic Use
-
-If you use Protoduino in academic research or teaching, please cite:
-
-```
-Protoduino: A Cooperative Multitasking Framework for Arduino
-https://github.com/jklarenbeek/protoduino
-```
-
----
-
-**Ready to transform your embedded projects? Start with the [Protothreads v2 tutorial](./docs/protothreads.md) and explore the examples!**
+*Developed by [jklarenbeek](https://github.com/jklarenbeek).*
