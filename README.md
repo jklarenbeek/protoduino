@@ -73,7 +73,7 @@ PROCESS_THREAD(blink, ev, data) {
     while(1) {
         digitalWrite(self->pin, HIGH);
         PROCESS_WAIT_EVENT_UNTIL(millis() % (self->delay_ms * 2) > self->delay_ms);
-        
+
         digitalWrite(self->pin, LOW);
         PROCESS_WAIT_EVENT_UNTIL(millis() % (self->delay_ms * 2) < self->delay_ms);
     }
@@ -93,6 +93,31 @@ void loop() {
     process_run(); // Drive the cooperative engine
 }
 ```
+
+---
+
+## 🔬 Debugging with Protosim
+
+For a seamless development experience, Protoduino is deeply integrated with [**Protosim**](https://github.com/jklarenbeek/protosim), a cycle-accurate AVR simulator built on `simavr`. Protosim allows you to debug, profile, and analyze your firmware entirely in software without physical hardware.
+
+### Why use Protosim?
+- **Cycle-Exact Profiling**: Identify bottlenecks by measuring the exact CPU cycles spent in each function.
+- **Symbolic Breakpoints**: Set breakpoints on C/C++ function names (e.g., `process_run`) instead of memory addresses.
+- **Variable Watches**: Monitor the internal state of your processes in real-time.
+- **Virtual UART**: Automatically bridges the AVR UART to a local PTY (Linux/macOS) or TCP port (Windows) for serial interaction.
+- **GDB Integration**: Connect `avr-gdb` directly to the simulator for source-level step-debugging.
+
+### Getting Started with Simulation
+Most examples in this repository include a `.ino` file. These folders also define a virtual circuit (e.g., an Arduino Uno) that loads your compiled `.hex` or `.elf` file.
+
+1. **Install Protosim**: Follow the instructions at [jklarenbeek/protosim](https://github.com/jklarenbeek/protosim).
+2. **Compile your sketch**: Ensure you generate an `.elf` file (contains debugging symbols).
+3. **Launch the simulator**:
+   ```bash
+   # Run a simulation using an example circuit
+   protosim examples/01-pt-wait-one-basic/01-pt-wait-one-basic.elf
+   ```
+4. **Connect to UART**: On Windows, open PuTTY and connect to `127.0.0.1:4000` (Telnet) to see your serial output.
 
 ---
 
