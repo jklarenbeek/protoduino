@@ -1,10 +1,17 @@
 #ifndef __UART_H__
 #define __UART_H__
 
-#if defined (__AVR_ATmega328P__) || defined(__AVR_ATmega328__) || defined (__AVR_ATmega168__) || defined (__AVR_ATmega168P__) || defined (__AVR_ATmega88__)
+/*
+ * Platform selector for UART hardware support.
+ *
+ * cpu/avr/uart.h itself uses UBRR0H / UBRR1H / UBRR2H / UBRR3H presence
+ * guards, so it works correctly on any AVR that has those registers
+ * (ATmega328P, ATmega2560, ATmega1280, etc.).
+ *
+ * Add new architectures here as needed.
+ */
+#if defined(__AVR__)
 #include "../cpu/avr/uart.h"
-
-// #pragma message "uart: Using AVR."
 
 #else
 

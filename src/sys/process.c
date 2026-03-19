@@ -34,9 +34,18 @@ struct process_event_entry {
 };
 
 /* Global ring event queue ----------------------------------------- */
+/*
+ * Standard "write-at-head, read-from-tail" ring buffer.
+ *   empty : head == tail
+ *   full  : (head + 1) % N == tail
+ *   capacity : N - 1 usable slots
+ *
+ * event_head is the NEXT slot to write (not the last written).
+ * event_tail is the NEXT slot to read.
+ */
 static struct process_event_entry events[PROCESS_CONF_EVENT_QUEUE_SIZE];
-static process_num_events_t event_head = 0; /* next write slot (exclusive) */
-static process_num_events_t event_tail = 0; /* next read  slot (inclusive) */
+static process_num_events_t event_head = 0; /* next write position */
+static process_num_events_t event_tail = 0; /* next read  position */
 
 /* Process list – sorted by prio; lower numeric = higher priority ---- */
 static struct process *process_list = NULL;
@@ -58,6 +67,9 @@ static uint8_t           error_pool_idx = 0;
 /**
  * Enqueue one event.  Returns 1 on success, 0 if the ring is full.
  * Caller MUST execute inside CC_ATOMIC_RESTORE() to be ISR-safe.
+ *
+ * Writes to events[event_head] then advances event_head.
+ * Full condition: (event_head + 1) % N == event_tail.
  */
 static int enqueue_event_nolock(struct process    *dest,
                                  process_event_t   ev,
@@ -68,9 +80,9 @@ static int enqueue_event_nolock(struct process    *dest,
   if (next == event_tail)
     return 0; /* full */
 
-  events[next].dest = dest;
-  events[next].ev   = ev;
-  events[next].data = data;
+  events[event_head].dest = dest;
+  events[event_head].ev   = ev;
+  events[event_head].data = data;
   event_head = next;
   return 1;
 }
@@ -78,6 +90,9 @@ static int enqueue_event_nolock(struct process    *dest,
 /**
  * Dequeue one event into *out.  Returns 1 on success, 0 if empty.
  * Caller MUST execute inside CC_ATOMIC_RESTORE() to be ISR-safe.
+ *
+ * Reads from events[event_tail] then advances event_tail.
+ * Empty condition: event_head == event_tail.
  */
 static int dequeue_event_nolock(struct process_event_entry *out)
 {
