@@ -286,7 +286,7 @@ self->interval_ms = 500;
 
 ### 5.4 Child protothreads
 
-Child protothreads are declared as `struct pt` fields inside `PROCESS_DEFINE`. They receive their own resume point and are passed to `PT_SPAWN` / `PROCESS_WAIT_THREAD` by address.
+Child protothreads are declared as `struct pt` fields inside `PROCESS_DEFINE`. They receive their own resume point and are passed to `PROCESS_SPAWN` / `PROCESS_WAIT_THREAD` by address.
 
 ```c
 PROCESS_DEFINE(parser, "parser", 3,
@@ -300,7 +300,7 @@ PROCESS_THREAD(parser, ev, data) {
   PROCESS_BEGIN();
 
   // Spawn child — suspends this process until child returns
-  PT_SPAWN(&pt_process->pt, &self->child_vt,
+  PROCESS_SPAWN(&self->child_vt,
            vt_parse_thread(&self->child_vt,
                            self->esc_buf, &self->esc_idx));
 
@@ -348,13 +348,19 @@ Call once at startup before any other scheduler function. Pass an optional error
 
 ```c
 void setup() {
-  protoduino_start();
-
   process_init(NULL);                   // no logger
   // — or —
   process_init(&logger_proc.base);      // structured logging
 
   process_start(&shell_proc.base);
+}
+```
+
+But you could also use autostart to do most of the initialization, including IPC, automatically.
+
+```c
+void setup() {
+  protoduino_start();
 }
 ```
 
