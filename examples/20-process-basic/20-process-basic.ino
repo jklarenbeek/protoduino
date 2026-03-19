@@ -1,6 +1,7 @@
-// file: 20-process-shell.ino
+// file: examples/20-process-basic/20-process-basic.ino
+
 /*
- * 20-process-shell.ino  –  interactive UART shell demo for protoduino
+ * 20-process-basic.ino  –  basic process demo for protoduino
  * ================================================================
  */
 
@@ -154,7 +155,7 @@ void setup(void)
   uart0_on_rx_error(on_rx_error);
   uart0_on_tx_complete(on_tx_complete);
   uart0_open(9600);
-  
+
   process_start(&shell_proc.base);
 }
 

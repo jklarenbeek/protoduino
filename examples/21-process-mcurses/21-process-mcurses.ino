@@ -1,4 +1,5 @@
-// file: 21-process-mcurses.ino
+// file: examples/21-process-mcurses/21-process-mcurses.ino
+
 /*
  * 21-process-mcurses.ino  –  mcurses TUI demo for protoduino
  * ===========================================================
