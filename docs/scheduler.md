@@ -199,10 +199,10 @@ For processes that carry no user state, `PROCESS(name, caption, prio)` is a one-
 PROCESS(heartbeat, "heartbeat", 5);
 
 // Start it:
-process_start(&heartbeat.base);
+process_start(&heartbeat.base, NULL);
 ```
 
-> **COMPATIBILITY** — Old code that wrote `PROCESS(name, c, p)` and then `process_start(&name)` still compiles. `&name` is `process_name_t*` which passes as `struct process*` because `base` is the first member.
+> **COMPATIBILITY** — Old code that wrote `PROCESS(name, c, p)` and then `process_start(&name, NULL)` still compiles. `&name` is `process_name_t*` which passes as `struct process*` because `base` is the first member.
 
 ### 4.4 `PROCESS_INSTANCE` — static single instance
 
@@ -217,7 +217,7 @@ PROCESS_DEFINE(shell, "shell", 2,
 PROCESS_INSTANCE(shell, shell_proc);
 
 // Initialise any non-zero user fields, then start:
-process_start(&shell_proc.base);
+process_start(&shell_proc.base, NULL);
 ```
 
 ### 4.5 Macro expansion summary
@@ -318,6 +318,7 @@ PROCESS_THREAD(sensor, ev, data) {
 
     if (ev == PROCESS_EVENT_INIT) {
       // First call — initialise hardware
+      // Cast to data to struct process_args if not NULL
 
     } else if (ev == PROCESS_EVENT_POLL) {
       // ISR woke us — read sensor
@@ -351,7 +352,7 @@ void setup() {
   // — or —
   process_init(&logger_proc.base);      // structured logging
 
-  process_start(&shell_proc.base);
+  process_start(&shell_proc.base, NULL);
 }
 ```
 
@@ -402,12 +403,12 @@ void loop() {
 
 ### 6.3 `process_start`
 
-Registers a pre-allocated static instance and sends `PROCESS_EVENT_INIT`. Only resets the protothread `lc` — user fields are the caller's responsibility. For `PROCESS_TYPE_DEVICE`, rejects if an instance with the same `thread` pointer already runs.
+Registers a pre-allocated static instance and sends `PROCESS_EVENT_INIT` with an optional `process_args` payload in the data argument. Only resets the protothread `lc` — user fields are the caller's responsibility. For `PROCESS_TYPE_DEVICE`, rejects if an instance with the same `thread` pointer already runs.
 
 ```c
 // Initialise any fields the thread needs on first INIT, then start:
 shell_proc.input_idx = 0;
-process_start(&shell_proc.base);  // &base is struct process *
+process_start(&shell_proc.base, NULL);  // &base is struct process *
 ```
 
 ### 6.4 `process_new`
@@ -497,7 +498,7 @@ static void on_rx_byte(uint_fast8_t b) {
 | Event | Value | When sent | `data` payload |
 |---|---|---|---|
 | `PROCESS_EVENT_NONE` | `0x00` | Never sent; used as queue sentinel. | `NULL` |
-| `PROCESS_EVENT_INIT` | `0x01` | `process_start()` / `process_new()` — first event a process ever receives. | `NULL` |
+| `PROCESS_EVENT_INIT` | `0x01` | `process_start()` / `process_new()` — first event a process ever receives. | `NULL` or `struct process_args` |
 | `PROCESS_EVENT_POLL` | `0x02` | `process_poll()` sets a flag; dispatched by `do_poll()` before events. | `NULL` |
 | `PROCESS_EVENT_EXIT` | `0x03` | Convention: send to ask a process to clean up. Not auto-sent by scheduler. | `NULL` or reason code |
 | `PROCESS_EVENT_ERROR` | `0x04` | Sent to the logger by `process_log()` for every log entry. | `struct error_info *` |
@@ -716,7 +717,7 @@ PROCESS_THREAD(logger, ev, data) {
 
 // In setup():
 process_init(&logger_proc.base);
-process_start(&logger_proc.base);
+process_start(&logger_proc.base, NULL);
 ```
 
 > **POOL SIZE** — Log entries use a rotating pool of `PROCESS_CONF_ERROR_POOL_SIZE` slots. If the logger is slow and logs arrive in bursts, old entries are silently overwritten. Tune `PROCESS_CONF_ERROR_POOL_SIZE` in `protoduino_config.h`.
@@ -844,7 +845,7 @@ All changes are source-compatible unless marked **breaking**.
 | Old (v1) | New (v2) | Breaking? |
 |---|---|---|
 | `PROCESS(name, c, p)` | Unchanged. Still works. | No |
-| `process_start(&name)` | `process_start(&name.base)` when using `PROCESS_DEFINE` + `PROCESS_INSTANCE`. Unchanged for `PROCESS()` shorthand. | Only for new-style |
+| `process_start(&name, NULL)` | `process_start(&name.base)` when using `PROCESS_DEFINE` + `PROCESS_INSTANCE`. Unchanged for `PROCESS()` shorthand. | Only for new-style |
 | `process_exit(p)` | `process_destroy(p)` — old name kept as a `#define` alias. | No (alias provided) |
 | `PROCESS_BEGIN()` with `struct pt *` | `PROCESS_BEGIN()` with `struct process *` — macro references `&pt_process->pt` internally. | No (transparent) |
 | `static` locals in thread body | Fields in `PROCESS_DEFINE`, accessed via `PROCESS_SELF(name)`. | Manual refactor needed |
@@ -855,7 +856,7 @@ All changes are source-compatible unless marked **breaking**.
 1. Wrap any `static` locals that survive yields into a `PROCESS_DEFINE` field block.
 2. Add `type_t *self = PROCESS_SELF(name);` as the first line inside the thread body.
 3. Replace all references to those static locals with `self->field`.
-4. Change `process_start(&name)` to `process_start(&name.base)` if you used `PROCESS_INSTANCE`.
+4. Change `process_start(&name, NULL)` to `process_start(&name.base, NULL)` if you used `PROCESS_INSTANCE`.
 5. Replace `process_exit(p)` with `process_destroy(p)` (or leave as-is — the alias handles it).
 
 ---

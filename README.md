@@ -86,7 +86,7 @@ PROCESS_THREAD(blink, ev, data) {
 ```cpp
 void setup() {
     process_init(NULL); // Initialize scheduler
-    process_start(&blink_proc.base);
+    process_start(&blink_proc.base, NULL);
 }
 
 void loop() {

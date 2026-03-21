@@ -32,7 +32,7 @@
  *   }
  *
  *   // 4. Start it:
- *   process_start(&blink_proc.base);
+ *   process_start(&blink_proc.base, NULL);
  *
  *   // 5. Drive the scheduler from loop():
  *   void loop() { process_run(); }
@@ -48,7 +48,7 @@
  *
  *   For zero-overhead processes with no user state:
  *     PROCESS(heartbeat, "hb", 3);
- *     process_start(&heartbeat);    // heartbeat is struct process directly
+ *     process_start(&heartbeat, NULL);    // heartbeat is struct process directly
  *
  *
  * SCALING UP (pools of processes)
@@ -357,7 +357,7 @@ typedef struct {
  *
  * Example:
  *   PROCESS_INSTANCE(shell, shell_proc);
- *   // later: process_start(&shell_proc.base);
+ *   // later: process_start(&shell_proc.base, NULL);
  */
 #define PROCESS_INSTANCE(type_name, var_name) \
   static process_##type_name##_t var_name
@@ -394,7 +394,7 @@ typedef struct {
  *
  * One-liner for processes that carry no user fields and just need a
  * single static instance.  100% compatible with existing code that
- * writes  PROCESS(foo, "foo", 2)  and then  process_start(&foo).
+ * writes  PROCESS(foo, "foo", 2)  and then  process_start(&foo, NULL).
  *
  * &foo  is process_foo_t*, which passes as struct process* because
  * base is the first member.  process_start() accepts it directly.
@@ -552,7 +552,7 @@ CC_EXTERN void process_init(struct process *error_logger);
  * Caller is responsible for pre-initialising any user fields BEFORE
  * calling process_start; the function only resets the protothread lc.
  */
-CC_EXTERN void process_start(struct process *p);
+CC_EXTERN void process_start(struct process *p, struct process_args *args);
 
 /**
  * process_new(type, storage)

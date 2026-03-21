@@ -165,8 +165,13 @@ static int process_inbox_pop(struct process             *p,
  */
 static void process_unlink(struct process *p)
 {
-  if (!p || p->state == PROCESS_STATE_NONE)
+  if (!p)
     return;
+
+  if (p->state == PROCESS_STATE_NONE) {
+    p->next = NULL;
+    return;
+  }
 
   struct process **q = &process_list;
   while (*q) {
@@ -356,7 +361,7 @@ void process_init(struct process *error_logger)
 
 /* ── process_start ────────────────────────────────────────────────── */
 
-void process_start(struct process *p)
+void process_start(struct process *p, struct process_args *args)
 {
   if (!p || p->state != PROCESS_STATE_NONE)
     return;
@@ -388,7 +393,7 @@ void process_start(struct process *p)
   *q      = p;
 
   /* Kick the process with its first event. */
-  process_post(p, PROCESS_EVENT_INIT, NULL);
+  process_post(p, PROCESS_EVENT_INIT, args);
 }
 
 /* ── process_new ──────────────────────────────────────────────────── */
@@ -414,7 +419,7 @@ struct process *process_new(const process_type_t *type, void *storage)
   p->type   = (pstype_t)pgm_read_byte(&type->type);
   p->state  = PROCESS_STATE_NONE; /* process_start checks this */
 
-  process_start(p);
+  process_start(p, NULL);
 
   /* If process_start() rejected the instance, return NULL to signal failure. */
   return (p->state != PROCESS_STATE_NONE) ? p : NULL;

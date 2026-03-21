@@ -156,7 +156,7 @@ void setup(void)
   uart0_on_tx_complete(on_tx_complete);
   uart0_open(9600);
 
-  process_start(&shell_proc.base);
+  process_start(&shell_proc.base, NULL);
 }
 
 void loop(void)
