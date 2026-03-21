@@ -469,7 +469,6 @@ typedef struct {
 #define PROCESS_WAIT_EVENT()             PT_YIELD(&pt_process->pt)
 #define PROCESS_WAIT_EVENT_UNTIL(c)      PT_YIELD_UNTIL(&pt_process->pt, (c))
 #define PROCESS_SPAWN(child, thread)     PT_SPAWN(&pt_process->pt, (child), (thread))
-#define PROCESS_WAIT_THREAD(child)       PT_WAIT_THREAD(&pt_process->pt, (child))
 
 /* ------------------------------------------------------------------ */
 /* §13  process_current  –  scheduler global (read-only in user code)  */

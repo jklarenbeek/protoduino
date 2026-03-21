@@ -282,11 +282,10 @@ self->interval_ms = 500;
 | `PROCESS_WAIT_EVENT()` | `PT_YIELD(...)` | Yield unconditionally. Resumes on next event. |
 | `PROCESS_WAIT_EVENT_UNTIL(c)` | `PT_YIELD_UNTIL(..., c)` | Yield and retry until condition `c` is true. |
 | `PROCESS_SPAWN(child, thread)` | `PT_SPAWN(...)` | Run a child protothread to completion before continuing. |
-| `PROCESS_WAIT_THREAD(child)` | `PT_WAIT_THREAD(...)` | Wait for a child protothread to finish. |
 
 ### 5.4 Child protothreads
 
-Child protothreads are declared as `struct pt` fields inside `PROCESS_DEFINE`. They receive their own resume point and are passed to `PROCESS_SPAWN` / `PROCESS_WAIT_THREAD` by address.
+Child protothreads are declared as `struct pt` fields inside `PROCESS_DEFINE`. They receive their own resume point and are passed to `PROCESS_SPAWN` by address.
 
 ```c
 PROCESS_DEFINE(parser, "parser", 3,
@@ -1017,7 +1016,6 @@ The rotating error pool is a circular array of `PROCESS_CONF_ERROR_POOL_SIZE` en
 | `PROCESS_WAIT_EVENT()` | Yield unconditionally. |
 | `PROCESS_WAIT_EVENT_UNTIL(c)` | Yield and retry until `c` is true. |
 | `PROCESS_SPAWN(child, thread)` | Run child protothread to completion. |
-| `PROCESS_WAIT_THREAD(child)` | Wait for child protothread to finish. |
 | `PROCESS_CURRENT()` | Returns the currently-running `struct process *`. |
 
 ### Scheduler functions
