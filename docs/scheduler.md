@@ -285,7 +285,7 @@ self->interval_ms = 500;
 
 ### 5.4 Child protothreads
 
-Child protothreads are declared as `struct pt` fields inside `PROCESS_DEFINE`. They receive their own resume point and are passed to `PROCESS_SPAWN` by address.
+Child protothreads are declared as `struct pt` fields inside `PROCESS_DEFINE`. They receive their own resume point and are passed to `PROCESS_SPAWN` by `lc`.
 
 ```c
 PROCESS_DEFINE(parser, "parser", 3,
@@ -1024,7 +1024,7 @@ The rotating error pool is a circular array of `PROCESS_CONF_ERROR_POOL_SIZE` en
 | Function | Description |
 |---|---|
 | `process_init(logger)` | Initialise scheduler. `logger` may be `NULL`. |
-| `process_start(p)` | Register and start a static instance. |
+| `process_start(p, args)` | Register and start a static instance. |
 | `process_new(type, storage)` | Zero-init storage, copy metadata, then start. |
 | `process_destroy(p)` | Initiate orderly shutdown (runs `PT_FINALLY`). |
 | `process_run()` | One scheduler tick. Call from `loop()`. |

@@ -45,9 +45,8 @@
 
 #include <protoduino.h>
 #include <autostart.h>
-#include <sys/process.h>
 #include <sys/uart.h>
-#include <lib/text/mcurses.h>   /* the library we just wrote */
+#include <lib/text/mcurses.h>
 
 /* =========================================================================
  * Screen dimensions
