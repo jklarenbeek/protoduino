@@ -41,16 +41,54 @@
  * ipc.h), so no additional locking is needed here.
  */
 
-/** Write a single byte into the TX pipe (best-effort; drops if full). */
+/**
+ * Write @p len bytes to the TX pipe, accounting for ipc_pipe_write()'s
+ * partial-write contract so output is never *silently* truncated.
+ *
+ *  - If a drain hook is installed (mcurses_set_drain), it is invoked when the
+ *    pipe is full so the transport can make room; the write then resumes.
+ *    With a working drain, no bytes are lost (back-pressure).
+ *  - If no drain hook is available (or it makes no headway), the unwritten
+ *    bytes are added to scr->tx_dropped — a visible loss counter — and the
+ *    call returns rather than blocking the cooperative scheduler.
+ */
+static void _emit(mcurses_t *scr, const char *buf, size_t len)
+{
+    size_t  off    = 0;
+    uint8_t stalls = 0;
+
+    while (off < len) {
+        size_t w = ipc_pipe_write(scr->txpipe, (const uint8_t *)buf + off, len - off);
+        off += w;
+        if (off >= len)
+            return;
+
+        if (w == 0) {
+            /* Pipe full, no progress this round. */
+            if (scr->tx_drain && stalls < 8u) {
+                scr->tx_drain(scr->tx_drain_ctx);   /* try to make space */
+                ++stalls;
+                continue;
+            }
+            /* Give up without blocking; record the loss so it is not silent. */
+            uint32_t total = (uint32_t)scr->tx_dropped + (uint32_t)(len - off);
+            scr->tx_dropped = (total > 0xFFFFu) ? 0xFFFFu : (uint16_t)total;
+            return;
+        }
+        stalls = 0;   /* made progress */
+    }
+}
+
+/** Write a single byte into the TX pipe (with back-pressure / loss counting). */
 static void _putc(mcurses_t *scr, uint8_t c)
 {
-    ipc_pipe_write(scr->txpipe, &c, 1);
+    _emit(scr, (const char *)&c, 1);
 }
 
 /** Write a RAM byte string of known length into the TX pipe. */
 static void _puts_n(mcurses_t *scr, const char *s, uint8_t len)
 {
-    ipc_pipe_write(scr->txpipe, (const uint8_t *)s, len);
+    _emit(scr, s, len);
 }
 
 /** Write a NUL-terminated RAM string into the TX pipe. */
@@ -207,6 +245,14 @@ void mcurses_init(mcurses_t *scr,
     scr->last_attr  = 0xFFFFu;
 }
 
+void mcurses_set_drain(mcurses_t *scr, void (*cb)(void *), void *ctx)
+{
+    if (!scr)
+        return;
+    scr->tx_drain     = cb;
+    scr->tx_drain_ctx = ctx;
+}
+
 uint_fast8_t initscr_ex(mcurses_t *scr)
 {
     if (!scr || !scr->txpipe)
@@ -294,27 +340,98 @@ void addch_ex(mcurses_t *scr, uint_fast8_t ch)
     }
 }
 
+void addch_utf8_ex(mcurses_t *scr, const char *utf8, uint_fast8_t len)
+{
+    if (!scr || !utf8) return;
+
+    /* Auto-detect byte length from lead byte if not provided. */
+    if (len == 0) {
+        uint8_t lead = (uint8_t)utf8[0];
+        if      (lead < 0x80u) len = 1;
+        else if (lead < 0xE0u) len = 2;
+        else if (lead < 0xF0u) len = 3;
+        else                   len = 4;
+    }
+
+    _emit_sgr(scr, scr->attr);
+
+    /* Write the raw UTF-8 bytes directly to the TX pipe – zero-copy. */
+    _puts_n(scr, utf8, (uint8_t)len);
+
+    /* Advance cursor by 1 display column.
+     * TODO: CJK double-width detection would add 2 here. */
+    if (++scr->curx >= scr->cols) {
+        scr->curx = 0;
+        if (scr->cury < scr->rows - 1u)
+            ++scr->cury;
+    }
+}
+
 void addstr_ex(mcurses_t *scr, const char *s)
 {
     if (!scr || !s) return;
     _emit_sgr(scr, scr->attr);
 
-    /* Walk the UTF-8 string using utf8_cursor from utf8_iter.h */
-    utf8_cursor_t cur;
-    utf8_cursor_init(&cur, s);
-    rune16_t r;
-    while (utf8_cursor_next(&cur, &r)) {
-        /* Encode back to UTF-8 bytes and stream them out */
-        char tmp[3];
-        uint8_t n = utf8_fromrune16(tmp, r);
-        if (n) {
-            _puts_n(scr, tmp, n);
-            /* Advance cursor column-tracking (each rune = 1 cell) */
-            if (++scr->curx >= scr->cols) {
-                scr->curx = 0;
-                if (scr->cury < scr->rows - 1u)
-                    ++scr->cury;
-            }
+    /* Stream the UTF-8 bytes directly to the TX pipe.
+     * We iterate byte-by-byte only to track the display column count;
+     * the raw bytes go out unmodified. */
+    const char *run_start = s;
+    while (*s) {
+        uint8_t lead = (uint8_t)*s;
+        uint8_t seq_len;
+        if      (lead < 0x80u) seq_len = 1;
+        else if (lead < 0xE0u) seq_len = 2;
+        else if (lead < 0xF0u) seq_len = 3;
+        else                   seq_len = 4;
+
+        /* Consume up to seq_len bytes but NEVER step past the NUL
+         * terminator – a truncated/malformed multi-byte sequence must
+         * not cause an out-of-bounds read or emit bytes past the string. */
+        uint8_t i = 0;
+        while (i < seq_len && s[i] != '\0')
+            ++i;
+        s += i;
+
+        /* Advance cursor column (each rune = 1 display cell) */
+        if (++scr->curx >= scr->cols) {
+            scr->curx = 0;
+            if (scr->cury < scr->rows - 1u)
+                ++scr->cury;
+        }
+    }
+    /* Flush the entire string in one write.  _emit() honours the pipe's
+     * partial-write contract (back-pressure via the drain hook, or a visible
+     * tx_dropped count) so output >255 bytes or larger than free TX space is
+     * not silently truncated. */
+    size_t total = (size_t)(s - run_start);
+    if (total > 0)
+        _emit(scr, run_start, total);
+}
+
+void addnstr_ex(mcurses_t *scr, const char *s, uint_fast8_t byte_len)
+{
+    if (!scr || !s || byte_len == 0) return;
+    _emit_sgr(scr, scr->attr);
+
+    /* Write the byte range directly to the TX pipe – zero-copy. */
+    _puts_n(scr, s, (uint8_t)byte_len);
+
+    /* Count display columns: iterate the UTF-8 sequence headers. */
+    const char *p = s;
+    const char *end = s + byte_len;
+    while (p < end) {
+        uint8_t lead = (uint8_t)*p;
+        uint8_t seq_len;
+        if      (lead < 0x80u) seq_len = 1;
+        else if (lead < 0xE0u) seq_len = 2;
+        else if (lead < 0xF0u) seq_len = 3;
+        else                   seq_len = 4;
+        p += seq_len;
+
+        if (++scr->curx >= scr->cols) {
+            scr->curx = 0;
+            if (scr->cury < scr->rows - 1u)
+                ++scr->cury;
         }
     }
 }
@@ -325,15 +442,23 @@ void addstr_P_ex(mcurses_t *scr, const char *s_P)
     _emit_sgr(scr, scr->attr);
 
 #ifdef __AVR__
+    /* On AVR the flash bytes are already UTF-8 encoded.
+     * We read byte-by-byte from PROGMEM and stream them out.
+     * The utf8_cursor_initP iterator decodes to rune16 which we don't need;
+     * instead, just read raw bytes and track display columns by inspecting
+     * lead bytes. */
     uint8_t c;
     while ((c = pgm_read_byte(s_P)) != 0) {
         _putc(scr, c);
-        ++s_P;
-        if (++scr->curx >= scr->cols) {
-            scr->curx = 0;
-            if (scr->cury < scr->rows - 1u)
-                ++scr->cury;
+        /* Only count display column on lead bytes, not continuation bytes */
+        if ((c & 0xC0u) != 0x80u) {
+            if (++scr->curx >= scr->cols) {
+                scr->curx = 0;
+                if (scr->cury < scr->rows - 1u)
+                    ++scr->cury;
+            }
         }
+        ++s_P;
     }
 #else
     addstr_ex(scr, s_P);
@@ -593,4 +718,93 @@ void getnstr_ex(mcurses_t *scr, char *buf, uint_fast8_t maxlen)
                 ++scr->curx;
         }
     }
+}
+
+/* =========================================================================
+ * Box drawing
+ * =========================================================================
+ * Uses Unicode box-drawing characters from vterm.h (ACS_* constants),
+ * encoded as UTF-8 and written directly to the TX pipe.
+ */
+
+/* Box-drawing character sets: single, double, round */
+static const uint16_t _box_chars[][6] CC_PROGMEM = {
+    /* single:  UL     UR     LL     LR     HLINE  VLINE  */
+    { 0x250Cu, 0x2510u, 0x2514u, 0x2518u, 0x2500u, 0x2502u },
+    /* double:  UL     UR     LL     LR     HLINE  VLINE  */
+    { 0x2554u, 0x2557u, 0x255Au, 0x255Du, 0x2550u, 0x2551u },
+    /* round:   UL     UR     LL     LR     HLINE  VLINE  */
+    { 0x256Du, 0x256Eu, 0x2570u, 0x256Fu, 0x2500u, 0x2502u },
+};
+
+#define _BOX_UL 0
+#define _BOX_UR 1
+#define _BOX_LL 2
+#define _BOX_LR 3
+#define _BOX_HL 4
+#define _BOX_VL 5
+
+static void _emit_box_char(mcurses_t *scr, uint16_t codepoint)
+{
+    char buf[3];
+    uint8_t n = utf8_fromrune16(buf, (rune16_t)codepoint);
+    if (n)
+        _puts_n(scr, buf, n);
+}
+
+void addbox_ex(mcurses_t *scr, uint_fast8_t y, uint_fast8_t x,
+               uint_fast8_t h, uint_fast8_t w, uint_fast8_t style)
+{
+    if (!scr || h < 2 || w < 2) return;
+    /* Style numbering matches tui_border_style_t: 0=none, 1=single, 2=double,
+     * 3=round.  Map onto the single/double/round rows (index style-1). */
+    if (style < 1u || style > 3u) return;   /* none / invalid: draw nothing */
+
+    _emit_sgr(scr, scr->attr);
+
+    const uint16_t *chars = _box_chars[style - 1u];
+    uint16_t ul, ur, ll, lr, hl, vl;
+#ifdef __AVR__
+    ul = pgm_read_word(&chars[_BOX_UL]);
+    ur = pgm_read_word(&chars[_BOX_UR]);
+    ll = pgm_read_word(&chars[_BOX_LL]);
+    lr = pgm_read_word(&chars[_BOX_LR]);
+    hl = pgm_read_word(&chars[_BOX_HL]);
+    vl = pgm_read_word(&chars[_BOX_VL]);
+#else
+    ul = chars[_BOX_UL];
+    ur = chars[_BOX_UR];
+    ll = chars[_BOX_LL];
+    lr = chars[_BOX_LR];
+    hl = chars[_BOX_HL];
+    vl = chars[_BOX_VL];
+#endif
+
+    /* Top edge */
+    _emit_cup(scr, (uint8_t)y, (uint8_t)x);
+    _emit_box_char(scr, ul);
+    for (uint8_t i = 0; i < w - 2u; i++)
+        _emit_box_char(scr, hl);
+    _emit_box_char(scr, ur);
+
+    /* Side edges */
+    for (uint8_t row = 1; row < h - 1u; row++) {
+        _emit_cup(scr, (uint8_t)(y + row), (uint8_t)x);
+        _emit_box_char(scr, vl);
+        _emit_cup(scr, (uint8_t)(y + row), (uint8_t)(x + w - 1u));
+        _emit_box_char(scr, vl);
+    }
+
+    /* Bottom edge */
+    _emit_cup(scr, (uint8_t)(y + h - 1u), (uint8_t)x);
+    _emit_box_char(scr, ll);
+    for (uint8_t i = 0; i < w - 2u; i++)
+        _emit_box_char(scr, hl);
+    _emit_box_char(scr, lr);
+
+    /* Leave the cursor in a defined, in-range state that matches the
+     * terminal.  The box edges were emitted with bare CUP sequences that do
+     * not update scr->curx/cury, so re-home via move_ex() (which emits CUP
+     * and syncs the tracked cursor).  Park at the box's bottom-left corner. */
+    move_ex(scr, (uint8_t)(y + h - 1u), (uint8_t)x);
 }

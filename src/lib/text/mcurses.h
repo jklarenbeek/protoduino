@@ -148,6 +148,16 @@ typedef struct mcurses {
     /* ---- State flags ---- */
     uint8_t     initialized : 1;
     uint8_t     cursor_vis  : 2; /**< 0=invis 1=normal 2=very vis   */
+
+    /* ---- TX back-pressure / loss tracking ---- */
+    uint16_t    tx_dropped;      /**< Saturating count of TX bytes dropped
+                                  *   because the pipe was full and no drain
+                                  *   hook was available (0 = none lost).     */
+    void      (*tx_drain)(void *ctx); /**< Optional: invoked when the TX pipe
+                                  *   is full so the transport can make space
+                                  *   (e.g. flush a polled UART).  NULL = drop
+                                  *   + count instead of block.               */
+    void       *tx_drain_ctx;    /**< Context passed to tx_drain.             */
 } mcurses_t;
 
 /* =========================================================================
@@ -184,6 +194,22 @@ uint_fast8_t initscr_ex(mcurses_t *scr);
  */
 void endwin_ex(mcurses_t *scr);
 
+/**
+ * @brief Install a TX back-pressure drain hook.
+ *
+ * When an output call cannot fit all its bytes into the TX pipe, the hook is
+ * invoked (up to a few times) to give the transport a chance to make space —
+ * e.g. transmit queued bytes on a polled UART, or run a synchronous
+ * pipe→UART drain.  With a hook installed, output is never lost.  Without
+ * one, the shortfall is counted in `tx_dropped` (visible, not silent) and
+ * the call returns rather than blocking.
+ *
+ * @param scr  Screen instance.
+ * @param cb   Drain callback, or NULL to disable (drop + count).
+ * @param ctx  Opaque pointer passed to @p cb.
+ */
+void mcurses_set_drain(mcurses_t *scr, void (*cb)(void *), void *ctx);
+
 /* =========================================================================
  * Cursor & attributes
  * ========================================================================= */
@@ -201,17 +227,69 @@ void curs_set_ex(mcurses_t *scr, uint_fast8_t vis);
  * Output
  * ========================================================================= */
 
-/** Write a single character at the current cursor position. */
+/** Write a single ASCII character at the current cursor position. */
 void addch_ex(mcurses_t *scr, uint_fast8_t ch);
 
-/** Write a RAM string at the current cursor position. */
+/**
+ * @brief Write a single UTF-8 encoded character at the current cursor position.
+ *
+ * Zero-copy: the UTF-8 bytes at `utf8` are written directly to the TX pipe
+ * without intermediate decode/re-encode.  The caller retains ownership of
+ * the pointer – no data is copied beyond the pipe write.
+ *
+ * @param scr   Screen instance.
+ * @param utf8  Pointer to the first byte of the UTF-8 sequence.
+ * @param len   Byte length of the sequence (1–4).  If 0, the length is
+ *              auto-detected from the lead byte.
+ */
+void addch_utf8_ex(mcurses_t *scr, const char *utf8, uint_fast8_t len);
+
+/** Write a null-terminated RAM UTF-8 string at the current cursor position.
+ *  Bytes are streamed directly to the TX pipe (zero-copy where possible). */
 void addstr_ex(mcurses_t *scr, const char *s);
 
-/** Write a PROGMEM string at the current cursor position (AVR flash). */
+/**
+ * @brief Write a bounded RAM UTF-8 string (pointer + byte length).
+ *
+ * The byte range `s[0..byte_len-1]` is written directly to the TX pipe.
+ * The range must contain complete UTF-8 sequences (no partial multi-byte
+ * characters at the boundary).
+ *
+ * @param scr       Screen instance.
+ * @param s         Pointer to UTF-8 byte range (need not be null-terminated).
+ * @param byte_len  Number of bytes to write.
+ */
+void addnstr_ex(mcurses_t *scr, const char *s, uint_fast8_t byte_len);
+
+/** Write a PROGMEM string at the current cursor position (AVR flash).
+ *  On AVR the raw flash bytes are UTF-8 encoded; they are streamed directly. */
 void addstr_P_ex(mcurses_t *scr, const char *s_P);
 
 /** Flush any pending output from the TX pipe to the transport layer. */
 void refresh_ex(mcurses_t *scr);
+
+/**
+ * @brief Draw a box (border rectangle) using Unicode box-drawing characters.
+ *
+ * The border is drawn at (y,x) with dimensions (h,w).  Interior cells are
+ * left untouched.  After the call the cursor is parked at the box's
+ * bottom-left corner (row y+h-1, column x) and the tracked cursor state
+ * matches the terminal.
+ *
+ * @param scr    Screen instance.
+ * @param y      Top row (0-based).
+ * @param x      Left column (0-based).
+ * @param h      Height in rows (including border, minimum 2).
+ * @param w      Width in columns (including border, minimum 2).
+ * @param style  Border style, matching tui_border_style_t so the value is
+ *               portable across the mcurses and TUI APIs:
+ *                 0 = none (nothing drawn),
+ *                 1 = single ┌─┐│ │└─┘,
+ *                 2 = double ╔═╗║ ║╚═╝,
+ *                 3 = round  ╭─╮│ │╰─╯.
+ */
+void addbox_ex(mcurses_t *scr, uint_fast8_t y, uint_fast8_t x,
+               uint_fast8_t h, uint_fast8_t w, uint_fast8_t style);
 
 /* =========================================================================
  * Screen / line editing
@@ -306,7 +384,9 @@ static inline void          move(uint_fast8_t y, uint_fast8_t x) { move_ex(mcurs
 static inline void          attrset(uint_fast16_t a)              { attrset_ex(mcurses_default, a); }
 static inline void          curs_set(uint_fast8_t v)              { curs_set_ex(mcurses_default, v); }
 static inline void          addch(uint_fast8_t c)                 { addch_ex(mcurses_default, c); }
+static inline void          addch_utf8(const char *u, uint_fast8_t n) { addch_utf8_ex(mcurses_default, u, n); }
 static inline void          addstr(const char *s)                 { addstr_ex(mcurses_default, s); }
+static inline void          addnstr(const char *s, uint_fast8_t n){ addnstr_ex(mcurses_default, s, n); }
 static inline void          addstr_P(const char *s)               { addstr_P_ex(mcurses_default, s); }
 static inline void          refresh(void)                         { refresh_ex(mcurses_default); }
 static inline void          setscrreg(uint_fast8_t t, uint_fast8_t b) { setscrreg_ex(mcurses_default, t, b); }
@@ -331,22 +411,28 @@ static inline void          getnstr(char *s, uint_fast8_t n)      { getnstr_ex(m
 
 #define erase_ex(scr)                  clear_ex(scr)
 #define mvaddch_ex(scr,y,x,c)          move_ex((scr),(y),(x)), addch_ex((scr),(c))
+#define mvaddch_utf8_ex(scr,y,x,u,n)   move_ex((scr),(y),(x)), addch_utf8_ex((scr),(u),(n))
 #define mvaddstr_ex(scr,y,x,s)         move_ex((scr),(y),(x)), addstr_ex((scr),(s))
+#define mvaddnstr_ex(scr,y,x,s,n)      move_ex((scr),(y),(x)), addnstr_ex((scr),(s),(n))
 #define mvaddstr_P_ex(scr,y,x,s)       move_ex((scr),(y),(x)), addstr_P_ex((scr),(s))
 #define mvinsch_ex(scr,y,x,c)          move_ex((scr),(y),(x)), insch_ex((scr),(c))
 #define mvdelch_ex(scr,y,x)            move_ex((scr),(y),(x)), delch_ex((scr))
 #define mvgetnstr_ex(scr,y,x,s,n)      move_ex((scr),(y),(x)), getnstr_ex((scr),(s),(n))
+#define mvaddbox_ex(scr,y,x,h,w,s)     addbox_ex((scr),(y),(x),(h),(w),(s))
 #define getyx_ex(scr,y,x)              ((y) = (scr)->cury, (x) = (scr)->curx)
 
 /* Classic (single-instance) macros – available when default instance is used */
 #ifdef MCURSES_USE_DEFAULT_INSTANCE
 #  define erase()                       clear()
 #  define mvaddch(y,x,c)                move((y),(x)), addch((c))
+#  define mvaddch_utf8(y,x,u,n)         move((y),(x)), addch_utf8((u),(n))
 #  define mvaddstr(y,x,s)               move((y),(x)), addstr((s))
+#  define mvaddnstr(y,x,s,n)            move((y),(x)), addnstr((s),(n))
 #  define mvaddstr_P(y,x,s)             move((y),(x)), addstr_P((s))
 #  define mvinsch(y,x,c)                move((y),(x)), insch((c))
 #  define mvdelch(y,x)                  move((y),(x)), delch()
 #  define mvgetnstr(y,x,s,n)            move((y),(x)), getnstr((s),(n))
+#  define mvaddbox(y,x,h,w,s)           addbox_ex(mcurses_default,(y),(x),(h),(w),(s))
 #  define getyx(y,x)                    ((y) = mcurses_cury, (x) = mcurses_curx)
 #endif
 

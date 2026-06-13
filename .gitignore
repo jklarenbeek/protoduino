@@ -9,3 +9,5 @@ html
 .vscode/ipch
 
 build/
+
+.claude/

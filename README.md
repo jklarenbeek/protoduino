@@ -132,6 +132,10 @@ Most examples in this repository include a `.ino` file. These folders also defin
 | [**Common Errors**](./docs/common-errors.md) | Comprehensive list of ontological error codes. |
 | [**Common Events**](./docs/common-events.md) | Comprehensive list of ontological event codes. |
 | [**Module Loader**](./docs/loader.md) | *Experimental* runtime code loading. |
+| [**mcurses**](./docs/mcurses.md) | Lean terminal output driver — VT/ANSI escapes over an `ipc_pipe_t`. |
+| [**TUI**](./docs/tui.md) | Damage-tracked, Clay-inspired terminal UI layout engine (output side). |
+| [**TUI Roadmap**](./docs/tui-roadmap.md) | *Future* Option C: full virtual-terminal cell buffer + diff rendering. |
+| [**ANSI Parser**](./docs/ansi.md) | Near-full ANSI/VT input parser (DEC VT500 state machine, key decoding). |
 
 ---
 
