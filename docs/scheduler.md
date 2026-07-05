@@ -501,9 +501,9 @@ static void on_rx_byte(uint_fast8_t b) {
 | `PROCESS_EVENT_INIT` | `0x01` | `process_start()` / `process_new()` — first event a process ever receives. | `NULL` or `struct process_args` |
 | `PROCESS_EVENT_POLL` | `0x02` | `process_poll()` sets a flag; dispatched by `do_poll()` before events. | `NULL` |
 | `PROCESS_EVENT_EXIT` | `0x03` | Convention: send to ask a process to clean up. Not auto-sent by scheduler. | `NULL` or reason code |
-| `PROCESS_EVENT_ERROR` | `0x04` | Sent to the logger by `process_log()` for every log entry. | `struct error_info *` |
-| `PROCESS_EVENT_MSG` | varies | User-directed message. If leaked on exit, a warning is logged. | application-defined |
-| `PROCESS_EVENT_PIPE` | varies | Pipe data ready notification. | `ipc_pipe_t *` |
+| `PROCESS_EVENT_ERROR` | `0xFF` | Sent to the logger by `process_log()` for every log entry. | `struct error_info *` |
+| `PROCESS_EVENT_MSG` | `0x96` | User-directed message (`EVENT_MSGQ_SEC`). If leaked on exit, a warning is logged. | application-defined |
+| `PROCESS_EVENT_PIPE` | `0x44` | Pipe data ready notification (`EVENT_PIPE_READY`). | `ipc_pipe_t *` |
 
 ### 7.5 Custom events
 
@@ -659,7 +659,7 @@ sequenceDiagram
     participant post as process_post()
     participant logger as Logger Process
 
-    proc->>log: process_error(pt_process, ev, ERR_HW_INIT)
+    proc->>log: process_error(pt_process, ev, ERR_INIT_FAILED)
     log->>pool: rotate index, fill slot:\n{source, severity=6, event, error}
     log->>post: process_post(logger, PROCESS_EVENT_ERROR, &slot)
     Note over logger: next process_run() tick
@@ -686,7 +686,7 @@ PROCESS_THREAD(sensor, ev, data) {
   PROCESS_BEGIN();
 
   if (!sensor_init()) {
-    process_error(pt_process, PROCESS_EVENT_ERROR, ERR_HW_INIT);
+    process_error(pt_process, PROCESS_EVENT_ERROR, ERR_INIT_FAILED);
     PROCESS_EXIT();  // triggers PT_FINALLY cleanup
   }
 

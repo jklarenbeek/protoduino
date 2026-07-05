@@ -1,5 +1,6 @@
 # Common Error Codes in Computer Science & Software
 
+**Purpose**: naming source material for the protoduino error taxonomy (`src/sys/errors.h`) — a survey of error vocabularies across platforms, used to pick recognizable names. See `ontology.md`.
 **Comprehensive list (650+ unique codes)**
 Covers: Windows, Linux/POSIX (errno for filesystems/sockets/pipes/message queues), Qt, text validation/parsing, networking (sockets/Winsock/HTTP), raylib, hardware/drivers, embedded (Arduino/ESP32), and more.
 Format per category:

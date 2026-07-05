@@ -128,9 +128,9 @@ typedef enum pstype_t {
 #define PROCESS_EVENT_INIT  EVENT_INIT      /* 0x01 – sent once on start     */
 #define PROCESS_EVENT_POLL  EVENT_POLL      /* 0x02 – poll request           */
 #define PROCESS_EVENT_EXIT  EVENT_EXIT      /* 0x03 – process is exiting     */
-#define PROCESS_EVENT_ERROR EVENT_ERROR     /* 0x04 – error condition        */
-#define PROCESS_EVENT_MSG   EVENT_MSGQ_SEC  /* directed message              */
-#define PROCESS_EVENT_PIPE  EVENT_PIPE      /* pipe data ready               */
+#define PROCESS_EVENT_ERROR EVENT_ERROR     /* 0xFF – error condition        */
+#define PROCESS_EVENT_MSG   EVENT_MSGQ_SEC  /* 0x96 – directed message       */
+#define PROCESS_EVENT_PIPE  EVENT_PIPE_READY /* 0x44 – pipe data ready       */
 
 /* ------------------------------------------------------------------ */
 /* §3  Error / logging payload                                         */

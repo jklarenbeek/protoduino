@@ -1,0 +1,43 @@
+# Ontology consistency gate.
+#
+# The event/error taxonomy is a claim/proof system:
+#   claim   docs/ontology-claim.js   (the math)
+#   proof   docs/ontology-proof.csv  (exhaustive classification, generated)
+#   headers src/sys/errors.h, src/sys/events.h (hand-authored names,
+#           validated annotations)
+#   tables  src/dbg/*-strings.inc    (flash string tables, generated)
+#
+# This workflow fails whenever any of them drift apart, so loose ends
+# cannot re-enter the tree. To fix a failure locally:
+#   node tools/ontology-sync.js      # regenerate + revalidate
+name: ontology
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate headers + generated artifacts against the claim
+        run: node tools/ontology-sync.js --check
+
+      - name: Verify event/error duality (standalone spot-check)
+        run: node docs/verify-duality.js
+
+      - name: Host-compile the ontology ops and string tables (all config levels)
+        run: |
+          for lvl in 0 1 2; do
+            echo "--- ERRORS_CONF_STRINGS=$lvl"
+            gcc -std=c99 -Wall -Wextra -Werror -DERRORS_CONF_STRINGS=$lvl \
+                -I src -c src/dbg/errors.c -o /tmp/errors_$lvl.o
+            gcc -std=c99 -Wall -Wextra -Werror -DERRORS_CONF_STRINGS=$lvl \
+                -I src -c src/dbg/events.c -o /tmp/events_$lvl.o
+          done

@@ -72,7 +72,10 @@
 // results in error codes 0x55 (85) and 0xAA (170) => ERR_IS_MOVEMENT(err)
 #define ERR_IS_PARITY(err) (err_op_center(err) == err_op_inverse(err))
 
-// A balanced diagonal from right top to left bottom
+// A balanced diagonal from right top to left bottom.
+// Theorem: ANTICODE == SHADOW. Every SHADOW is balanced by construction
+// (left nibble = ~right nibble forces exactly 4 ones), so the BALANCED
+// term is redundant and kept only to mirror the formal definition.
 #define ERR_IS_ANTICODE(err) (ERR_IS_BALANCED(err) && ERR_IS_SHADOW(err))
 
 // A balanced circle in the middle of the 16x16 matrix
@@ -85,7 +88,7 @@
 // Diagonal from left top to right bottom (twin but not 00 or FF)
 #define ERR_IS_REPEATER(err) ((!ERR_IS_ABSTRACT(err)) && ERR_IS_UNBALANCED(err) && ERR_IS_TWIN(err))
 
-// Extreme imbalance (1 or 7 one's). Outer edge cirlce of the 16x16 matrix.
+// Extreme imbalance (1 or 7 one's). Outer edge circle of the 16x16 matrix.
 #define ERR_IS_IMPULSE(err) (err_op_one_count(err) == 1 || err_op_one_count(err) == 7)
 
 // Everything else unbalanced
@@ -123,8 +126,11 @@ static CC_ALWAYS_INLINE uint8_t err_op_center(uint8_t err) {
 }
 
 static CC_ALWAYS_INLINE uint8_t err_op_root(uint8_t err) {
-    // Convergence tree iteration
-    // Typically depth increases with bit width, 8-bit takes 4 steps max.
+    // Convergence tree iteration.
+    // No iteration cap needed: err_op_center() converges to one of the
+    // 4 roots in at most 3 steps for every 8-bit value. This is proven
+    // exhaustively by docs/ontology-proof.csv (depth column, max 3),
+    // regenerated and checked by tools/ontology-sync.js.
     while (!ERR_IS_ROOT(err)) err = err_op_center(err);
     return err;
 }
@@ -159,28 +165,23 @@ static CC_ALWAYS_INLINE uint8_t err_op_distance(uint8_t left, uint8_t right) {
     return err_op_one_count(left ^ right);
 }
 
-static CC_ALWAYS_INLINE very_fast_log2(float val) {
-  union { float f; uint32_t i; } convert;
-  convert.f = val;
-  return (float)((convert.i >> 23) - 127);   // only integer part, error up to ~1
-}
-
 /*
- * Calculate entropy (Shannon information) of nibbles.
+ * Calculate entropy (Shannon information) of the 8 bits.
  * Measures balance/chaos: 0 = pure, 1 = perfectly balanced.
  *
- * Formula based on N=8 lines.
+ * Binary entropy depends only on the popcount (0..8), so the nine
+ * possible values are returned as exact constants instead of being
+ * approximated with a runtime log2. The constants live in flash
+ * (compiler immediates); no SRAM and no float math at runtime.
  */
 static CC_ALWAYS_INLINE float err_op_entropy(uint8_t err) {
-  uint8_t ones = err_op_one_count(err);
-  uint8_t zeros = 8 - ones;
-
-  if (zeros == 0 || ones == 0) return 0.0f;
-
-  float p_ones = ones / 8.0f;
-  float p_zeros = zeros / 8.0f;
-
-  return -(p_ones * very_fast_log2(p_ones) + p_zeros * very_fast_log2(p_zeros));
+  switch (err_op_one_count(err)) {
+    case 1: case 7: return 0.54356444f; /* -(1/8·log2(1/8) + 7/8·log2(7/8)) */
+    case 2: case 6: return 0.81127812f;
+    case 3: case 5: return 0.95443400f;
+    case 4:         return 1.0f;
+    default:        return 0.0f;        /* popcount 0 or 8: pure state */
+  }
 }
 
 /**
@@ -202,7 +203,7 @@ typedef enum {
     ERR_RELATION_INVERTED,
 } err_relation_t;
 
-static err_relation_t err_op_relation(uint8_t left, uint8_t right) {
+static CC_ALWAYS_INLINE err_relation_t err_op_relation(uint8_t left, uint8_t right) {
   if (err_op_center(left) == right)
     return ERR_RELATION_CENTER;
   else if (err_op_opposite(left) == right)

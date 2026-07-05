@@ -1,15 +1,10 @@
-# COMMON_EVENTS.md
-
 # Comprehensive List of Common Event Types in Computer Science and Software
 
-**Version**: 1.0 (Generated March 2026)
+**Purpose**: naming source material for the protoduino event taxonomy (`src/sys/events.h`) — a survey of event vocabularies across platforms, used to pick recognizable names. See `ontology.md`.
 **Source**: Compiled from official docs (Win32 API, Qt 6, Linux man pages, SDL 2 / raylib input, ESP-IDF, Arduino reference, kernel interrupt specs, etc.) via cross-verified data.
 **Total Events**: **512+ unique event types** across 12 categories (Windows ~150, Qt ~100, Linux signals ~64, Filesystem ~40, I/O & Networking ~40, Raylib/SDL input ~150, Embedded interrupts ~70, Hardware/Drivers ~30, Sockets/Pipes/Message Queues ~20, Generic & Others ~48).
 
-Each category uses a Markdown table with **exactly two columns**:
-**Event Name** | **Short Description**
-
-Copy the entire content below this line into a new file named `COMMON_EVENTS.md` on your computer to "download" and use it. You can open it in any Markdown viewer or editor.
+Each category uses a Markdown table with two columns: **Event Name** | **Short Description**
 
 ## Table of Contents
 - [Windows Event Types (WM_ Messages)](#windows-event-types-wm-messages)

@@ -7,15 +7,31 @@
 #define __ERRORS_VERSION__ 3
 // -----------------------------------------------------------------------------
 // Geometry:  16x16 Matrix (0..255) mapped to 4 Attractor Basins.
-// Logic:     Convergence via ((Child << 1) & 0xF0) | ((Child >>> 1) & 0x0F)
+// Logic:     Convergence via ((Child << 1) & 0xF0) | ((Child >> 1) & 0x0F)
 // Architecture: 4 ROOTS -> 12 DOMAINS -> 48 SECTIONS -> 192 LEAFS
 // Symmetry: TWINS (foundational), SHADOWS (complementary), MIRRORS (bidirectional)
 // Inverse mapping: ~error & 0xFF maps to corresponding event code
+//
+// This header is VALIDATED against the ontology math by
+// tools/ontology-sync.js: every symmetry/hierarchy annotation in the
+// comments below is checked, and the string table
+// src/dbg/errors-strings.inc is generated from the descriptions.
+// After editing, run: node tools/ontology-sync.js
 // -----------------------------------------------------------------------------
 //
 
 // =============================================================================
 // RESERVED KERNEL CODES (Process State Machine)
+//
+// These values coincide with ptstate_t (see sys/pt.h) and are therefore
+// NOT usable as thrown error codes:
+//  - 0x00..0x03 are the running/yield/exit/end states; PT_RAISE/PT_THROW
+//    require err >= PT_ERROR (0x04).
+//  - 0xFF is PT_FINALIZED; PT_ISERROR() excludes it, so PT_THROW(pt, 0xFF)
+//    degrades to the generic PT_ERROR (0x04). ERR_FATAL is a state to
+//    OBSERVE (log/stream), never to throw.
+//  - 0x04 doubles as the generic PT_ERROR sentinel: a raised
+//    ERR_ACCESS_DENIED is indistinguishable from an unspecified error.
 // =============================================================================
 #define ERR_SUCCESS      0x00  // Operation completed successfully
 #define ERR_YIELDING     0x01  // Process yielded control (waiting for event)
@@ -38,7 +54,7 @@
 // =============================================================================
 
 // ROOT: 0x00
-#define ERR_OK                          ERR_SUCCESS // IMPULSE [Root] Success state
+#define ERR_OK                          ERR_SUCCESS // ABSOLUTE [Root] Success state
 
 // -----------------------------------------------------------------------------
 // DOMAIN 1.1: SYSTEM STATE & ACCESS CONTROL (0x00 -> 0x01)

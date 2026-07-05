@@ -3,9 +3,11 @@
 #ifndef __EVENTS_H__
 #define __EVENTS_H__
 
+#include <stdint.h>
+
 //
 // ONTOLOGICAL 8-BIT EVENT TAXONOMY
-#define __EVENTS_VERSION__ 3
+#define __EVENTS_VERSION__ 4
 // -----------------------------------------------------------------------------
 // Geometry:  16x16 Matrix (0..255) mapped to 4 Attractor Basins.
 // Logic:     Convergence via ((Child << 1) & 0xF0) | ((Child >> 1) & 0x0F)
@@ -21,6 +23,17 @@
 //   Q4 events (0xFF) <-> Q1 errors (0x00)  [RUN <-> INIT]
 // User input: scalar (key/button) cast to process_data_t directly;
 //             vector (motion/touch/gesture) wrapped in ipc_msg_t* from pool.
+//
+// This header is VALIDATED against the ontology math by
+// tools/ontology-sync.js: every symmetry/hierarchy annotation in the
+// comments below is checked, and the string table
+// src/dbg/events-strings.inc is generated from the descriptions.
+// After editing, run: node tools/ontology-sync.js
+//
+// v4: domain headers renamed to their event-side semantics
+//     (EVENT_PARSE_DOM -> EVENT_SIGNAL_DOM, EVENT_QUEUE_DOM ->
+//      EVENT_TIMING_DOM, EVENT_DEADLOCK_DOM -> EVENT_PSTATE_DOM);
+//     values are unchanged.
 // -----------------------------------------------------------------------------
 //
 
@@ -330,7 +343,7 @@
 
 // Section Q3.1.1: GPIO Signal Events  (0x54 -> 0x28)
 // Dual of Sec-2.3.4: ERR_IO_GPIO (config/locked/state/interrupt errors)
-#define EVENT_PARSE_DOM 0x54    // ASYMMETRY [Domain header]
+#define EVENT_SIGNAL_DOM 0x54   // ASYMMETRY [Domain header]
 #define EVENT_GPIO_SEC 0x28     // ASYMMETRY [Section header]
 #define EVENT_GPIO_RISING 0x10  // IMPULSE   GPIO rising edge detected
 #define EVENT_GPIO_FALLING 0x11 // REPEATER  GPIO falling edge detected TWIN
@@ -370,7 +383,7 @@
 
 // Section Q3.2.1: Watchdog & Power Events  (0xD4 -> 0x68)
 // Dual of Sec-2.2.4: ERR_TIME_WDT (expired/reset/early/config errors)
-#define EVENT_QUEUE_DOM 0xD4    // MARGIN    [Domain header]
+#define EVENT_TIMING_DOM 0xD4   // MARGIN    [Domain header]
 #define EVENT_WDT_SEC 0x68      // ASYMMETRY [Section header]
 #define EVENT_WDT_KICK 0x30     // ASYMMETRY Watchdog kicked / refreshed
 #define EVENT_WDT_ARMED 0x31    // ASYMMETRY Watchdog armed
@@ -536,7 +549,7 @@
 
 // Section Q4.3.1: Argument & Validation Events  (0xFE -> 0x7C)
 // Dual of Sec-1.1.4: ERR_SYS_ARGUMENT (null/invalid/range/type errors)
-#define EVENT_DEADLOCK_DOM 0xFE      // IMPULSE   [Domain header]
+#define EVENT_PSTATE_DOM 0xFE        // IMPULSE   [Domain header]
 #define EVENT_ARG_SEC 0x7C           // ASYMMETRY [Section header]
 #define EVENT_LOCK_OK 0x38           // ASYMMETRY Lock operation succeeded
 #define EVENT_LOCK_TIMEOUT_EV 0x39   // MARGIN   Lock acquired after wait
@@ -585,6 +598,18 @@
 // post as EVENT_MOTION / EVENT_TOUCH / EVENT_BUTTON with ipc_msg_t* data
 // ipc_msg_t.type disambiguates the sub-type (AXIS, BALL, HAT, FINGER, etc.)
 // ipc_msg_t.argv[0] carries the coordinate/sensor struct pointer
+//
+// ALIASING CONTRACT: the input aliases below intentionally reuse codes
+// from other sections (e.g. EVENT_BUTTON == EVENT_BUS_RX). A subscriber
+// CANNOT tell the two apart by code alone, so an alias may only be
+// posted to a process that does not also consume its aliased meaning:
+//  - input aliases (EVENT_CHAR/BUTTON/MOTION/...) are posted to
+//    UI/TUI-class processes, which never talk to a raw bus directly;
+//  - bus/queue events go to driver-class processes, which never
+//    receive user input.
+// If a process must handle both worlds, disambiguate via the payload
+// (ipc_msg_t.type) or split the process. The same rule applies to the
+// Q4.3 access/atomic aliases of the Q1.1 lock/handle leaves.
 // =============================================================================
 
 // User input event types (scalar values cast directly to process_data_t):

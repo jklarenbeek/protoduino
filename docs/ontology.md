@@ -2,9 +2,15 @@
 
 ## A Mathematical Framework for Embedded System State Representation Integrated with Protothreads and Kernel Scheduler
 
-**Version:** 1.1
+**Version:** 1.2
 **Author:** jklarenbeek@gmail.com
-**Date:** January 2026
+**Date:** July 2026
+
+> **Consistency note:** all constant names and values in this document
+> refer to the real headers `src/sys/events.h` and `src/sys/errors.h`.
+> The math is claimed by `docs/ontology-claim.js`, proven exhaustively by
+> `docs/ontology-proof.csv`, and enforced against the headers by
+> `tools/ontology-sync.js` (run `node tools/ontology-sync.js --check`).
 
 ---
 
@@ -29,7 +35,16 @@
 
 The Protoduino Event-Error Ontology is a **mathematically rigorous, self-consistent 8-bit taxonomy** that models the complete lifecycle of embedded systems through complementary event and error spaces, fully integrated with Protothreads v2 for lightweight cooperative multitasking and the Protoduino kernel scheduler for event-driven process management. Unlike traditional error code schemes that grow organically, this system leverages **group theory, information theory, and bitwise symmetry operations** to create a predictable, analyzable framework for system state representation, where events trigger scheduler actions and errors propagate through Protothread exceptions.
 
-This ontology holds profound implications for the future of humanity, AI, and quantum noise research. By encoding states with entropy and symmetry, it provides a lens for understanding uncertainty and chaos in computational flows—mirroring quantum phenomena like noise and superposition. In AI, it enables traceable execution graphs for explainable models; in embedded systems, it fosters resilient designs against noisy environments.
+### The Heatmap: Why This Ontology Exists
+
+The design goal of the ontology is **observability on the smallest possible budget**. Because every code is one byte and `error = ~event`, a running system can simply *stream its raw event and error codes* (over UART, a pipe, or a radio) and the receiving side can render them as a **16×16 heatmap** over time:
+
+- Each code is a cell in the 16×16 matrix (high nibble = row, low nibble = column).
+- An event and its failure mode are **point-symmetric through the center** of the map (`~x` flips every bit, so cell *(r, c)* maps to *(15−r, 15−c)*).
+- A healthy system lights up its event basins; a failing system lights up the *mirrored* cells. Drift between the two halves is visible at a glance, without decoding a single string.
+- The hierarchy (ROOT → DOMAIN → SECTION → LEAF) means related activity clusters spatially, and the symmetry classes predict *where* activity should appear (BALANCED codes in steady-state runtime, IMPULSE codes at boot/shutdown edges).
+
+This is why the taxonomy fits an ATtiny: with `ERRORS_CONF_STRINGS 0` no string table is compiled at all — the device streams bytes and the host does the interpretation using `docs/ontology-proof.csv`. Larger systems can enable flash-resident string tables (tiny or verbose) for a local TUI, but the heatmap workflow needs neither.
 
 ### Key Innovations
 
@@ -37,11 +52,11 @@ This ontology holds profound implications for the future of humanity, AI, and qu
 - **Hierarchical Depth**: 4-level tree structure (ROOT → DOMAIN → SECTION → LEAF), mapping to Protothread states and scheduler lifecycles.
 - **Symmetry Preservation**: TWINS, SHADOWS, MIRRORS provide structural invariants, ensuring consistent behavior in Protothread finalization (`PT_FINALLY`) and scheduler error logging (`PROCESS_EVENT_ERROR`).
 - **Information Theoretic**: Shannon entropy and Hamming distance encode semantic relationships, aiding in scheduler priority decisions and Protothread error recovery.
-- **Finite State Automaton**: Natural mapping to FSM transitions and error recovery, with Protothread macros like `PT_WAIT_EVENT` handling scheduler-dispatched events.
+- **Finite State Automaton**: Natural mapping to FSM transitions and error recovery, with macros like `PROCESS_WAIT_EVENT_UNTIL` handling scheduler-dispatched events.
 
 ### Why This Matters
 
-Traditional error handling treats errors as exceptions—afterthoughts to normal flow. This ontology treats **events and errors as dual manifestations of the same underlying process**, seamlessly integrated with Protoduino's components. When `EVENT_SENSOR_READ (0x54)` fails in a Protothread, it raises `ERR_STATE_INVALID (0xAB)` where `0xAB = ~0x54`, triggering scheduler logging via `PROCESS_EVENT_ERROR`. This isn't coincidence—it's **ontological necessity**, ensuring cooperative scheduling and exception propagation in resource-constrained environments like AVR/Arduino.
+Traditional error handling treats errors as exceptions—afterthoughts to normal flow. This ontology treats **events and errors as dual manifestations of the same underlying process**, seamlessly integrated with Protoduino's components. When `EVENT_DEVICE_DATA (0x52)` fails in a Protothread, it raises `ERR_SERIAL_OVERRUN (0xAD)` where `0xAD = ~0x52` — data arrived but could not be consumed — triggering scheduler logging via `PROCESS_EVENT_ERROR`. This isn't coincidence—it's **ontological necessity**, ensuring cooperative scheduling and exception propagation in resource-constrained environments like AVR/Arduino.
 
 ---
 
@@ -77,10 +92,10 @@ Each 8-bit code is a **256-state discrete space** where:
 
 Example:
 ```
-EVENT_INIT_START:  0x00 = 00000000  (entropy: 0.0,    absolute certainty) → Scheduler init phase.
-EVENT_RUN_ACTIVE:  0x55 = 01010101  (entropy: 1.0,    maximum uncertainty) → Protothread running state.
-EVENT_SHUTDOWN:    0xFF = 11111111  (entropy: 0.0,    absolute certainty) → Final `process_exit`.
-ERR_FLOW_BLOCKED:  0xAA = 10101010  (entropy: 1.0,    balanced failure) → `PT_ERROR` in thread. (Note: 0xAA = ~0x55, preserving duality and maximum entropy.)
+EVENT_NONE:    0x00 = 00000000  (entropy: 0.0, absolute certainty) → No event / queue sentinel.
+EVENT_SYNC:    0x55 = 01010101  (entropy: 1.0, maximum oscillation) → Q2 root: external I/O flow.
+EVENT_ERROR:   0xFF = 11111111  (entropy: 0.0, absolute certainty) → Terminal error event (dual of ERR_SUCCESS).
+ERR_DATA_ROOT: 0xAA = 10101010  (entropy: 1.0, balanced failure)   → Q3 root: internal data errors. (Note: 0xAA = ~0x55, preserving duality and maximum entropy.)
 ```
 
 All event-error pairs must use distinct codes via inversion to avoid contextual ambiguity in scheduler posting vs. Protothread raising.
@@ -93,7 +108,7 @@ Let \( x \in \{0, \dots, 255\} \) represent an 8-bit code.
 
 - **Nibbles**: High nibble \( h(x) = (x \gg 4) \land 0x0F \); low nibble \( l(x) = x \land 0x0F \).
 - **Hamming Weight**: \( w(x) = \) number of 1-bits in \( x \), also denoted as popcount(x).
-- **Shannon Entropy**: \( e(x) = -p_1 \log_2 p_1 - p_0 \log_2 p_0 \), where \( p_1 = w(x)/8 \), \( p_0 = 1 - p_1 \). If \( p_1 = 0 \) or 1, \( e(x) = 0 \). (Note: Use precise log2 in analysis tools; approximate in runtime via very_fast_log2.)
+- **Shannon Entropy**: \( e(x) = -p_1 \log_2 p_1 - p_0 \log_2 p_0 \), where \( p_1 = w(x)/8 \), \( p_0 = 1 - p_1 \). If \( p_1 = 0 \) or 1, \( e(x) = 0 \). (Runtime note: since entropy depends only on the popcount, `err_op_entropy()` returns the nine possible values as exact flash constants — no runtime log2.)
 - **Hamming Distance**: \( d(x, y) = w(x \oplus y) \).
 - **ROOT**: Codes where repeated center operations converge to themselves (depth 0).
 - **DOMAIN**: Direct children of ROOTS (depth 1).
@@ -105,7 +120,7 @@ Let \( x \in \{0, \dots, 255\} \) represent an 8-bit code.
 - **BALANCED**: \( w(x) = 4 \), \( e(x) \approx 1.0 \).
 - **UNBALANCED**: \( w(x) \neq 4 \).
 - **PARITY**: center(x) = \neg x.
-- **ANTICODE**: BALANCED and SHADOW.
+- **ANTICODE**: BALANCED and SHADOW. *(Theorem: ANTICODE ≡ SHADOW — every SHADOW is balanced by construction, since \( h(x) = \neg l(x) \) forces exactly 4 ones. The BALANCED term is kept for definitional symmetry.)*
 - **MARGIN**: BALANCED, not PARITY, not SHADOW.
 - **ABSOLUTE**: ROOTS 0x00 or 0xFF.
 - **REPEATER**: UNBALANCED TWIN, not ABSOLUTE.
@@ -113,7 +128,7 @@ Let \( x \in \{0, \dots, 255\} \) represent an 8-bit code.
 - **ASYMMETRY**: UNBALANCED, not TWIN, not IMPULSE.
 - **Reserved Codes**: ERR_SUCCESS (0x00), ERR_YIELDING (0x01), ERR_EXITING (0x02), ERR_ENDING (0x03), ERR_FINALIZED (0xFF). These are necessary for Protothreads in the Protoduino framework: 0x00 for successful completion, 0x01 for PT_YIELD, 0x02 for PT_EXIT, 0x03 for PT_END, 0xFF for finalization. These are shared duals for events.
 
-See errors.h for macro implementations.
+See `src/dbg/errors.h` for the C implementations (the code values themselves live in `src/sys/errors.h` — two different files that share a base name).
 
 ---
 
@@ -125,10 +140,10 @@ The ontology defines five fundamental bitwise operations, used in Protoduino for
 
 #### 1. Inverse Operation
 \[ \neg x = \sim x \land 0xFF \]
-**Semantic meaning**: Failure mode of a process, mapping scheduler events to Protothread errors. Precondition: x is 8-bit. Postcondition: \( \neg (\neg x) = x \); preserves quadrant (root(\( \neg x \)) = root(x)).
-**Example**: \( \neg \) EVENT_BOOT_START (0x01) = ERR_SAVE_FAIL (0xFE), used in `PT_THROW(self, ERR_SAVE_FAIL)`. Exhaustive: For x=0x00, \( \neg x = 0xFF \); for x=0x55, \( \neg x = 0xAA \). Edge: x=0xFF, \( \neg x = 0x00 \) (ROOT duality).
+**Semantic meaning**: Failure mode of a process, mapping scheduler events to Protothread errors. Precondition: x is 8-bit. Postcondition: \( \neg (\neg x) = x \); maps each quadrant to its **dual** quadrant (root(\( \neg x \)) = \( \neg \)root(x): Q1↔Q4, Q2↔Q3).
+**Example**: \( \neg \) EVENT_INIT (0x01) = ERR_DEADLOCK (0xFE), used in `PT_THROW(self, ERR_DEADLOCK)`. Exhaustive: For x=0x00, \( \neg x = 0xFF \); for x=0x55, \( \neg x = 0xAA \). Edge: x=0xFF, \( \neg x = 0x00 \) (ROOT duality).
 
-Initialization's inverse is persistence failure—systems that cannot boot cannot save state, triggering scheduler `PROCESS_EVENT_ERROR`.
+Initialization's inverse is deadlock—a system that fails to initialize holds its resources forever, triggering scheduler `PROCESS_EVENT_ERROR`.
 
 #### 2. Reverse Operation (Bit Reflection)
 \[ \text{reverse}(x) = \] swap bits 7-0 (e.g., 0bABCD_EFGH → 0bHGFE_DCBA).
@@ -147,16 +162,22 @@ Initialization's inverse is persistence failure—systems that cannot boot canno
 
 #### 5. Root Operation
 \[ \text{root}(x) = \] iterate center until ROOT.
-**Semantic meaning**: Quadrant (semantic basin), for grouping related states in FSMs. Precondition: x is 8-bit. Postcondition: One of 4 ROOTS; preserves duality (root(~x)=root(x)).
-**Example**: root(0x01)=0x00 (Q1: INIT). Exhaustive: 64 codes per ROOT (256/4). Edge: Non-convergent impossible by design.
+**Semantic meaning**: Quadrant (semantic basin), for grouping related states in FSMs. Precondition: x is 8-bit. Postcondition: One of 4 ROOTS; inversion maps to the dual quadrant (root(~x) = ~root(x)).
+**Example**: root(0x01)=0x00 (Q1: INIT). Exhaustive: 64 codes per ROOT (256/4). Edge: Non-convergent impossible by design (proven exhaustively in `ontology-proof.csv`, max depth 3).
 
-See errors.h for C implementations; these operations apply identically to events, enabling dual headers.
+See `src/dbg/errors.h` for C implementations; these operations apply identically to events — `src/dbg/events.h` provides the `EV_IS_*` / `ev_op_*` aliases.
 
 ---
 
 ## Generation Recipe
 
-This section provides a prescriptive algorithm to generate the ontology from first principles, producing `ontology-proof.csv` and headers like `events.h`/`errors.h`. The JS port (`ontology-claim.js`) and resulting CSV serve as claim and proof, verifiable in any repo.
+This section provides a prescriptive algorithm to generate the ontology from first principles. In this repository the loop is closed by three artifacts:
+
+- **Claim** — `docs/ontology-claim.js`: the ontology math (operations, hierarchy, symmetry classes) as an importable ES module.
+- **Proof** — `docs/ontology-proof.csv`: the exhaustive, deterministic (timestamp-free) classification of all 256 codes, generated from the claim.
+- **Enforcement** — `tools/ontology-sync.js`: parses `src/sys/errors.h` and `src/sys/events.h`, validates every annotation and the duality against the claim, regenerates the proof CSV and the flash string tables (`src/dbg/errors-strings.inc`, `src/dbg/events-strings.inc`). `--check` mode fails CI when anything drifts.
+
+The taxonomy *names* remain hand-authored in the headers (naming is a semantic act), but nothing about them can silently disagree with the math.
 
 ### Algorithm
 
@@ -166,7 +187,7 @@ This section provides a prescriptive algorithm to generate the ontology from fir
 4. **Classify Symmetry**: Apply definitions (e.g., TWIN if h(x)==l(x); BALANCED if ones==4).
 5. **Assign Semantics**: Based on quadrant (root(x)): Q1 (0x00)=INIT; Q2 (0x55)=BEFORE; Q3 (0xAA)=AFTER; Q4 (0xFF)=RUN. Append RESERVED for 0x00,0x01,0x02,0x03,0xFF.
 6. **Output CSV**: Columns: hex,classes,hierarchy,symmetry,inverse,opposite,reverse,parent,depth,distance,ones,entropy,bin,value.
-7. **Generate Headers**: Parse CSV to create enums (e.g., EVENT_INIT_START=0x00 for events; ERR_SHUTDOWN_FAIL=0xFF for errors). Mirror macros/functions (EV_IS_ROOT = ERR_IS_ROOT).
+7. **Validate Headers & Generate Tables**: Parse the hand-authored headers, check every annotation against the computed classes, and emit the flash string tables. Mirror macros/functions live in `src/dbg/events.h` (EV_IS_ROOT = ERR_IS_ROOT).
 
 Pseudocode (Python-like for LLM/script):
 ```python
@@ -193,7 +214,7 @@ def generate_ontology():
     generate_headers(data)  # Enums, macros from data
 ```
 
-Validate output against checklist; use for AI-driven extensions (e.g., quantum noise simulation via entropy perturbations).
+Validate output against the checklist below, or simply run `node tools/ontology-sync.js --check`.
 
 ---
 
@@ -256,22 +277,22 @@ Metrics: 16 TWINS (4 per quadrant); 16 SHADOWS; 16 MIRRORS; entropy ranges 0.0-1
 ## Event-Error Duality
 
 Duality ensures every scheduler event has a Protothread error counterpart:
-- Event `process_post(proc, EVENT_SENSOR_READ, data)` succeeds or fails to `PT_THROW(self, ERR_STATE_INVALID)`.
+- Event `process_post(proc, EVENT_DEVICE_DATA, data)` succeeds or fails to `PT_THROW(self, ERR_SERIAL_OVERRUN)`.
 - Errors post to logger via scheduler's `PROCESS_EVENT_ERROR`, allowing recovery in parent threads (`PT_CATCHANY`).
 
-This duality models Protoduino's cooperative nature: Events drive forward (yields/polls), errors reverse (finalization/exit). Formal: For event e, error = \neg e; root(e) = root(\neg e); d(e, \neg e)=8 (max distance, full inversion).
+This duality models Protoduino's cooperative nature: Events drive forward (yields/polls), errors reverse (finalization/exit). Formal: For event e, error = \neg e; root(\neg e) = \neg root(e) (dual quadrant); d(e, \neg e)=8 (max distance, full inversion).
 
-Exhaustive Examples: EVENT_INIT_START (0x00) ↔ ERR_SHUTDOWN_FAIL (0xFF); EVENT_SENSOR_READ (0x54) ↔ ERR_STATE_INVALID (0xAB). Edge: Reserved pairs, e.g., ERR_SUCCESS (0x00) ↔ ERR_FINALIZED (0xFF, but note 0xFF is reserved for finalization, not error).
+Exhaustive Examples: EVENT_NONE (0x00) ↔ ERR_FINALIZED (0xFF); EVENT_DEVICE_DATA (0x52) ↔ ERR_SERIAL_OVERRUN (0xAD). Edge: the five reserved codes (0x00–0x03, 0xFF) are deliberately *shared* between both spaces — they are process states, not postable events or throwable errors.
 
 ```mermaid
 sequenceDiagram
     participant Scheduler
     participant Protothread
-    Scheduler->>Protothread: process_post(EVENT_SENSOR_READ)
+    Scheduler->>Protothread: process_post(EVENT_DEVICE_DATA)
     alt Success
         Protothread-->>Scheduler: PT_WAITING
     else Failure
-        Protothread->>Scheduler: PT_THROW(ERR_STATE_INVALID)
+        Protothread->>Scheduler: PT_THROW(ERR_SERIAL_OVERRUN)
         Scheduler->>Logger: PROCESS_EVENT_ERROR
     end
 ```
@@ -285,8 +306,8 @@ sequenceDiagram
 Use duality for chained recovery:
 ```c
 PT_BEGIN(self);
-PT_WAIT_EVENT(self, EVENT_SENSOR_READ);
-if (fail) PT_RAISE(self, ERR_SENSOR_FAULT);  // Inverse of event
+PT_WAIT_UNTIL(self, ev == EVENT_DEVICE_DATA);
+if (overrun) PT_RAISE(self, ERR_SERIAL_OVERRUN);  // Inverse of the event
 PT_CATCHANY(self) { /* Recover */ }
 PT_END(self);
 ```
@@ -297,17 +318,17 @@ Scheduler handles via `call_process` and error posting.
 
 Post events hierarchically:
 ```c
-process_post(&sensor_proc, EVENT_SENSOR_READ, data);
-if (error) process_post(&logger, PROCESS_EVENT_ERROR, ERR_SENSOR_FAULT);
+process_post(&device_proc.base, EVENT_DEVICE_DATA, data);
+if (overrun) process_error(pt_process, PROCESS_EVENT_ERROR, ERR_SERIAL_OVERRUN);
 ```
 
 ### 3. FSM Design
 
 Use quadrants for states: Init (Q1) → I/O (Q2) → Parsing (Q3) → Shutdown (Q4).
 
-### 4. Diagnostic Tools
+### 4. Diagnostic Tools & the Heatmap
 
-Hamming distance for similar error clustering in logs; entropy for detecting chaotic flows (e.g., quantum-like noise in AI models).
+Stream raw codes and render them as the 16×16 heatmap (see Overview): events and their failure modes occupy point-symmetric cells, so systemic failure shows up as activity migrating to the mirrored half of the map. Hamming distance clusters similar errors in logs; entropy spikes flag chaotic flows.
 
 ### 5. Code Compression
 
@@ -330,10 +351,12 @@ Nodes share ontology for events/errors in IPC pipes/messages.
 
 ### Event Handler Pattern
 
+*(Illustrative sketch — a 256-entry registry costs RAM and suits larger targets, not ATtiny-class devices.)*
+
 ```c
 // event_handler.c
 
-#include <protoduino>
+#include <protoduino.h>
 #include <dbg/errors.h>
 #include <sys/process.h>
 #include <sys/ipc.h>
@@ -460,33 +483,36 @@ void test_twin_property() {
 
 void test_duality() {
     // Verify event-error inverses
-    assert(err_op_inverse(EVENT_INIT_START) == ERR_SHUTDOWN_FAIL);
-    assert(err_op_inverse(EVENT_SENSOR_READ) == ERR_STATE_INVALID);
-    // ... more assertions
+    assert(err_op_inverse(EVENT_NONE) == ERR_FINALIZED);
+    assert(err_op_inverse(EVENT_DEVICE_DATA) == ERR_SERIAL_OVERRUN);
+    assert(EVENT_TO_ERROR(EVENT_LOCK_ACQ) == ERR_CRIT_ABANDONED);
+    // exhaustively checked by: node tools/ontology-sync.js --check
 }
 
 void test_scheduler_integration() {
     // Simulate scheduler with ontology error
     struct process test_proc;
-    process_post(&test_proc, EVENT_SENSOR_READ, NULL);
+    process_post(&test_proc, EVENT_DEVICE_DATA, NULL);
     // Assert error posts PROCESS_EVENT_ERROR with inverse
 }
 ```
 
-### Template for events.h and errors.h
+### Where Everything Lives
 
-#### events.h
-- Enum: `event_t` (uint8_t) with EVENT_* names from CSV (e.g., EVENT_INIT_START=0x00).
-- Macros: EV_IS_* (mirror ERR_IS_*).
-- Functions: ev_op_inverse (~event), ev_op_center, etc. (identical to err_op_*).
-- String Mapper: event_to_string(uint8_t ev) — use CSV for descriptions.
-- Duality: #define EVENT_TO_ERROR(ev) (~(ev) & 0xFF)
-- Analysis: ev_op_entropy for flow metrics.
+| Concern | File |
+|---|---|
+| Event codes (`EVENT_*`) + `EVENT_TO_ERROR`/`ERROR_TO_EVENT` | `src/sys/events.h` |
+| Error codes (`ERR_*`), reserved kernel codes | `src/sys/errors.h` |
+| Error-side ops: `ERR_IS_*` macros, `err_op_*` inline functions | `src/dbg/errors.h` |
+| Event-side ops: `EV_IS_*` / `ev_op_*` (aliases — one implementation) | `src/dbg/events.h` |
+| `error_to_string()` — flash-resident (PROGMEM), config-gated | `src/dbg/errors.c` + generated `errors-strings.inc` |
+| `event_to_string()` — flash-resident (PROGMEM), config-gated | `src/dbg/events.c` + generated `events-strings.inc` |
+| String/config knob `ERRORS_CONF_STRINGS` (0 = none, 1 = tiny, 2 = verbose) | `src/sys/errors.conf.h` |
+| Claim (math) / Proof (CSV) / Enforcement (validator + generator) | `docs/ontology-claim.js` / `docs/ontology-proof.csv` / `tools/ontology-sync.js` |
 
-#### errors.h
-- Enum: `error_t` with ERR_* (duals of EVENT_*).
-- Duality: #define ERROR_TO_EVENT(err) (~(err) & 0xFF)
-- Protothread Tie: #define PT_RAISE_ERROR(ev) PT_RAISE(self, EVENT_TO_ERROR(ev))
+Storage rule: **every string is flash-resident** (`PSTR()`/PROGMEM on AVR) — the taxonomy never costs SRAM. `error_to_string()`/`event_to_string()` return flash addresses; print them with `print_P()`. With `ERRORS_CONF_STRINGS 0` no table is compiled at all and both functions return NULL — stream the raw codes and decode host-side.
+
+Throwability rule: reserved codes 0x00–0x03 and 0xFF coincide with `ptstate_t` and must never be passed to `PT_RAISE`/`PT_THROW`; 0x04 (`ERR_ACCESS_DENIED`) doubles as the generic `PT_ERROR` sentinel. See the header comment in `src/sys/errors.h`.
 
 ---
 
@@ -504,9 +530,9 @@ High-entropy codes for frequent scheduler events; low-entropy for rare Protothre
 
 Reserve LEAFs for crypto errors; symmetries for tamper detection in scheduler queues.
 
-### 4. Extensions for AI/ML
+### 4. Host-Side Monitoring
 
-Entropy for uncertainty in edge AI; hierarchies for model state machines in Protothreads. Ties to quantum noise: Simulate perturbations by flipping bits proportional to entropy.
+The streamed-code heatmap (see Overview) works for any target size: devices with no TUI at all stream bytes, and the host renders activity vs. failure as two point-symmetric halves of the 16×16 map. Entropy and Hamming distance make useful secondary axes (color/intensity) for spotting chaotic flows and clustered failures over time.
 
 ### 5. Compression Schemes
 
@@ -520,17 +546,20 @@ Duality in streaming: Event for data ready (`process_poll`), error for overflow 
 
 ## Validation Checklist
 
+All of these are enforced automatically by `node tools/ontology-sync.js --check` (run it after any header edit; CI runs it on every push):
+
 - Exactly 4 ROOTS, 12 DOMAINS, 48 SECTIONS, 192 LEAFs.
 - All ROOTS are TWINS; 16 TWINS total (4 per quadrant).
-- 16 SHADOWS, 16 MIRRORS.
+- 16 SHADOWS, 16 MIRRORS, 16 ANTICODEs (ANTICODE ≡ SHADOW).
 - 70 BALANCED codes (C(8,4)=70).
 - Entropy: 0.0 for pure (ones=0 or 8); 1.0 for balanced.
-- Duality: For all x, inverse(inverse(x))=x; root(x)=root(inverse(x)).
-- Hierarchy: For all x, depth(x) ≤ 3; center at depth 0 fixed.
-- Reserved: 0x00,0x01,0x02,0x03,0xFF marked RESERVED.
+- Duality: For all x, inverse(inverse(x))=x; root(inverse(x))=inverse(root(x)) (dual quadrant).
+- Every value 0x00–0xFF has both an `ERR_*` and an `EVENT_*` name; every non-reserved pair is a strict inverse.
+- Every symmetry/hierarchy annotation in the header comments matches the computed class.
+- Hierarchy: For all x, depth(x) ≤ 3; center decreases depth by exactly 1; roots are fixed points.
+- Reserved: 0x00,0x01,0x02,0x03,0xFF marked RESERVED and shared between both spaces.
 - Sum of ones over all codes: 1024 (average 4).
-- All MIRRORS satisfy reverse(x)=x; count=16.
-- Code Checks: Assert sum(ones)==1024; test_duality() passes; no overlaps with reserved.
+- Generated artifacts (proof CSV, string tables) are byte-identical to the checked-in copies.
 
 ---
 
@@ -541,7 +570,8 @@ Duality in streaming: Event for data ready (`process_poll`), error for overflow 
 - Protothreads v2: See `protothreads.md`.
 - Scheduler: See `scheduler.md`.
 - Unified IPC Layer: See `ipc.md`.
-- Proof: `ontology-proof.csv` (generated via `ontology-claim.js` from `errors.h` port).
-- Further: Quantum applications in noise research—explore entropy as proxy for decoherence in AI simulations.
-- common events: see `common-events.md`
-- common errors: see `common-errors.md`
+- Claim: `docs/ontology-claim.js` (the math, JS port of `src/dbg/errors.h`).
+- Proof: `docs/ontology-proof.csv` (deterministic, generated from the claim).
+- Enforcement: `tools/ontology-sync.js` (validates the headers, regenerates proof + string tables; `--check` for CI).
+- Duality spot-check: `docs/verify-duality.js`.
+- Naming source material: `common-events.md`, `common-errors.md` (surveys of event/error vocabularies across platforms).

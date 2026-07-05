@@ -36,7 +36,7 @@ CC_ALWAYS_INLINE float fast_log2(float x) {
   return (float)exp + p;
 }
 
-CC_ALWAYS_INLINE very_fast_log2(float val) {
+static CC_ALWAYS_INLINE float very_fast_log2(float val) {
   union { float f; uint32_t i; } convert;
   convert.f = val;
   return (float)((convert.i >> 23) - 127);   // only integer part, error up to ~1
