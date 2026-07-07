@@ -91,28 +91,15 @@ static void _puts_n(mcurses_t *scr, const char *s, uint8_t len)
     _emit(scr, s, len);
 }
 
-/** Write a NUL-terminated RAM string into the TX pipe. */
+/** Write a NUL-terminated RAM string into the TX pipe (single write). */
 static void _puts(mcurses_t *scr, const char *s)
 {
-    while (*s) {
-        _putc(scr, (uint8_t)*s);
-        ++s;
-    }
+    _emit(scr, s, strlen(s));
 }
 
-#ifdef __AVR__
-/** Write a NUL-terminated PROGMEM string into the TX pipe. */
-static void _puts_P(mcurses_t *scr, const char *s_P)
-{
-    uint8_t c;
-    while ((c = pgm_read_byte(s_P)) != 0) {
-        _putc(scr, c);
-        ++s_P;
-    }
-}
-#else
-#  define _puts_P(scr, s)  _puts((scr), (s))
-#endif
+/** Write a string literal (e.g. a vtout.h VT_* macro) into the TX pipe.
+ *  The length is computed at compile time — no strlen, one _emit call. */
+#define _puts_lit(scr, lit)  _emit((scr), (lit), sizeof(lit) - 1u)
 
 /* =========================================================================
  * Internal helpers – VT sequence emission
@@ -149,18 +136,6 @@ static void _emit_cup(mcurses_t *scr, uint8_t row, uint8_t col)
     _puts_n(scr, buf, n);
 }
 
-/** Emit  ESC [ <n> <cmd>  e.g. "\x1b[3A" (cursor up 3). */
-static void _emit_csi_n(mcurses_t *scr, uint8_t n, char cmd)
-{
-    char buf[8];
-    uint8_t pos = 0;
-    buf[pos++] = '\x1b';
-    buf[pos++] = '[';
-    pos = _u8toa(buf, pos, n);
-    buf[pos++] = cmd;
-    _puts_n(scr, buf, pos);
-}
-
 /** Emit  ESC [ <top+1> ; <bot+1> r  (DECSTBM – set scroll region). */
 static void _emit_stbm(mcurses_t *scr, uint8_t top, uint8_t bot)
 {
@@ -186,45 +161,108 @@ static void _emit_stbm(mcurses_t *scr, uint8_t top, uint8_t bot)
 
 static void _emit_sgr(mcurses_t *scr, uint16_t attr)
 {
+    /* Compose the whole sequence in a stack buffer and emit it with ONE
+     * pipe write.  Worst case: ESC [ 0 ;1;2;4;5;7;8 ;3X ;4X m = 22 bytes. */
+    char    buf[22];
+    uint8_t n = 0;
+
     if (attr == scr->last_attr)
         return;
 
-    /* Reset first */
-    _puts(scr, "\x1b[0");
+    buf[n++] = '\x1b';
+    buf[n++] = '[';
+    buf[n++] = '0';   /* reset first */
 
     /* Style bits */
-    if (attr & MCURSES_ATTR_BOLD)      _puts(scr, ";1");
-    if (attr & MCURSES_ATTR_DIM)       _puts(scr, ";2");
-    if (attr & MCURSES_ATTR_UNDERLINE) _puts(scr, ";4");
-    if (attr & MCURSES_ATTR_BLINK)     _puts(scr, ";5");
-    if (attr & MCURSES_ATTR_REVERSE)   _puts(scr, ";7");
-    if (attr & MCURSES_ATTR_INVISIBLE) _puts(scr, ";8");
+    if (attr & MCURSES_ATTR_BOLD)      { buf[n++] = ';'; buf[n++] = '1'; }
+    if (attr & MCURSES_ATTR_DIM)       { buf[n++] = ';'; buf[n++] = '2'; }
+    if (attr & MCURSES_ATTR_UNDERLINE) { buf[n++] = ';'; buf[n++] = '4'; }
+    if (attr & MCURSES_ATTR_BLINK)     { buf[n++] = ';'; buf[n++] = '5'; }
+    if (attr & MCURSES_ATTR_REVERSE)   { buf[n++] = ';'; buf[n++] = '7'; }
+    if (attr & MCURSES_ATTR_INVISIBLE) { buf[n++] = ';'; buf[n++] = '8'; }
 
-    /* Foreground colour (index 0 = default = skip) */
+    /* Foreground colour (index 0 = default = skip); maps 1-8 → 30-37 */
     uint8_t fg = (uint8_t)((attr & MCURSES_FG_MASK) >> MCURSES_FG_SHIFT);
     if (fg > 0) {
-        char buf[5]; /* ";3X" + NUL */
-        uint8_t n = 0;
         buf[n++] = ';';
         buf[n++] = '3';
-        buf[n++] = (char)('0' + (fg - 1)); /* maps 1-8 → '0'-'7' */
-        _puts_n(scr, buf, n);
+        buf[n++] = (char)('0' + (fg - 1));
     }
 
-    /* Background colour */
+    /* Background colour; maps 1-8 → 40-47 */
     uint8_t bg = (uint8_t)((attr & MCURSES_BG_MASK) >> MCURSES_BG_SHIFT);
     if (bg > 0) {
-        char buf[5];
-        uint8_t n = 0;
         buf[n++] = ';';
         buf[n++] = '4';
         buf[n++] = (char)('0' + (bg - 1));
-        _puts_n(scr, buf, n);
     }
 
-    _putc(scr, 'm');
+    buf[n++] = 'm';
+    _emit(scr, buf, n);
     scr->last_attr = attr;
 }
+
+/* =========================================================================
+ * Internal helpers – keyboard event capture (ansi.h handler bridge)
+ * =========================================================================
+ * The embedded ansi_parser_t classifies RX bytes; these handlers translate
+ * each recognised action into a single pending key on the mcurses_t.
+ * getch_ex() stops feeding bytes as soon as a key is pending, so no key is
+ * ever lost — remaining bytes stay in the RX pipe for the next call.
+ */
+
+static void _key_set(mcurses_t *scr, uint8_t code, uint8_t mods)
+{
+    if (scr->key_pending)
+        return;               /* keep the first event of this byte */
+    scr->key_code    = code;
+    scr->key_mods    = mods;
+    scr->key_pending = 1u;
+}
+
+static void _key_on_print(void *ctx, uint32_t cp)
+{
+    /* getch_ex() returns a single byte: pass ASCII and Latin-1 through,
+     * fold wider runes (and the unused C1 range that would collide with
+     * KEY_* codes) to '?'.  Apps needing full rune input should feed the
+     * RX bytes to their own ansi_parser_t instead. */
+    if (cp >= 0x100u || (cp >= 0x80u && cp <= 0x9Fu))
+        cp = ASC_UNKNOWN;
+    _key_set((mcurses_t *)ctx, (uint8_t)cp, 0u);
+}
+
+static void _key_on_execute(void *ctx, uint8_t ctrl)
+{
+    /* C0 controls: CR, TAB, BS, … and the bare ESC delivered by flush. */
+    _key_set((mcurses_t *)ctx, ctrl, 0u);
+}
+
+static void _key_on_csi(void *ctx, const ansi_csi_t *csi)
+{
+    uint8_t  mods = 0;
+    uint16_t key  = ansi_key_from_csi(csi, &mods);
+    if (key)
+        _key_set((mcurses_t *)ctx, (uint8_t)key, mods);
+    /* non-key CSI (cursor reports, mode acks) are ignored by getch */
+}
+
+static void _key_on_esc(void *ctx, uint8_t intermediate, uint8_t final)
+{
+    if (intermediate == 'O') {          /* SS3: app-cursor arrows, F1-F4 */
+        uint8_t  mods = 0;
+        uint16_t key  = ansi_key_from_ss3(final, &mods);
+        if (key)
+            _key_set((mcurses_t *)ctx, (uint8_t)key, mods);
+    }
+}
+
+static const ansi_handlers_t _key_handlers = {
+    _key_on_print,
+    _key_on_execute,
+    _key_on_csi,
+    _key_on_esc,
+    /* on_osc */ 0, /* dcs_hook */ 0, /* dcs_put */ 0, /* dcs_unhook */ 0,
+};
 
 /* =========================================================================
  * Lifecycle
@@ -243,6 +281,12 @@ void mcurses_init(mcurses_t *scr,
     scr->cursor_vis = 1;
     /* last_attr = 0 → "unknown", forces first SGR flush */
     scr->last_attr  = 0xFFFFu;
+    /* terminal cursor position unknown until the first CUP */
+    scr->cursor_dirty = 1;
+
+    ansi_parser_init(&scr->key_parser, &_key_handlers, scr,
+                     /* no OSC/DCS string buffer needed for keyboard */
+                     (char *)0, 0u);
 }
 
 void mcurses_set_drain(mcurses_t *scr, void (*cb)(void *), void *ctx)
@@ -269,13 +313,15 @@ uint_fast8_t initscr_ex(mcurses_t *scr)
     scr->cursor_vis = 1;
     scr->initialized = 1;
 
-    /* Switch to alternate screen, reset attributes, clear, home */
-    _puts(scr, "\x1b[?1049h");  /* DECSET alt screen   */
-    _puts(scr, "\x1b[0m");      /* SGR reset           */
-    scr->last_attr = MCURSES_ATTR_NORMAL;
-    _puts(scr, "\x1b[2J");      /* ED – erase display  */
-    _puts(scr, "\x1b[H");       /* CUP home            */
-    _puts(scr, "\x1b[?25h");    /* DECTCEM show cursor */
+    /* Switch to alternate screen, reset attributes, clear, home.
+     * One compile-time-concatenated literal → one pipe write. */
+    _puts_lit(scr, VT_DECSET_ALT_SCREEN   /* DECSET alt screen   */
+                   VT_SGR_RESET0          /* SGR reset           */
+                   VT_ED_ALL              /* ED – erase display  */
+                   VT_HOME                /* CUP home            */
+                   VT_DECSET_DECTCEM);    /* DECTCEM show cursor */
+    scr->last_attr    = MCURSES_ATTR_NORMAL;
+    scr->cursor_dirty = 0;   /* terminal is homed and in sync */
 
     return 1;
 }
@@ -286,9 +332,9 @@ void endwin_ex(mcurses_t *scr)
         return;
 
     _emit_sgr(scr, MCURSES_ATTR_NORMAL);
-    _puts(scr, "\x1b[?25h");    /* show cursor         */
-    _puts(scr, "\x1b[r");       /* reset scroll region */
-    _puts(scr, "\x1b[?1049l");  /* leave alt screen    */
+    _puts_lit(scr, VT_DECSET_DECTCEM      /* show cursor         */
+                   VT_DECSTBM_FULL        /* reset scroll region */
+                   VT_DECRST_ALT_SCREEN); /* leave alt screen    */
 
     scr->initialized = 0;
 }
@@ -300,9 +346,31 @@ void endwin_ex(mcurses_t *scr)
 void move_ex(mcurses_t *scr, uint_fast8_t y, uint_fast8_t x)
 {
     if (!scr) return;
+
+    /* Lazy cursor: while the tracked position is known to match the
+     * terminal (cursor_dirty == 0) we can skip or shorten the move.
+     * A full CUP is 6-8 bytes; at UART speeds every byte is latency. */
+    if (!scr->cursor_dirty && y == scr->cury) {
+        if (x == scr->curx)
+            return;                          /* already there: 0 bytes */
+
+        if (x == 0u) {
+            _putc(scr, '\r');                /* CR: 1 byte             */
+            scr->curx = 0;
+            return;
+        }
+        if (x < scr->curx && (uint_fast8_t)(scr->curx - x) <= 3u) {
+            _emit(scr, "\b\b\b",             /* BS run: 1-3 bytes      */
+                  (size_t)(scr->curx - x));
+            scr->curx = (uint8_t)x;
+            return;
+        }
+    }
+
     scr->cury = (uint8_t)y;
     scr->curx = (uint8_t)x;
     _emit_cup(scr, (uint8_t)y, (uint8_t)x);
+    scr->cursor_dirty = 0;
 }
 
 void attrset_ex(mcurses_t *scr, uint_fast16_t attr)
@@ -317,27 +385,39 @@ void curs_set_ex(mcurses_t *scr, uint_fast8_t vis)
     if (!scr) return;
     scr->cursor_vis = (uint8_t)(vis & 0x03u);
     if (vis == 0)
-        _puts(scr, "\x1b[?25l");   /* DECTCEM hide         */
+        _puts_lit(scr, VT_DECRST_DECTCEM);                        /* hide */
     else if (vis == 2)
-        _puts(scr, "\x1b[?25h\x1b[1 q"); /* show + block blink */
+        _puts_lit(scr, VT_DECSET_DECTCEM VT_CURSOR_BLOCK_BLINK);
     else
-        _puts(scr, "\x1b[?25h\x1b[2 q"); /* show + block steady */
+        _puts_lit(scr, VT_DECSET_DECTCEM VT_CURSOR_BLOCK_STEADY);
 }
 
 /* =========================================================================
  * Output
  * ========================================================================= */
 
+/**
+ * Advance the tracked cursor by one display column.  When the terminal's
+ * autowrap takes over at the right margin the real cursor position becomes
+ * uncertain (pending-wrap semantics differ between terminals), so the
+ * tracked state is marked dirty and the next move_ex() emits a full CUP.
+ */
+static void _advance_col(mcurses_t *scr)
+{
+    if (++scr->curx >= scr->cols) {
+        scr->curx = 0;
+        if (scr->cury < scr->rows - 1u)
+            ++scr->cury;
+        scr->cursor_dirty = 1;
+    }
+}
+
 void addch_ex(mcurses_t *scr, uint_fast8_t ch)
 {
     if (!scr) return;
     _emit_sgr(scr, scr->attr);
     _putc(scr, (uint8_t)ch);
-    if (++scr->curx >= scr->cols) {
-        scr->curx = 0;
-        if (scr->cury < scr->rows - 1u)
-            ++scr->cury;
-    }
+    _advance_col(scr);
 }
 
 void addch_utf8_ex(mcurses_t *scr, const char *utf8, uint_fast8_t len)
@@ -360,11 +440,7 @@ void addch_utf8_ex(mcurses_t *scr, const char *utf8, uint_fast8_t len)
 
     /* Advance cursor by 1 display column.
      * TODO: CJK double-width detection would add 2 here. */
-    if (++scr->curx >= scr->cols) {
-        scr->curx = 0;
-        if (scr->cury < scr->rows - 1u)
-            ++scr->cury;
-    }
+    _advance_col(scr);
 }
 
 void addstr_ex(mcurses_t *scr, const char *s)
@@ -393,11 +469,7 @@ void addstr_ex(mcurses_t *scr, const char *s)
         s += i;
 
         /* Advance cursor column (each rune = 1 display cell) */
-        if (++scr->curx >= scr->cols) {
-            scr->curx = 0;
-            if (scr->cury < scr->rows - 1u)
-                ++scr->cury;
-        }
+        _advance_col(scr);
     }
     /* Flush the entire string in one write.  _emit() honours the pipe's
      * partial-write contract (back-pressure via the drain hook, or a visible
@@ -428,11 +500,7 @@ void addnstr_ex(mcurses_t *scr, const char *s, uint_fast8_t byte_len)
         else                   seq_len = 4;
         p += seq_len;
 
-        if (++scr->curx >= scr->cols) {
-            scr->curx = 0;
-            if (scr->cury < scr->rows - 1u)
-                ++scr->cury;
-        }
+        _advance_col(scr);
     }
 }
 
@@ -442,24 +510,26 @@ void addstr_P_ex(mcurses_t *scr, const char *s_P)
     _emit_sgr(scr, scr->attr);
 
 #ifdef __AVR__
-    /* On AVR the flash bytes are already UTF-8 encoded.
-     * We read byte-by-byte from PROGMEM and stream them out.
-     * The utf8_cursor_initP iterator decodes to rune16 which we don't need;
-     * instead, just read raw bytes and track display columns by inspecting
-     * lead bytes. */
+    /* On AVR the flash bytes are already UTF-8 encoded.  Copy them out of
+     * PROGMEM into a small stack chunk and emit each chunk with a single
+     * pipe write (instead of one write per byte).  Display columns are
+     * tracked by counting lead bytes only. */
+    char    chunk[16];
+    uint8_t n = 0;
     uint8_t c;
     while ((c = pgm_read_byte(s_P)) != 0) {
-        _putc(scr, c);
+        chunk[n++] = (char)c;
         /* Only count display column on lead bytes, not continuation bytes */
-        if ((c & 0xC0u) != 0x80u) {
-            if (++scr->curx >= scr->cols) {
-                scr->curx = 0;
-                if (scr->cury < scr->rows - 1u)
-                    ++scr->cury;
-            }
+        if ((c & 0xC0u) != 0x80u)
+            _advance_col(scr);
+        if (n == (uint8_t)sizeof(chunk)) {
+            _emit(scr, chunk, n);
+            n = 0;
         }
         ++s_P;
     }
+    if (n)
+        _emit(scr, chunk, n);
 #else
     addstr_ex(scr, s_P);
 #endif
@@ -488,6 +558,8 @@ void setscrreg_ex(mcurses_t *scr, uint_fast8_t top, uint_fast8_t bot)
     scr->scroll_top = (uint8_t)top;
     scr->scroll_bot = (uint8_t)bot;
     _emit_stbm(scr, (uint8_t)top, (uint8_t)bot);
+    /* DECSTBM homes the terminal cursor; the tracked position is stale. */
+    scr->cursor_dirty = 1;
 }
 
 void deleteln_ex(mcurses_t *scr)
@@ -495,14 +567,16 @@ void deleteln_ex(mcurses_t *scr)
     if (!scr) return;
     /* Move to start of current line, then DL 1 */
     _emit_cup(scr, scr->cury, 0);
-    _puts(scr, "\x1b[M");   /* DL – delete line */
+    _puts_lit(scr, VT_CSI "M");   /* DL – delete line */
+    scr->cursor_dirty = 1;        /* terminal now at col 0, tracked isn't */
 }
 
 void insertln_ex(mcurses_t *scr)
 {
     if (!scr) return;
     _emit_cup(scr, scr->cury, 0);
-    _puts(scr, "\x1b[L");   /* IL – insert line */
+    _puts_lit(scr, VT_CSI "L");   /* IL – insert line */
+    scr->cursor_dirty = 1;
 }
 
 void scroll_ex(mcurses_t *scr)
@@ -515,43 +589,46 @@ void scroll_ex(mcurses_t *scr)
     _putc(scr, '\n');
     /* Restore cursor */
     _emit_cup(scr, scr->cury, scr->curx);
+    scr->cursor_dirty = 0;        /* restored to the tracked position */
 }
 
 void clear_ex(mcurses_t *scr)
 {
     if (!scr) return;
-    _puts(scr, "\x1b[2J");  /* ED – erase all */
-    _puts(scr, "\x1b[H");   /* CUP home        */
+    _puts_lit(scr, VT_ED_ALL      /* ED – erase all */
+                   VT_HOME);      /* CUP home       */
     scr->cury = 0;
     scr->curx = 0;
+    scr->cursor_dirty = 0;
 }
 
 void clrtobot_ex(mcurses_t *scr)
 {
     if (!scr) return;
-    _puts(scr, "\x1b[J");   /* ED – erase from cursor to end */
+    _puts_lit(scr, VT_ED_BELOW);  /* ED – erase from cursor to end */
 }
 
 void clrtoeol_ex(mcurses_t *scr)
 {
     if (!scr) return;
-    _puts(scr, "\x1b[K");   /* EL – erase from cursor to end of line */
+    _puts_lit(scr, VT_EL_RIGHT);  /* EL – erase from cursor to end of line */
 }
 
 void delch_ex(mcurses_t *scr)
 {
     if (!scr) return;
-    _puts(scr, "\x1b[P");   /* DCH 1 – delete character */
+    _puts_lit(scr, VT_CSI "P");   /* DCH 1 – delete character */
 }
 
 void insch_ex(mcurses_t *scr, uint_fast8_t ch)
 {
     if (!scr) return;
-    _puts(scr, "\x1b[@");   /* ICH 1 – insert character cell */
+    _puts_lit(scr, VT_CSI "@");   /* ICH 1 – insert character cell */
     _emit_sgr(scr, scr->attr);
     _putc(scr, (uint8_t)ch);
     /* Return cursor to insertion point (ICH leaves it after the new char) */
     _emit_cup(scr, scr->cury, scr->curx);
+    scr->cursor_dirty = 0;
 }
 
 /* =========================================================================
@@ -573,15 +650,23 @@ void halfdelay_ex(mcurses_t *scr, uint_fast8_t tenths)
  * =========================================================================
  *
  * The RX pipe contains raw bytes from the terminal (UART RX ISR fills it).
- * VT escape sequences are parsed with vt_esc_add16() / vt_esc_match16()
- * from vterm.h.
+ * Bytes are fed to the embedded ansi.h state machine (scr->key_parser);
+ * its handlers (top of this file) capture one decoded key per call.
+ *
+ * Because the parser keeps its own state across calls, a sequence split
+ * over several getch_ex() invocations still decodes correctly — nothing
+ * is buffered on the stack and nothing is lost.
  *
  * Timing model (cooperative scheduler friendly):
- *  - nodelay=1 : return MCURSES_KEY_ERR immediately if nothing available.
+ *  - While bytes are available, the call NEVER waits: O(1) work per byte.
+ *  - Only when the pipe drains in the middle of an escape sequence does
+ *    the call pause up to MCURSES_ESC_TIMEOUT_MS for the rest of the
+ *    burst; on timeout a lone ESC keypress is delivered (parser flush).
+ *  - nodelay=1 : return MCURSES_KEY_ERR immediately when no key decodes.
  *  - halfdelay  : busy-poll for up to halfdelay×100 ms (coarse; uses
  *                 _delay_ms on AVR).  Not protothread-safe on its own –
  *                 wrap in PROCESS_WAIT_EVENT_UNTIL for proper yielding.
- *  - blocking   : spin until a byte appears (only for simple apps where
+ *  - blocking   : spin until a key arrives (only for simple apps where
  *                 a single process owns the terminal).
  */
 
@@ -590,71 +675,56 @@ uint_fast8_t getch_ex(mcurses_t *scr)
     if (!scr || !scr->rxpipe)
         return MCURSES_KEY_ERR;
 
-    /* ---- Wait policy ---- */
     uint16_t ms_left = (uint16_t)scr->halfdelay * 100u;
 
     for (;;) {
-        if (ipc_pipe_available(scr->rxpipe) == 0) {
-            if (scr->nodelay)
-                return MCURSES_KEY_ERR;
-            if (scr->halfdelay) {
-                if (ms_left == 0)
-                    return MCURSES_KEY_ERR;
-                _delay_ms(10);
-                ms_left = (ms_left > 10u) ? (ms_left - 10u) : 0u;
+        /* ---- Feed available bytes until a key pops out ---- */
+        while (!scr->key_pending && ipc_pipe_available(scr->rxpipe) > 0) {
+            uint8_t b;
+            if (ipc_pipe_read(scr->rxpipe, &b, 1) == 0)
+                break;
+            ansi_parse(&scr->key_parser, b);
+        }
+
+        if (scr->key_pending) {
+            scr->key_pending = 0;
+            return (uint_fast8_t)scr->key_code;
+        }
+
+        /* ---- Pipe drained mid-sequence: short inter-byte timeout ---- */
+        if (!ansi_parser_idle(&scr->key_parser)) {
+            uint8_t wait = MCURSES_ESC_TIMEOUT_MS;
+            while (ipc_pipe_available(scr->rxpipe) == 0 && wait > 0) {
+                _delay_ms(1);
+                --wait;
             }
-            /* else: fully blocking – keep spinning */
-            continue;
-        }
-        break; /* byte available */
-    }
+            if (ipc_pipe_available(scr->rxpipe) > 0)
+                continue;                        /* burst continues */
 
-    /* ---- Read first byte ---- */
-    uint8_t c;
-    ipc_pipe_read(scr->rxpipe, &c, 1);
-
-    if (c != KEY_ESCAPE)
-        return (uint_fast8_t)c;
-
-    /* ---- Escape sequence handling (vterm.h) ---- */
-    char esc_buf[VT_ESCAPE_BUFLEN];
-    uint8_t esc_idx = 0;
-
-    int8_t res = vt_esc_add16(esc_buf, &esc_idx, (rune16_t)c);
-    if (res != 0)
-        return (uint_fast8_t)c; /* error – return raw ESC */
-
-    /* Collect sequence bytes with a short inter-byte timeout */
-    for (;;) {
-        /* Wait briefly for next byte (escape sequence is typically sent
-         * as a burst; 20 ms is generous for local serial). */
-        uint8_t wait = 20; /* 20 × 1 ms = 20 ms max */
-        while (ipc_pipe_available(scr->rxpipe) == 0) {
-            if (--wait == 0)
-                goto seq_done;  /* timeout → partial / standalone ESC */
-            _delay_ms(1);
+            /* Timeout: a bare ESC keypress is delivered via the flush
+             * (on_execute(0x1B)); any other stalled partial sequence is
+             * not keyboard input — drop it so it cannot eat later keys. */
+            ansi_parser_flush(&scr->key_parser);
+            if (!ansi_parser_idle(&scr->key_parser))
+                ansi_parser_reset(&scr->key_parser);
+            if (scr->key_pending) {
+                scr->key_pending = 0;
+                return (uint_fast8_t)scr->key_code;
+            }
         }
 
-        uint8_t next;
-        ipc_pipe_read(scr->rxpipe, &next, 1);
+        /* ---- No key available: apply the wait policy ---- */
+        if (scr->nodelay)
+            return MCURSES_KEY_ERR;
 
-        res = vt_esc_add16(esc_buf, &esc_idx, (rune16_t)next);
-        if (res < 0)
-            goto seq_done; /* buffer full or invalid */
-        if (res == 0)
-            continue; /* accumulating */
-        /* res > 0: sequence complete, try to match */
-        break;
+        if (scr->halfdelay) {
+            if (ms_left == 0)
+                return MCURSES_KEY_ERR;
+            _delay_ms(10);
+            ms_left = (ms_left > 10u) ? (uint16_t)(ms_left - 10u) : 0u;
+        }
+        /* else: fully blocking – keep spinning */
     }
-
-seq_done:;
-    rune16_t key = vt_esc_match16(esc_buf, esc_idx);
-    if (key == 0)
-        return KEY_ESCAPE; /* unrecognised sequence – return bare ESC */
-
-    /* vt_esc_match16 returns rune16_t KEY_* codes (0x80-based from vterm.h).
-     * These fit in uint8_t for the KEY_C(n) values defined there. */
-    return (uint_fast8_t)(key & 0xFFu);
 }
 
 /* =========================================================================
@@ -723,7 +793,7 @@ void getnstr_ex(mcurses_t *scr, char *buf, uint_fast8_t maxlen)
 /* =========================================================================
  * Box drawing
  * =========================================================================
- * Uses Unicode box-drawing characters from vterm.h (ACS_* constants),
+ * Uses Unicode box-drawing characters from vtkeys.h (ACS_* constants),
  * encoded as UTF-8 and written directly to the TX pipe.
  */
 
@@ -750,6 +820,38 @@ static void _emit_box_char(mcurses_t *scr, uint16_t codepoint)
     uint8_t n = utf8_fromrune16(buf, (rune16_t)codepoint);
     if (n)
         _puts_n(scr, buf, n);
+}
+
+/**
+ * Emit @p count repetitions of @p codepoint.  The rune is UTF-8 encoded
+ * ONCE and replicated into a stack chunk, so a full horizontal box edge
+ * costs a handful of pipe writes instead of one encode+write per cell.
+ */
+static void _emit_box_run(mcurses_t *scr, uint16_t codepoint, uint8_t count)
+{
+    char    seq[3];
+    uint8_t sl = utf8_fromrune16(seq, (rune16_t)codepoint);
+    char    chunk[30];
+    uint8_t per, i;
+
+    if (!sl || !count)
+        return;
+
+    per = (uint8_t)(sizeof(chunk) / sl);   /* cells per chunk */
+    if (per > count)
+        per = count;
+
+    for (i = 0; i < per; i++) {
+        chunk[i * sl] = seq[0];
+        if (sl > 1) chunk[i * sl + 1] = seq[1];
+        if (sl > 2) chunk[i * sl + 2] = seq[2];
+    }
+
+    while (count) {
+        uint8_t take = (count < per) ? count : per;
+        _emit(scr, chunk, (size_t)take * sl);
+        count = (uint8_t)(count - take);
+    }
 }
 
 void addbox_ex(mcurses_t *scr, uint_fast8_t y, uint_fast8_t x,
@@ -783,8 +885,7 @@ void addbox_ex(mcurses_t *scr, uint_fast8_t y, uint_fast8_t x,
     /* Top edge */
     _emit_cup(scr, (uint8_t)y, (uint8_t)x);
     _emit_box_char(scr, ul);
-    for (uint8_t i = 0; i < w - 2u; i++)
-        _emit_box_char(scr, hl);
+    _emit_box_run(scr, hl, (uint8_t)(w - 2u));
     _emit_box_char(scr, ur);
 
     /* Side edges */
@@ -798,13 +899,14 @@ void addbox_ex(mcurses_t *scr, uint_fast8_t y, uint_fast8_t x,
     /* Bottom edge */
     _emit_cup(scr, (uint8_t)(y + h - 1u), (uint8_t)x);
     _emit_box_char(scr, ll);
-    for (uint8_t i = 0; i < w - 2u; i++)
-        _emit_box_char(scr, hl);
+    _emit_box_run(scr, hl, (uint8_t)(w - 2u));
     _emit_box_char(scr, lr);
 
     /* Leave the cursor in a defined, in-range state that matches the
      * terminal.  The box edges were emitted with bare CUP sequences that do
-     * not update scr->curx/cury, so re-home via move_ex() (which emits CUP
-     * and syncs the tracked cursor).  Park at the box's bottom-left corner. */
+     * not update scr->curx/cury, so mark the tracked state dirty and re-home
+     * via move_ex() (which then emits a real CUP and re-syncs).  Park at the
+     * box's bottom-left corner. */
+    scr->cursor_dirty = 1;
     move_ex(scr, (uint8_t)(y + h - 1u), (uint8_t)x);
 }

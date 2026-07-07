@@ -9,16 +9,44 @@
 
 #include <cc.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+/**
+ * @def PROTODUINO_UNICODE_LEVEL
+ * @brief Compile-time Unicode coverage of the rune16 classification and
+ *        case-conversion tables.
+ *
+ *   0 = ASCII only.  No flash tables at all: isalpha/isupper/islower/
+ *       isspace/tolower/toupper operate on A-Z, a-z and ASCII whitespace.
+ *       Saves roughly 4.5 KB of flash — use when the application never
+ *       classifies or case-converts non-ASCII text.  (Encoding/decoding
+ *       UTF-8 and *printing* any Unicode text is unaffected.)
+ *   2 = Full BMP tables (default): the Plan 9 derived range tables in
+ *       rune16_private.h, stored in flash (PROGMEM on AVR).
+ *
+ * Set it for the whole build, e.g.
+ *   --build-property "build.extra_flags=-DPROTODUINO_UNICODE_LEVEL=0"
+ * so the library .c files and the sketch agree.
+ */
+#ifndef PROTODUINO_UNICODE_LEVEL
+#define PROTODUINO_UNICODE_LEVEL 2
+#endif
 
 /**
  * @typedef rune16_t
- * @brief 16-bit Unicode character representation.
+ * @brief 16-bit Unicode character representation (UCS-2, BMP only).
  *
  * This typedef defines the type "rune16_t" as a 16-bit Unicode character representation.
  * It is used for storing Unicode characters with a maximum value of 0xFFFF (65535).
  *
+ * The type is UNSIGNED — like the original Plan 9 `Rune` — so that
+ * comparisons and the binary search over the classification tables order
+ * code-points above U+7FFF (Hangul, CJK compatibility, fullwidth forms)
+ * correctly.  It is NOT UTF-16: surrogate pairs are not supported, so
+ * code-points above U+FFFF (emoji) cannot be represented — use rune32_t
+ * for those.
  */
-typedef int_least16_t rune16_t;
+typedef uint16_t rune16_t;
 
 /**
  * @brief Copies a rune16_t string up to a specified end pointer, from a source string.

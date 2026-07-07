@@ -41,6 +41,7 @@
 uint8_t utf8_torune16(rune16_t *rune, const char *str)
 {
     unsigned char s0, s1, s2, s3;
+    rune16_t r;
 
     /* Initialise to the error sentinel; overwritten on success. */
     *rune = UTF8_DECODE_ERROR;
@@ -65,7 +66,10 @@ uint8_t utf8_torune16(rune16_t *rune, const char *str)
         return 1u;  /* invalid continuation – skip s0 */
 
     if ((s0 & 0xE0u) == 0xC0u) {
-        *rune = (rune16_t)(((s0 & 0x1Fu) << 6) | (s1 & 0x3Fu));
+        r = (rune16_t)(((s0 & 0x1Fu) << 6) | (s1 & 0x3Fu));
+        if (r < 0x80u)
+            return 2u;   /* overlong: consumed, *rune stays DECODE_ERROR */
+        *rune = r;
         return 2u;
     }
 
@@ -78,9 +82,14 @@ uint8_t utf8_torune16(rune16_t *rune, const char *str)
         return 1u;
 
     if ((s0 & 0xF0u) == 0xE0u) {
-        *rune = (rune16_t)(((rune16_t)(s0 & 0x0Fu) << 12)
-                         | ((rune16_t)(s1 & 0x3Fu) <<  6)
-                         |  (rune16_t)(s2 & 0x3Fu));
+        r = (rune16_t)(((rune16_t)(s0 & 0x0Fu) << 12)
+                     | ((rune16_t)(s1 & 0x3Fu) <<  6)
+                     |  (rune16_t)(s2 & 0x3Fu));
+        if (r < 0x800u)
+            return 3u;   /* overlong */
+        if (r >= 0xD800u && r <= 0xDFFFu)
+            return 3u;   /* surrogate: never valid in UTF-8 */
+        *rune = r;
         return 3u;
     }
 
@@ -119,7 +128,8 @@ uint8_t utf8_fromrune16(char *str, rune16_t rune)
         return 2u;
     }
 
-    if (rune == UTF8_DECODE_ERROR)
+    /* Reject surrogates (invalid scalar values) and the error sentinel. */
+    if ((rune >= 0xD800u && rune <= 0xDFFFu) || rune == UTF8_DECODE_ERROR)
         return 0u;
 
     /* 3-byte: U+0800 – U+FFFF */
@@ -137,7 +147,8 @@ uint8_t utf8_rune16len(rune16_t rune)
 {
     if (rune < 0x80)            return 1u;
     if (rune < 0x800)           return 2u;
-    if (rune == UTF8_DECODE_ERROR) return 0u;
+    if ((rune >= 0xD800u && rune <= 0xDFFFu)
+        || rune == UTF8_DECODE_ERROR) return 0u;
     return 3u;
 }
 
@@ -425,9 +436,7 @@ bool utf8_toupper_build(const char *s, struct utf8_builder *b)
 
     utf8_cursor_init(&cur, s);
     while (utf8_cursor_next(&cur, &r)) {
-        /* NOTE: rune16_tolower() actually uppercases in the original
-         * rune16.c convention (function names are swapped vs. std C). */
-        if (!utf8_builder_put(b, rune16_tolower(r))) {
+        if (!utf8_builder_put(b, rune16_toupper(r))) {
             ok = false;
             break;
         }
@@ -443,9 +452,7 @@ bool utf8_tolower_build(const char *s, struct utf8_builder *b)
 
     utf8_cursor_init(&cur, s);
     while (utf8_cursor_next(&cur, &r)) {
-        /* rune16_toupper() is the actual to-lowercase function in the
-         * original rune16.c convention (names swapped vs. std C). */
-        if (!utf8_builder_put(b, rune16_toupper(r))) {
+        if (!utf8_builder_put(b, rune16_tolower(r))) {
             ok = false;
             break;
         }
@@ -506,6 +513,8 @@ uint8_t utf8_torune32(rune32_t *rune, const char *str)
 
     if ((s0 & 0xE0u) == 0xC0u) {
         r = ((rune32_t)(s0 & 0x1Fu) << 6) | (rune32_t)(s1 & 0x3Fu);
+        if (r < 0x80u)
+            return 2u;   /* overlong: consumed, *rune stays DECODE_ERROR */
         *rune = r;
         return 2u;
     }
@@ -520,9 +529,11 @@ uint8_t utf8_torune32(rune32_t *rune, const char *str)
           | ((rune32_t)(s1 & 0x3Fu) <<  6)
           |  (rune32_t)(s2 & 0x3Fu);
 
-        /* Reject surrogate code-points U+D800–U+DFFF. */
-        if (r >= RUNE32_SURR_MIN && r <= RUNE32_SURR_MAX)
+        /* Reject overlong encodings and surrogates U+D800–U+DFFF. */
+        if (r < 0x800u)
             return 3u;   /* consumed, *rune stays DECODE_ERROR */
+        if (r >= RUNE32_SURR_MIN && r <= RUNE32_SURR_MAX)
+            return 3u;
 
         *rune = r;
         return 3u;
@@ -539,8 +550,8 @@ uint8_t utf8_torune32(rune32_t *rune, const char *str)
           | ((rune32_t)(s2 & 0x3Fu) <<  6)
           |  (rune32_t)(s3 & 0x3Fu);
 
-        /* Must be in valid Unicode range. */
-        if (r > RUNE32_MAX) {
+        /* Must be in valid Unicode range and not an overlong encoding. */
+        if (r < 0x10000u || r > RUNE32_MAX) {
             return 4u;   /* consumed, *rune stays DECODE_ERROR */
         }
 

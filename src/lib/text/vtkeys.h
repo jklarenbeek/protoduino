@@ -1,12 +1,36 @@
-#ifndef __VT100_H__
-#define __VT100_H__
+/**
+ * @file vtkeys.h
+ * @brief Terminal key codes and display-symbol constants for protoduino.
+ *
+ * This header is pure constants (plus one tiny inline mapping helper) and
+ * has no implementation file.  It is the single home of:
+ *
+ *   - KEY_*  codes   : the project-wide keyboard key identifiers produced by
+ *                      the ANSI input parser (ansi.h) and consumed by
+ *                      mcurses/getch, the TUI, and application shells.
+ *   - ACS_*  symbols : Unicode code-points for the DEC Special Graphics set
+ *                      (box drawing) and for visualising control keys.
+ *   - vtkey_symbol16(): map a KEY_* code to a printable Unicode symbol.
+ *
+ * KEY_* codes deliberately occupy the C1 range 0x80-0x9F so they never
+ * collide with ASCII input; they fit in a single byte and in a rune16_t.
+ *
+ * History: these constants lived in vterm.h together with a small linear
+ * escape-sequence matcher.  The matcher is superseded by the byte-fed state
+ * machine in ansi.h/ansi.c; the constants everyone needs live here now.
+ */
 
-#include <cc.h>
+#ifndef __VTKEYS_H__
+#define __VTKEYS_H__
+
 #include <stdint.h>
-#include "rune16.h"
 
-// key codes for rune16_t between 0x80-0x9F (size == 32)
-// https://www.gnu.org/software/guile-ncurses/manual/html_node/Getting-characters-from-the-keyboard.html
+/* =========================================================================
+ * Key codes
+ * =========================================================================
+ * https://www.gnu.org/software/guile-ncurses/manual/html_node/Getting-characters-from-the-keyboard.html
+ */
+
 #define KEY_TAB                 '\t'            // TAB key
 #define KEY_CR                  '\r'            // RETURN key
 #define KEY_BACKSPACE           '\b'            // Backspace key
@@ -15,6 +39,7 @@
 #define KEY_ESCAPE              0x1B            // ESCAPE
 #define KEY_DELETE              0x7F            // Delete
 
+// key codes between 0x80-0x9F (C1 range, size == 32)
 #define KEY_C0                  0x80
 #define KEY_C(n)                (KEY_C0+(n))
 
@@ -30,7 +55,6 @@
 #define KEY_PPAGE               KEY_C(7)        // Previous-page key
 #define KEY_END                 KEY_C(8)        // End key
 #define KEY_BTAB                KEY_C(9)        // Back tab key
-
 
 #define KEY_DL                  KEY_C(10)       // Delete Line (Shift + Delete)
 #define KEY_IL                  KEY_C(11)       // Insert line (Shift + Insert)
@@ -49,12 +73,11 @@
 #define KEY_F0                  KEY_C(20)       // Function key F0
 #define KEY_F(n)                (KEY_F0+(n)-1)  // Space for additional 12 function keys
 
-//
-//
-//
-// DEC Special Graphics Character Set
-// http://justsolve.archiveteam.org/wiki/DEC_Special_Graphics_Character_Set
-
+/* =========================================================================
+ * DEC Special Graphics Character Set (box drawing)
+ * =========================================================================
+ * http://justsolve.archiveteam.org/wiki/DEC_Special_Graphics_Character_Set
+ */
 
 #define ACS_DIAMOND             0x25C6  // DEC graphic 0x60: diamond
 #define ACS_CKBOARD             0x2592  // DEC graphic 0x61: checker board
@@ -93,10 +116,12 @@
 #define ACS_STERLING            0x00A3  // DEC graphic 0x7d: uk pound sign
 #define ACS_BULLET              0x00B7  // DEC graphic 0x7e: bullet
 
-
-// rune symbol definitions
-// http://xahlee.info/comp/unicode_computing_symbols.html
-// https://markentier.tech/posts/2021/04/windows-shortcut-key-symbol/
+/* =========================================================================
+ * Key-cap display symbols
+ * =========================================================================
+ * http://xahlee.info/comp/unicode_computing_symbols.html
+ * https://markentier.tech/posts/2021/04/windows-shortcut-key-symbol/
+ */
 
 #define ASC_UNKNOWN             0x003F  // '?'
 #define ACS_C0                  0x2726  // '✦' U+2726
@@ -124,27 +149,49 @@
 #define ACS_CURSOR_RIGHT        0x21E5 // '▶' U+21E5
 #define ACS_CURSOR_LEFT         0x25C0 // '◀' U+25C0
 
-// Cursor movement
-#define VT_SEQ_MOVE_HOME             "\e[H"
-#define VT_SEQ_MOVE_TO               "\e[%d;%dH"
-#define VT_SEQ_MOVE_UP               "\e[%dA"
-#define VT_SEQ_MOVE_DOWN             "\e[%dB"
-#define VT_SEQ_MOVE_RIGHT            "\e[%dC"
-#define VT_SEQ_MOVE_LEFT             "\e[%dD"
+/* =========================================================================
+ * vtkey_symbol16  –  KEY_* code to printable Unicode symbol
+ * =========================================================================
+ * Handy for echoing special keys in a shell or key-test screen.
+ * Codepoints that are not known keys are returned unchanged.
+ *
+ * (static inline: costs flash only in translation units that call it.)
+ */
+static inline uint16_t vtkey_symbol16(const uint16_t key)
+{
+    switch (key)
+    {
+        case KEY_TAB: return ACS_TAB;
+        case KEY_ENTER: return ACS_ENTER;
+        case KEY_PAUSE: return ACS_PAUSE;
+        case KEY_BACKSPACE: return ACS_BACKSPACE;
+        case KEY_ESCAPE: return ASC_ESC;
 
-///
-///
-///
-#define VT_ESCAPE_BUFLEN 16
+        case KEY_UP: return ACS_CURSOR_UP;
+        case KEY_DOWN: return ACS_CURSOR_DOWN;
+        case KEY_RIGHT: return ACS_CURSOR_RIGHT;
+        case KEY_LEFT: return ACS_CURSOR_LEFT;
 
-#define VT_ERR_INVALID_INPUT -1
-#define VT_ERR_BUFFER_OVERFLOW -2
-#define VT_ERR_KEY_NOT_FOUND -3
+        case KEY_HOME: return ACS_HOME;
+        case KEY_DC: return ACS_DELETE;
+        case KEY_IC: return ACS_INSERT;
+        case KEY_NPAGE: return ACS_PGDN;
+        case KEY_PPAGE: return ACS_PGUP;
+        case KEY_END: return ACS_END;
+        case KEY_BTAB: return ACS_BTAB;
 
-CC_EXTERN int8_t vt_esc_add16(char * buffer, uint8_t * idx, const rune16_t ch);
+        case KEY_SF: return ACS_CURSOR_DOWN;
+        case KEY_SB: return ACS_CURSOR_UP;
+        case KEY_NW: return ACS_CURSOR_RIGHT;
+        case KEY_PW: return ACS_CURSOR_LEFT;
 
-CC_EXTERN rune16_t vt_esc_match16(const char * buffer, const uint8_t len);
+        case KEY_MLU: return ACS_CURSOR_UP;
+        case KEY_MLD: return ACS_CURSOR_DOWN;
+        case KEY_MLR: return ACS_CURSOR_RIGHT;
+        case KEY_MLL: return ACS_CURSOR_LEFT;
 
-CC_EXTERN rune16_t vt_esc_symbol16(rune16_t rune);
+        default: return key;
+    }
+}
 
-#endif
+#endif /* __VTKEYS_H__ */

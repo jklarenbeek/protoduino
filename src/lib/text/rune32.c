@@ -268,30 +268,23 @@ bool rune32_istitle(rune32_t c)
 /* =========================================================================
  * Case conversion
  * =========================================================================
- * Note: in the original rune16.c (Plan 9 port by jklarenbeek) the function
- * names rune16_toupper / rune16_tolower are swapped relative to the C
- * standard convention:
- *   rune16_tolower(c)  → actually returns the UPPER-case form
- *   rune16_toupper(c)  → actually returns the LOWER-case form
- *
- * The rune32_t wrappers below compensate so that rune32_toupper and
- * rune32_tolower behave as users expect.
+ * rune16_toupper / rune16_tolower follow the standard C convention (the
+ * Plan 9 tables map exactly like tolower()/toupper()); the wrappers below
+ * delegate 1:1 for BMP code-points.  SMP code-points have no case.
  */
 
 rune32_t rune32_toupper(rune32_t c)
 {
     if (!rune32_isbmp(c))
         return c;   /* SMP code-points have no case */
-    /* rune16_tolower is the actual to-upper in the original rune16 code */
-    return (rune32_t)rune16_tolower((rune16_t)c);
+    return (rune32_t)rune16_toupper((rune16_t)c);
 }
 
 rune32_t rune32_tolower(rune32_t c)
 {
     if (!rune32_isbmp(c))
         return c;
-    /* rune16_toupper is the actual to-lower in the original rune16 code */
-    return (rune32_t)rune16_toupper((rune16_t)c);
+    return (rune32_t)rune16_tolower((rune16_t)c);
 }
 
 rune32_t rune32_totitle(rune32_t c)

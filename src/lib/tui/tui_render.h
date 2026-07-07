@@ -13,7 +13,7 @@
  * Design:
  *  - Zero malloc.  The render queue is caller-allocated.
  *  - Clip-rect support for scrollable regions.
- *  - Box-drawing via Unicode ACS_* constants (vterm.h), encoded as
+ *  - Box-drawing via Unicode ACS_* constants (vtkeys.h), encoded as
  *    UTF-8 on the fly with a small stack buffer.
  *
  * Copyright (c) 2026 protoduino contributors.

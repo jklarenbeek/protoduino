@@ -9,7 +9,7 @@
 #include <autostart.h>
 #include <sys/process.h>
 #include <sys/uart.h>
-#include <lib/text/vterm.h>
+#include <lib/text/ansi.h>
 
 static uint8_t   rx_buf[64];
 static ipc_pipe_t rx_pipe;
@@ -43,23 +43,75 @@ static void tx_wake_cb(void *ctx)
   uart0_tx_enable_int();
 }
 
-/* VT escape sequence parser state */
-enum shell_parse_state {
-  SHELL_NORMAL = 0,
-  SHELL_ESCAPE = 1
-};
-
 PROCESS_DEFINE(shell, "shell", 2,
   uint8_t  input_buf[32];
   uint8_t  input_idx;
-  enum shell_parse_state parse_state;
-  uint8_t  esc_buf[VT_ESCAPE_BUFLEN];
-  uint8_t  esc_idx;
+  ansi_parser_t parser;   /* byte-fed VT500 escape decoder (ansi.h) */
 );
 
 PROCESS_INSTANCE(shell, shell_proc);
 
 static const uint8_t prompt[] CC_PROGMEM = "shell> ";
+
+/* =========================================================================
+ * ANSI parser handlers – the parser classifies each RX byte and calls one
+ * of these; escape sequences (arrow keys, F-keys, …) arrive fully decoded
+ * instead of being collected in a fixed escape buffer.
+ * ========================================================================= */
+
+static void shell_on_print(void *ctx, uint32_t cp)
+{
+  process_shell_t *self = (process_shell_t *)ctx;
+
+  if (cp >= 0x20u && cp <= 0x7Eu
+      && self->input_idx < sizeof(self->input_buf) - 1) {
+    uint8_t ch = (uint8_t)cp;
+    self->input_buf[self->input_idx++] = ch;
+    ipc_pipe_write(&tx_pipe, &ch, 1);   /* echo */
+  }
+}
+
+static void shell_on_execute(void *ctx, uint8_t ctrl)
+{
+  process_shell_t *self = (process_shell_t *)ctx;
+  static const uint8_t crlf[] = "\r\n";
+
+  if (ctrl == '\r' || ctrl == '\n') {
+    ipc_pipe_write(&tx_pipe, crlf, 2);
+
+    if (self->input_idx > 0) {
+      static const uint8_t prefix[] = "Command: ";
+      ipc_pipe_write(&tx_pipe, prefix, sizeof(prefix) - 1);
+      ipc_pipe_write(&tx_pipe, self->input_buf, self->input_idx);
+      ipc_pipe_write(&tx_pipe, crlf, 2);
+      self->input_idx = 0;
+    }
+
+    static const uint8_t prompt_cmd[] = "shell> ";
+    ipc_pipe_write(&tx_pipe, prompt_cmd, sizeof(prompt_cmd) - 1);
+
+  } else if (ctrl == '\b' || ctrl == KEY_DELETE) {
+    if (self->input_idx > 0) {
+      self->input_idx--;
+      static const uint8_t bksp[] = "\b \b";
+      ipc_pipe_write(&tx_pipe, bksp, 3);
+    }
+  }
+  /* other C0 controls (and a flushed bare ESC) are ignored here */
+}
+
+static void shell_on_csi(void *ctx, const ansi_csi_t *csi)
+{
+  /* Special keys arrive decoded; this basic shell ignores them. */
+  (void)ctx;
+  uint8_t  mods = 0;
+  (void)ansi_key_from_csi(csi, &mods);
+}
+
+static const ansi_handlers_t SHELL_HANDLERS = {
+  shell_on_print, shell_on_execute, shell_on_csi, /* on_esc */ 0,
+  /* osc */ 0, /* dcs_hook */ 0, /* dcs_put */ 0, /* dcs_unhook */ 0,
+};
 
 PROCESS_THREAD(shell, ev, data)
 {
@@ -70,9 +122,8 @@ PROCESS_THREAD(shell, ev, data)
   PROCESS_SET_PIPEIN(&rx_pipe);
   PROCESS_SET_PIPEOUT(&tx_pipe);
 
-  self->input_idx   = 0;
-  self->parse_state = SHELL_NORMAL;
-  self->esc_idx     = 0;
+  self->input_idx = 0;
+  ansi_parser_init(&self->parser, &SHELL_HANDLERS, self, NULL, 0);
 
   PROCESS_PIPE_WRITE_ATOMIC(prompt, sizeof(prompt) - 1);
 
@@ -87,56 +138,18 @@ PROCESS_THREAD(shell, ev, data)
       if (nread == 0)
         break;
 
-      if (self->parse_state == SHELL_ESCAPE) {
-        int8_t ret = vt_esc_add16((char *)self->esc_buf,
-                                   &self->esc_idx, ch);
-        if (ret == ERR_SUCCESS) {
-          vt_esc_match16((const char *)self->esc_buf, self->esc_idx);
-          self->parse_state = SHELL_NORMAL;
-        } else if (ret != ERR_YIELDING) {
-          self->parse_state = SHELL_NORMAL;
-        }
-        continue;
-      }
-
-      if (ch == KEY_ESCAPE) {
-        self->parse_state = SHELL_ESCAPE;
-        self->esc_idx     = 0;
-        vt_esc_add16((char *)self->esc_buf, &self->esc_idx, ch);
-      } else if (ch == KEY_BACKSPACE || ch == KEY_DELETE
-                 || ch == '\b'       || ch == 127) {
-        if (self->input_idx > 0) {
-          self->input_idx--;
-          static const uint8_t bksp[] = "\b \b";
-          PROCESS_PIPE_WRITE_ATOMIC(bksp, 3);
-        }
-      } else if (ch == KEY_ENTER || ch == '\r' || ch == '\n') {
-        static const uint8_t crlf[] = "\r\n";
-        PROCESS_PIPE_WRITE_ATOMIC(crlf, 2);
-
-        uint8_t end = (self->input_idx < sizeof(self->input_buf) - 1)
-                      ? self->input_idx
-                      : (uint8_t)(sizeof(self->input_buf) - 1);
-        self->input_buf[end] = '\0';
-
-        if (self->input_idx > 0) {
-          static const uint8_t prefix[] = "Command: ";
-          PROCESS_PIPE_WRITE_ATOMIC(prefix, sizeof(prefix) - 1);
-          PROCESS_PIPE_WRITE_ATOMIC(self->input_buf, self->input_idx);
-          PROCESS_PIPE_WRITE_ATOMIC(crlf, 2);
-          self->input_idx = 0;
-        }
-
-        static const uint8_t prompt_cmd[] = "shell> ";
-        PROCESS_PIPE_WRITE_ATOMIC(prompt_cmd, sizeof(prompt_cmd) - 1);
-
-      } else if (ch >= 32 && ch <= 126) {
-        if (self->input_idx < sizeof(self->input_buf) - 1) {
-          self->input_buf[self->input_idx++] = ch;
-          PROCESS_PIPE_WRITE_ATOMIC(&ch, 1);
-        }
-      }
+      /* The parser invokes SHELL_HANDLERS synchronously per action;
+       * escape sequences never reach the line buffer. */
+      ansi_parse(&self->parser, ch);
     }
+
+    /* NOTE: no ansi_parser_flush() here.  The RX ISR wakes this process
+     * per byte, so the pipe regularly drains *between* the bytes of one
+     * escape burst — flushing now would misread every arrow key as a
+     * bare ESC + text.  This basic shell has no timer, so a lone ESC
+     * keypress is simply absorbed; see 13-pt-basic-echo for the
+     * clock-based escape-gap pattern, or use mcurses getch_ex() which
+     * handles the timeout internally. */
   }
 
   PROCESS_END();

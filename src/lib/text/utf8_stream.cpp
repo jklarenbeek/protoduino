@@ -44,6 +44,9 @@ int8_t utf8_getr(Stream *st, rune16_t *rune)
 
     r = (((s0 & 0b00011111) << 6) | (s1 & 0b00111111));
 
+    if (r < 0x80u)
+      return UTF8_RET_CORRUPT;  /* overlong encoding */
+
     *rune = r;
     return 2;
   }
@@ -67,6 +70,11 @@ int8_t utf8_getr(Stream *st, rune16_t *rune)
       return UTF8_RET_CORRUPT;
 
     r = (((((s0 & 0b00001111) << 6) | (s1 & 0b00111111)) << 6) | (s2 & 0b00111111));
+
+    if (r < 0x800u)
+      return UTF8_RET_CORRUPT;  /* overlong encoding */
+    if (r >= 0xD800u && r <= 0xDFFFu)
+      return UTF8_RET_CORRUPT;  /* surrogate: never valid in UTF-8 */
 
     *rune = r;
     return 3;

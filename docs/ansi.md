@@ -180,7 +180,7 @@ Sub-parameter separators `:` are treated like `;` (keeps SGR truecolour
 ## 7. Key decoding
 
 For a shell reading the keyboard, two helpers turn sequences into the
-project's `KEY_*` codes (from `vterm.h`) plus a modifier bitfield:
+project's `KEY_*` codes (from `vtkeys.h`) plus a modifier bitfield:
 
 ```c
 uint8_t  mods;

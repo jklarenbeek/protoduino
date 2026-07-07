@@ -19,7 +19,7 @@
  * The application supplies a handler table; the parser invokes the matching
  * handler synchronously as each complete action is recognised.  A small
  * helper (`ansi_key_from_csi` / `ansi_key_from_ss3`) maps cursor/navigation/
- * function-key sequences onto the project's KEY_* codes (vterm.h) with
+ * function-key sequences onto the project's KEY_* codes (vtkeys.h) with
  * modifier extraction — everything a shell needs to read the keyboard.
  *
  * Design notes
@@ -44,7 +44,7 @@
 #include <stddef.h>
 
 #include <cc.h>
-#include "vterm.h"   /* KEY_* codes reused by the key decoder */
+#include "vtkeys.h"  /* KEY_* codes reused by the key decoder */
 
 #ifdef __cplusplus
 extern "C" {
@@ -178,6 +178,18 @@ CC_EXTERN void ansi_parse(ansi_parser_t *p, uint8_t byte);
 CC_EXTERN void ansi_parse_buf(ansi_parser_t *p, const uint8_t *buf, uint16_t len);
 
 /**
+ * @brief True when the parser is in the GROUND state (no partial sequence).
+ *
+ * Useful for input drivers that must decide whether to wait for the rest of
+ * an escape burst or to call ansi_parser_flush(): if the parser is idle
+ * there is nothing pending and no wait is needed.
+ */
+static inline bool ansi_parser_idle(const ansi_parser_t *p)
+{
+    return p->state == 0u;   /* S_GROUND — first enumerator in ansi.c */
+}
+
+/**
  * @brief Flush a pending lone ESC.
  *
  * Call when the input source is drained (no more bytes available right now).
@@ -190,7 +202,7 @@ CC_EXTERN void ansi_parse_buf(ansi_parser_t *p, const uint8_t *buf, uint16_t len
 CC_EXTERN void ansi_parser_flush(ansi_parser_t *p);
 
 /* =========================================================================
- * Key decoder  (maps sequences onto vterm.h KEY_* codes)
+ * Key decoder  (maps sequences onto vtkeys.h KEY_* codes)
  * ========================================================================= */
 
 /** Modifier bits returned by the key decoder (xterm encoding, minus 1). */

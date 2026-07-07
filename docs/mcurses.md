@@ -267,17 +267,22 @@ mcurses can also *read* keys from the RX pipe:
 
 | Function | Purpose |
 |---|---|
-| `getch_ex(scr)` | Read one key; translates a handful of VT escape sequences to `KEY_*` codes (vterm.h). Returns `MCURSES_KEY_ERR` (0xFF) when non-blocking and nothing is available. |
+| `getch_ex(scr)` | Read one key; RX bytes are decoded by the embedded [ANSI parser](./ansi.md) into `KEY_*` codes (vtkeys.h), with modifiers. Returns `MCURSES_KEY_ERR` (0xFF) when non-blocking and nothing is available. |
+| `mcurses_key_mods(scr)` | `ANSI_MOD_*` modifier bitfield (Ctrl/Alt/Shift/Meta) of the last key returned by `getch_ex`. |
 | `getnstr_ex(scr, buf, maxlen)` | Read a line with minimal editing (printable, Backspace, Enter to finish, Esc to cancel), echoing as it goes. |
-| `nodelay_ex(scr, onoff)` | Non-blocking `getch` (return immediately when the pipe is empty). |
+| `nodelay_ex(scr, onoff)` | Non-blocking `getch` (return immediately when no key decodes). |
 | `halfdelay_ex(scr, tenths)` | Block in `getch` for at most `tenths × 100 ms`. |
 
-> `getch_ex` uses a small fixed escape-sequence table (vterm.h) — fine for
-> arrow/function keys in a simple UI. For a shell or anything needing
-> **near-full ANSI** input (CSI parameters, modifiers, OSC, cursor-position
-> reports), feed the RX bytes to the [ANSI parser](./ansi.md) instead; it is
-> the proper, complete input state machine. The two share the same `KEY_*`
-> code space.
+> `getch_ex` embeds the byte-fed [ANSI parser](./ansi.md) (`ansi_parser_t`)
+> in `mcurses_t`: each RX byte costs O(1) work, sequences may be split
+> across calls without loss, and CSI parameters/modifiers are decoded
+> properly. While bytes are available the call **never waits**; only when
+> the pipe drains mid-sequence does it pause up to `MCURSES_ESC_TIMEOUT_MS`
+> (default 20 ms, overridable) so a lone ESC keypress can be recognised.
+> `getch_ex` returns single-byte codes (ASCII, Latin-1, `KEY_*`); if your
+> application needs full Unicode input or OSC/DCS strings, feed the RX
+> bytes to your own `ansi_parser_t` — the two share the same `KEY_*` code
+> space (vtkeys.h).
 
 ---
 
@@ -318,7 +323,7 @@ demonstrates both: lossless with a hook, and counted (not silent) without one.
 ## 12. UTF-8 & box drawing
 
 Box and line characters come from the Unicode box-drawing block and are
-defined as `ACS_*` constants in [`vterm.h`](../src/lib/text/vterm.h)
+defined as `ACS_*` constants in [`vtkeys.h`](../src/lib/text/vtkeys.h)
 (`ACS_ULCORNER`, `ACS_HLINE`, `ACS_VLINE`, …). `addbox_ex` draws a full
 rectangle in one call; its `style` argument matches `tui_border_style_t` so
 the value is portable between the mcurses and TUI APIs:

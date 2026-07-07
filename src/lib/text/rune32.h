@@ -166,8 +166,8 @@ CC_EXTERN bool rune32_isemoji(rune32_t c);
 /**
  * @brief Return the uppercase equivalent of a code-point.
  *
- * Delegates to rune16_tolower (sic – original rune16.c naming convention)
- * for BMP code-points.  SMP code-points have no case; returned unchanged.
+ * Delegates to rune16_toupper for BMP code-points.  SMP code-points have
+ * no case; returned unchanged.
  *
  * @param c Code point to convert.
  * @return Uppercase equivalent, or @p c if none exists.
@@ -177,7 +177,7 @@ CC_EXTERN rune32_t rune32_toupper(rune32_t c);
 /**
  * @brief Return the lowercase equivalent of a code-point.
  *
- * Delegates to rune16_toupper (sic) for BMP.  SMP returned unchanged.
+ * Delegates to rune16_tolower for BMP.  SMP returned unchanged.
  *
  * @param c Code point to convert.
  * @return Lowercase equivalent, or @p c if none exists.

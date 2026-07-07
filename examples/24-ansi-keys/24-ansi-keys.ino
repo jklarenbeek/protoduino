@@ -23,25 +23,25 @@
  */
 
 #include <protoduino.h>
-#include <avr/io.h>
+#include <sys/uart.h>
 
 #include <lib/text/ansi.h>
 
 #include <string.h>
 
 /* =========================================================================
- * Raw blocking UART0 (9600 8N1) output
- * ========================================================================= */
+ * Polled blocking UART0 output (9600 8N1) via the platform uart API
+ * =========================================================================
+ * sys/uart.h selects the platform driver (cpu/avr/uart.h on AVR), so this
+ * example contains no hardware registers and ports with the framework.
+ */
 
 static void uart_init_9600(void)
 {
-    UBRR0H = 0;
-    UBRR0L = 103;
-    UCSR0B = (uint8_t)(1u << TXEN0);
-    UCSR0C = (uint8_t)((1u << UCSZ01) | (1u << UCSZ00));
+    uart0_open(UART_BAUD_9600);
 }
 
-static void up(uint8_t b) { while (!(UCSR0A & (uint8_t)(1u << UDRE0))) { } UDR0 = b; }
+static void up(uint8_t b) { while (!uart0_tx_is_available()) { } uart0_tx_write8(b); }
 static void us(const char *s) { while (*s) up((uint8_t)*s++); }
 
 static void emit_key_name(uint16_t key)

@@ -9,7 +9,10 @@
  *  - I/O via ipc_pipe_t: decoupled from any physical UART/serial device.
  *    Connect the pipes to whatever transport you like (UART ISR, USB-CDC, …).
  *  - Minimal flash/SRAM footprint; targets Arduino Uno (ATmega328P).
- *  - Uses utf8.h / utf8_iter.h / vterm.h / vtout.h where possible (DRY).
+ *  - Uses utf8.h / utf8_iter.h / vtkeys.h / vtout.h / ansi.h (DRY).
+ *  - Input: escape sequences are decoded by the byte-fed ansi.h state
+ *    machine embedded in mcurses_t — O(1) per byte, no blocking waits
+ *    while bytes are available, full modifier-key support.
  *
  * Quick-start
  * ===========
@@ -46,8 +49,9 @@
 
 #include <protoduino.h>
 #include "../../sys/ipc.h"
-#include "vterm.h"
+#include "vtkeys.h"
 #include "vtout.h"
+#include "ansi.h"
 #include "utf8.h"
 #include "utf8_iter.h"
 
@@ -112,6 +116,13 @@ extern "C" {
 /* getch return codes */
 #define MCURSES_KEY_ERR             0xFFu   /* no key (nodelay/timeout) */
 
+/* Inter-byte timeout while collecting an escape burst, in milliseconds.
+ * Only applies when the RX pipe drains in the middle of a sequence; a lone
+ * ESC keypress is delivered after this delay.  Printable input never waits. */
+#ifndef MCURSES_ESC_TIMEOUT_MS
+#define MCURSES_ESC_TIMEOUT_MS      20u
+#endif
+
 /* =========================================================================
  * mcurses_t  –  all instance state in one caller-allocated struct
  * =========================================================================
@@ -148,6 +159,15 @@ typedef struct mcurses {
     /* ---- State flags ---- */
     uint8_t     initialized : 1;
     uint8_t     cursor_vis  : 2; /**< 0=invis 1=normal 2=very vis   */
+    uint8_t     cursor_dirty: 1; /**< tracked cursor may not match the
+                                  *   terminal (after wrap / raw edits);
+                                  *   forces the next move to emit CUP  */
+
+    /* ---- Input: embedded ANSI parser state (ansi.h) ---- */
+    ansi_parser_t key_parser;    /**< byte-fed VT500 escape decoder    */
+    uint8_t     key_pending;     /**< a decoded key is waiting          */
+    uint8_t     key_code;        /**< KEY_* / ASCII code of that key    */
+    uint8_t     key_mods;        /**< ANSI_MOD_* of last returned key   */
 
     /* ---- TX back-pressure / loss tracking ---- */
     uint16_t    tx_dropped;      /**< Saturating count of TX bytes dropped
@@ -338,13 +358,33 @@ void halfdelay_ex(mcurses_t *scr, uint_fast8_t tenths);
 /**
  * @brief Read one key from the RX pipe.
  *
- * Translates VT escape sequences to KEY_* constants (vterm.h).
- * Returns MCURSES_KEY_ERR when nodelay is on and no byte is available,
- * or when halfdelay expires.
+ * Bytes are fed through the embedded ansi.h state machine, which decodes
+ * CSI / SS3 escape sequences (arrows, nav, F-keys, with modifiers) into
+ * KEY_* constants (vtkeys.h).  Printable ASCII and Latin-1 code-points are
+ * returned as-is; wider Unicode input is folded to '?' (use the ansi
+ * parser directly if your application needs full rune input).
  *
- * @return KEY_* constant or raw ASCII byte.
+ * While bytes are available the call never waits.  Only when the pipe
+ * drains in the *middle* of an escape sequence does it pause up to
+ * MCURSES_ESC_TIMEOUT_MS for the rest of the burst — this is also how a
+ * lone ESC keypress is recognised and delivered.
+ *
+ * Returns MCURSES_KEY_ERR when nodelay is on and no key is available,
+ * or when halfdelay expires.  Modifier state of the last returned key is
+ * available via mcurses_key_mods().
+ *
+ * @return KEY_* constant or character code.
  */
 uint_fast8_t getch_ex(mcurses_t *scr);
+
+/**
+ * @brief Modifier bitfield (ANSI_MOD_*) of the last key returned by
+ *        getch_ex(); 0 when the key carried no modifiers.
+ */
+static inline uint_fast8_t mcurses_key_mods(const mcurses_t *scr)
+{
+    return scr->key_mods;
+}
 
 /**
  * @brief Read a string into buf with simple line-editing.

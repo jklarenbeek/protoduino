@@ -93,7 +93,7 @@ static bool _row_clipped(const tui_render_queue_t *rq, uint8_t row)
 /**
  * @brief Encode a 16-bit ACS_* Unicode code-point to UTF-8.
  *
- * The ACS_* values in vterm.h are uint16_t Unicode code-points in the
+ * The ACS_* values in vtkeys.h are uint16_t Unicode code-points in the
  * box-drawing block (U+2500–U+257F, 3-byte UTF-8).  This helper encodes
  * one code-point into buf[] and returns the byte count.
  *
@@ -201,7 +201,7 @@ static void _flush_text(const tui_render_cmd_t *cmd,
  *   └──────────┘   row y+h-1
  *
  * Uses ACS_ULCORNER, ACS_URCORNER, ACS_LLCORNER, ACS_LRCORNER,
- * ACS_HLINE, ACS_VLINE from vterm.h.
+ * ACS_HLINE, ACS_VLINE from vtkeys.h.
  */
 static void _flush_border(const tui_render_cmd_t *cmd,
                            tui_render_queue_t *rq,

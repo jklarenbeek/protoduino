@@ -40,9 +40,9 @@ A mathematically rigorous 8-bit taxonomy for system states, events, and errors.
 - **Implementation**: [`src/sys/errors.h`](./src/sys/errors.h), [`src/sys/events.h`](./src/sys/events.h)
 - **Reference**: [Common Error Codes](./docs/common-errors.md), [Common Events](./docs/common-events.md)
 
-### 5. Unicode & UTF-8 Support
-Professional text handling ported from Plan 9, suitable for internationalized displays.
-- **Implementation**: [`src/lib/text/utf8.h`](./src/lib/text/utf8.h), [`src/lib/text/rune16.h`](./src/lib/text/rune16.h)
+### 5. [Unicode & UTF-8 Support](./docs/unicode.md)
+Professional text handling ported from Plan 9, suitable for internationalized displays. UTF-8 everywhere, flash-resident classification tables, verified on-target under protosim.
+- **Implementation**: [`src/lib/text/utf8.h`](./src/lib/text/utf8.h), [`src/lib/text/rune16.h`](./src/lib/text/rune16.h), [`src/lib/text/rune32.h`](./src/lib/text/rune32.h)
 
 ---
 
@@ -132,6 +132,7 @@ Most examples in this repository include a `.ino` file. These folders also defin
 | [**Common Errors**](./docs/common-errors.md) | Comprehensive list of ontological error codes. |
 | [**Common Events**](./docs/common-events.md) | Comprehensive list of ontological event codes. |
 | [**Module Loader**](./docs/loader.md) | *Experimental* runtime code loading. |
+| [**Unicode**](./docs/unicode.md) | UTF-8 codec strictness, rune16/rune32 tables, `PROTODUINO_UNICODE_LEVEL`. |
 | [**mcurses**](./docs/mcurses.md) | Lean terminal output driver — VT/ANSI escapes over an `ipc_pipe_t`. |
 | [**TUI**](./docs/tui.md) | Damage-tracked, Clay-inspired terminal UI layout engine (output side). |
 | [**TUI Roadmap**](./docs/tui-roadmap.md) | *Future* Option C: full virtual-terminal cell buffer + diff rendering. |

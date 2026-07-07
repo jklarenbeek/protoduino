@@ -33,7 +33,7 @@
 
 #include <protoduino.h>
 #include <autostart.h>
-#include <avr/io.h>
+#include <sys/uart.h>
 
 #include <lib/text/mcurses.h>
 #include <lib/tui/tui_layout.h>
@@ -44,7 +44,17 @@
 
 /* NOTE: TUI_MAX_ELEMENTS is set via a build flag (build.extra_flags) so the
  * .ino and the library .c files agree on tui_context_t's size.  Defining it
- * only here would NOT reach the separately-compiled library sources. */
+ * only here would NOT reach the separately-compiled library sources.
+ *
+ * Build for the Uno with the documented small-RAM flag set (docs/tui.md):
+ *
+ *   arduino-cli compile --fqbn arduino:avr:uno --library . \
+ *     --build-property "build.extra_flags=-DTUI_MAX_ELEMENTS=10 \
+ *       -DTUI_MAX_RENDER_CMDS=32 -DTUI_SCROLL_LINES=6 -DTUI_SCROLL_LINE_BYTES=42" \
+ *     examples/22-tui-render
+ *
+ * Without these flags the default TUI buffers (48 elements, 64 commands,
+ * 16×81 scrollback) do not fit in the ATmega328P's 2 KB of SRAM. */
 
 #define SCR_ROWS 12
 #define SCR_COLS 40
@@ -65,23 +75,20 @@ static tui_scrollbuf_t    logbuf;
 static const char *status_text = " Ready";
 
 /* =========================================================================
- * Raw blocking UART0 (9600 8N1) – avoids the async uart0 driver so the
- * captured stream is exactly what mcurses emitted, in order.
+ * Polled blocking UART0 output (9600 8N1) via the platform uart API
+ * (sys/uart.h).  Polled TX keeps the captured stream exactly what mcurses
+ * emitted, in order, with no ISR interleaving — and no raw registers.
  * ========================================================================= */
 
 static void uart_init_9600(void)
 {
-    /* 16 MHz / (16 * 9600) - 1 = 103 */
-    UBRR0H = 0;
-    UBRR0L = 103;
-    UCSR0B = (uint8_t)(1u << TXEN0);
-    UCSR0C = (uint8_t)((1u << UCSZ01) | (1u << UCSZ00)); /* 8N1 */
+    uart0_open(UART_BAUD_9600);
 }
 
 static void uart_putc_blocking(uint8_t b)
 {
-    while (!(UCSR0A & (uint8_t)(1u << UDRE0))) { }
-    UDR0 = b;
+    while (!uart0_tx_is_available()) { }
+    uart0_tx_write8(b);
 }
 
 /* Wake callback: synchronously drain the whole TX pipe to the UART. */
