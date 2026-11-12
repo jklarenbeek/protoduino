@@ -13,6 +13,8 @@ ram @0xc4: cf
 ram @0x14a: 01 00 04
 --- 6. a process polls itself every turn: result[0] its turns (mod 256), result[1] second process got INIT, after 2.5 s
 ram @0x15a: 2f 00
+--- 6b. two processes polled in one sweep, the first ends on its poll: result[0] first polled, result[1] later polled, result[2] later still pending, after 2.5 s
+ram @0x15a: 01 00 01
 --- 7. sys/clock.h on an ATmega2560
 src/sys/clock.h:6:2: error: #error "clock: Unsupported Platform!"
 --- 8. PT_PIPE_AVAILABLE() with the struct ipc_pt it is documented for

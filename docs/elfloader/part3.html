@@ -1,6 +1,6 @@
 <h2 class="newpage"><span class="n">7</span>Fixes for current protoduino caveats</h2>
 
-<p>Findings 1 to 9 came out of reviewing the UART and serial layers as a base for the loader. Findings 10 to 21 came out of building the loader process and a module on the scheduler, the pipes and the serial device process. Each was checked by running protoduino's real sources in simulation, except where marked as read. None has been applied. The ones a user is most likely to meet are 14 and 15 in the scheduler, 11 to 13 in the serial path, and 10 with a newer compiler.</p>
+<p>Findings 1 to 9 came out of reviewing the UART and serial layers as a base for the loader. Findings 10 to 21 came out of building the loader process and a module on the scheduler, the pipes and the serial device process; finding 22 was reported by the review of the Protosim MCP design and reproduced here. Each was checked by running protoduino's real sources in simulation, except where marked as read. None has been applied. The ones a user is most likely to meet are 14 and 15 in the scheduler, 11 to 13 in the serial path, and 10 with a newer compiler.</p>
 
 <table>
   <thead><tr><th style="width:4%">#</th><th style="width:24%">Where</th><th>What happens</th><th style="width:27%">Evidence</th></tr></thead>
@@ -26,6 +26,7 @@
     <tr><td>19</td><td><code>serial_private.h</code>, <code>_on_rx</code></td><td>The receive callback of the serial process returns nothing, but is installed where the serial layer expects a function that returns whether it has consumed the byte. The layer acts on whatever is left in the result register: sometimes it stores the byte in its own ring as well, which nobody reads, and counts overflows there.</td><td><span class="tag m">measured</span> compiler: &ldquo;incompatible pointer type&rdquo;; effect <span class="tag r">read</span></td></tr>
     <tr><td>20</td><td><code>uart_private_impl.h</code>, <code>openex()</code></td><td>The divisor and the reported baud rate are computed at run time with 32-bit divisions, also when the rate is a constant. A program whose only UART call is <code>uart0_open(115200)</code> pays 292 bytes for it.</td><td><span class="tag m">measured</span> <code>uart0_openex</code> 224 B, <code>__udivmodsi4</code> 68 B</td></tr>
     <tr><td>21</td><td><code>sys/pt.h</code> <code>PT_RAISE()</code> with <code>sys/process.h</code></td><td><code>PT_RAISE()</code> returns <code>PT_WAITING</code> and lets the handler run the next time the thread is scheduled. A process is only scheduled when an event or a poll arrives, so a process that raises may never reach its <code>PT_CATCHANY</code> block, and its error is never reported. There is no <code>PROCESS_RAISE()</code>.</td><td><span class="tag m">measured</span> the first loader process: a refused module produced no report until its raise was preceded by a poll</td></tr>
+    <tr><td>22</td><td><code>process.c</code>, <code>do_poll()</code> and broadcast</td><td>The sweep advances through <code>pp-&gt;next</code> after it has dispatched to a process. If that process finished on this dispatch it has been unlinked, its <code>next</code> is cleared, and the sweep ends there. Processes behind it keep their pending poll, and nothing requests another sweep. With modules that can end and be removed, this decides whether the others still run.</td><td><span class="tag m">measured</span> two processes polled together, the first ended on its poll: the second was never polled and stayed pending</td></tr>
   </tbody>
 </table>
 
@@ -89,6 +90,11 @@ void process_run(void)
 <span class="c">/* 15. sys/process.c, call_process(): a process that ended gets the turn its cleanup needs */</span>
     PT_FINAL(&amp;p-&gt;pt);
     process_post(p, PROCESS_EVENT_EXIT, NULL);
+
+<span class="c">/* 22. sys/process.c, do_poll(): read the successor before the dispatch can unlink */</span>
+  for (struct process *pp = process_list, *next; pp != NULL; pp = next) {
+    next = pp-&gt;next;
+    ...
 
 <span class="c">/* 19. sys/process/serial_private.h: say that the byte has been taken */</span>
 static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
@@ -237,7 +243,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 </ul>
 
 <h3><span class="n">9.4</span>The library findings</h3>
-<p><code>prototype/probes/run_probes.sh</code> reproduces findings 10 to 15 and 17 to 20 of section 7 with small sketches on the unmodified library; its output is in <code>results-library.txt</code>.</p>
+<p><code>prototype/probes/run_probes.sh</code> reproduces findings 10 to 15, 17 to 20 and 22 of section 7 with small sketches on the unmodified library; its output is in <code>results-library.txt</code>.</p>
 
 <h3><span class="n">9.5</span>Not verified</h3>
 <ul>
@@ -283,6 +289,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
   <li><strong>Exact binding.</strong> Convenient while developing, awkward for distributing modules. The table scheme is the answer and costs flash.</li>
   <li><strong>Optiboot is a moving target.</strong> The flash driver relies on where Optiboot puts <code>do_spm</code> and on its size. Both are checked at run time, but only version 8.3 was tried.</li>
   <li><strong>Old compiler.</strong> All sizes are from avr-gcc 7.3.0. A newer one may be better or worse, and it turns finding 10 into a link error.</li>
+  <li><strong>Unload.</strong> Queued events hold plain process pointers, and a slot's RAM block is reused: an event still in the queue can reach the next module in that slot. Removal needs the queue purged or generation-checked handles first.</li>
 </ul>
 </div>
 <div>
@@ -339,7 +346,7 @@ gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
 ./run_modules.sh                         <span class="c"># M1 to M9</span>
 ./fit.sh atmega328p 2048                 <span class="c"># fill one boot section</span>
 ./sizes.sh                               <span class="c"># the tables of 6.8 to 6.10</span>
-probes/run_probes.sh                     <span class="c"># findings 10 to 20 of section 7</span>
+probes/run_probes.sh                     <span class="c"># findings 10 to 22 of section 7</span>
 ./build.sh m2560 atmega2560 0x3F000 -DBOOT_CONF_LOAD_SERVICE=1</code></pre>
 <p class="small">Recorded outputs are in <code>results-sizes.txt</code>, <code>results-fit.txt</code>, <code>results-tests.txt</code>, <code>results-modules.txt</code>, <code>results-library.txt</code> and <code>results-simulators.txt</code>. Findings 1 to 9 of section 7 come from the other programs in <code>probes/</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>; the simulator findings of section 8 from <code>simprobes/</code> and <code>sim_harness --fallthrough</code>.</p>
 

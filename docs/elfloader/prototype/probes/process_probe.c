@@ -9,6 +9,7 @@
  *   4  the baud rate is set before process_new(), as serial.h documents
  *   5  a process ends; nothing is posted to it afterwards
  *   6  one process polls itself on every turn; a second one is started
+ *   7  two processes are polled in the same sweep; the first one ends on its poll
  */
 #include <protoduino.h>
 #include <sys/process.h>
@@ -72,6 +73,28 @@ PROCESS_THREAD(second, ev, data)
 }
 #endif
 
+#if PROBE == 7
+PROCESS(first, "first", 2);
+PROCESS_THREAD(first, ev, data)
+{
+  PROCESS_BEGIN();
+  PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
+  result[0]++;            /* first got its poll, and ends here */
+  PROCESS_END();
+}
+PROCESS(later, "later", 3);
+PROCESS_THREAD(later, ev, data)
+{
+  PROCESS_BEGIN();
+  PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
+  result[1]++;            /* later got its poll */
+  while (1) {
+    PROCESS_WAIT_EVENT();
+  }
+  PROCESS_END();
+}
+#endif
+
 void setup(void)
 {
   process_init(NULL);
@@ -87,6 +110,9 @@ void setup(void)
 #elif PROBE == 6
   process_new(&process_type_busy, &busy);
   process_new(&process_type_second, &second);
+#elif PROBE == 7
+  process_new(&process_type_first, &first);
+  process_new(&process_type_later, &later);
 #endif
 }
 
@@ -95,5 +121,13 @@ void loop(void)
   process_run();
 #if PROBE == 5
   result[2] = shortlived.base.state;   /* 0 = NONE (slot free), 4 = EXITING */
+#endif
+#if PROBE == 7
+  /* once both have handled INIT and wait: poll both, one time */
+  if (result[7] < 20 && ++result[7] == 20) {
+    process_poll(&first.base);
+    process_poll(&later.base);
+  }
+  result[2] = later.base.needs_poll;   /* 1: its poll is still pending */
 #endif
 }

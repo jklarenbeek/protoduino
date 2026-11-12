@@ -25,6 +25,8 @@ echo "--- 5. a process that ends: result[0] ran, result[1] PT_FINALLY ran, resul
 probe 5 3 | grep "ram @"
 echo "--- 6. a process polls itself every turn: result[0] its turns (mod 256), result[1] second process got INIT, after 2.5 s"
 probe 6 2 | grep "ram @"
+echo "--- 6b. two processes polled in one sweep, the first ends on its poll: result[0] first polled, result[1] later polled, result[2] later still pending, after 2.5 s"
+probe 7 3 | grep "ram @"
 echo "--- 7. sys/clock.h on an ATmega2560"
 printf '#include <sys/timer.h>\nint main(void){return 0;}\n' > $T/c.c
 avr-gcc -std=gnu11 -mmcu=atmega2560 -DF_CPU=16000000UL -include $P/kernel/core.h -I$LIB -I$LIB/sys -c $T/c.c -o $T/c.o 2>&1 | grep -E "error" | sed "s|.*src/|src/|" | head -n 1

@@ -79,7 +79,7 @@
 
 <p>The size is the weak point, and it should be stated plainly. Optiboot fits in under 512 bytes; this bootloader is 2,014 bytes, in plain C with an old compiler. Writing it as a protothread cost 374 bytes against the blocking version of the previous draft (1,640 bytes), and on parts with more than 64 KB of flash that pushed it out of the 2 KB boot section into the 4 KB one. What the bytes buy is in 4.6; where they go is in 6.10.</p>
 
-<p>Building on the library also turned up eleven more findings in protoduino itself, among them that <code>process_run()</code> lets polls starve events and that a process which ends is never cleaned up unless another event happens to reach it. Section 7 lists them with measurements and patches.</p>
+<p>Building on the library also turned up thirteen more findings in protoduino itself, among them that <code>process_run()</code> lets polls starve events and that a process which ends is never cleaned up unless another event happens to reach it. Section 7 lists them with measurements and patches.</p>
 
 <h2><span class="n">2</span>Goals, non-goals and target parts</h2>
 
