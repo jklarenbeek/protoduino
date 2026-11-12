@@ -8,7 +8,8 @@
  *   ticker | blink        the LED changes every period of the ticker
  *
  * - Owns its input pipe, so any process can be connected to it with
- *   process_connect(writer, blink).
+ *   process_connect(writer, blink). It reads through PROCESS_PIPEIN(), so
+ *   a device can be connected to it as well.
  * - The LED is the one on the board: PB5 on an ATmega328P (Uno), PB7 on an
  *   ATmega2560 (Mega). On an ATtiny85 it is PB4, because PB0 and PB1 carry
  *   the serial line. BLINK_CONF_PORT, _DDR, _PIN and _BIT choose another.
@@ -47,15 +48,20 @@ PROCESS_THREAD(blink, ev, data)
 
   PROCESS_BEGIN();
 
-  ipc_pipe_init(&self->in, self->buf, sizeof(self->buf), process_ipc_wake, (void *)pt_process);
-  PROCESS_SET_PIPEIN(&self->in);
+  /* The input: a pipe of its own, unless somebody connected one before
+   * the process got to start (process_connect() from a device). */
+  if (!pt_process->has_pipein)
+  {
+    ipc_pipe_init(&self->in, self->buf, sizeof(self->buf), process_ipc_wake, (void *)pt_process);
+    PROCESS_SET_PIPEIN(&self->in);
+  }
   BLINK_CONF_DDR |= _BV(BLINK_CONF_BIT);
 
   while (1)
   {
-    PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(&self->in) > 0);
+    PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
 
-    while (ipc_pipe_read(&self->in, &self->byte, 1) == 1)
+    while (ipc_pipe_read(PROCESS_PIPEIN(), &self->byte, 1) == 1)
       BLINK_CONF_PIN = _BV(BLINK_CONF_BIT); /* writing the PIN register toggles the pin */
   }
 

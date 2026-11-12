@@ -4,6 +4,8 @@
 Starts protosim with the firmware, waits for the prompt on its PTY, sends one
 command per prompt and prints the conversation. A command of the form
 "wait:<seconds>" lets simulated time pass and collects what arrives.
+With "raw" as the first command there is no shell at the other end: the
+commands are sent as they are and nothing is waited for but "wait:".
 
 usage: shell_session.py <protosim> <firmware.elf> <mcu> <command> [<command> ...]
 """
@@ -34,13 +36,21 @@ def main():
                         break
             return seen
 
-        os.write(fd, b"\r")                       # an empty line: the shell answers with a prompt
-        sys.stdout.write(read_until(b"> ", 20).decode(errors="replace"))
+        raw = bool(commands) and commands[0] == "raw"   # no shell at the other end: just a line
+        if raw:
+            commands = commands[1:]
+        else:
+            os.write(fd, b"\r")                   # an empty line: the shell answers with a prompt
+            sys.stdout.write(read_until(b"> ", 20).decode(errors="replace"))
         for command in commands:
             if command.startswith("wait:"):
                 sys.stdout.write(read_until(None, float(command[5:])).decode(errors="replace"))
-                os.write(fd, b"\r")
-                sys.stdout.write(read_until(b"> ", 20).decode(errors="replace"))
+                if not raw:
+                    os.write(fd, b"\r")
+                    sys.stdout.write(read_until(b"> ", 20).decode(errors="replace"))
+                continue
+            if raw:
+                os.write(fd, command.encode())
                 continue
             os.write(fd, command.encode() + b"\r")
             sys.stdout.write(read_until(b"> ", 20).decode(errors="replace"))

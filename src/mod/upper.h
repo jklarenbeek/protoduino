@@ -28,13 +28,18 @@ PROCESS_THREAD(upper, ev, data)
 
   PROCESS_BEGIN();
 
-  ipc_pipe_init(&self->in, self->buf, sizeof(self->buf), process_ipc_wake, (void *)pt_process);
-  PROCESS_SET_PIPEIN(&self->in);
+  /* The input: a pipe of its own, unless somebody connected one before
+   * the process got to start (process_connect() from a device). */
+  if (!pt_process->has_pipein)
+  {
+    ipc_pipe_init(&self->in, self->buf, sizeof(self->buf), process_ipc_wake, (void *)pt_process);
+    PROCESS_SET_PIPEIN(&self->in);
+  }
 
   while (1)
   {
-    PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(&self->in) > 0);
-    ipc_pipe_read(&self->in, &self->byte, 1);
+    PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
+    ipc_pipe_read(PROCESS_PIPEIN(), &self->byte, 1);
 
     if (self->byte >= 'a' && self->byte <= 'z')
       self->byte -= 'a' - 'A';
