@@ -1,7 +1,7 @@
-// file: examples/30-shell/30-shell.ino
+// file: examples/5-systems/40-shell/40-shell.ino
 
 /*
- * 30-shell.ino  –  a command line on a running system
+ * 40-shell.ino  –  a command line on a running system
  * ================================================================
  *
  * WHAT THIS DEMONSTRATES

@@ -115,7 +115,7 @@ Most examples in this repository include a `.ino` file. These folders also defin
 3. **Launch the simulator**:
    ```bash
    # Run a simulation using an example circuit
-   protosim examples/01-pt-wait-one-basic/01-pt-wait-one-basic.elf
+   protosim examples/1-protothreads/01-pt-wait-one-basic/01-pt-wait-one-basic.elf
    ```
 4. **Connect to UART**: On Windows, open PuTTY and connect to `127.0.0.1:4000` (Telnet) to see your serial output.
 

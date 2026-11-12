@@ -3,8 +3,8 @@
  *
  * the `lib/ringb8` basic example
  */
-#include <lib/ringb8.h>
 #include <protoduino.h>
+#include <lib/ringb8.h>
 #include <dbg/print.h>
 
 

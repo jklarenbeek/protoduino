@@ -3,8 +3,8 @@
  *
  * PT_STATIC_DELAY / timer example
  */
-#include <dbg/print.h>
 #include <protoduino.h>
+#include <dbg/print.h>
 #include <sys/pt/timer.h>
 
 struct timer_pt {

@@ -1,7 +1,7 @@
-// file: examples/31-shell-tiny85/31-shell-tiny85.ino
+// file: examples/5-systems/41-shell-tiny85/41-shell-tiny85.ino
 
 /*
- * 31-shell-tiny85.ino  –  the shell of example 30 on an ATtiny85
+ * 41-shell-tiny85.ino  –  the shell of example 40 on an ATtiny85
  * ================================================================
  *
  * WHAT THIS DEMONSTRATES
