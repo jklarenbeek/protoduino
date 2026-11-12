@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readElf as readElfFile, crc16 } from './lib/elf.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -27,46 +28,12 @@ function fail(message) {
   process.exit(1);
 }
 
-// ---- the parts of an ELF32 file this tool needs ---------------------------
-
 function readElf(file) {
-  if (!fs.existsSync(file)) fail(`no file ${file}`);
-  const b = fs.readFileSync(file);
-  if (b.readUInt32BE(0) !== 0x7f454c46 || b[4] !== 1) fail(`${file} is not an ELF32 file`);
-  const shoff = b.readUInt32LE(32), shentsize = b.readUInt16LE(46), shnum = b.readUInt16LE(48);
-  const shstrndx = b.readUInt16LE(50);
-  const sections = [];
-  for (let i = 0; i < shnum; i++) {
-    const o = shoff + i * shentsize;
-    sections.push({
-      name: b.readUInt32LE(o), type: b.readUInt32LE(o + 4), addr: b.readUInt32LE(o + 12),
-      offset: b.readUInt32LE(o + 16), size: b.readUInt32LE(o + 20), link: b.readUInt32LE(o + 24),
-    });
+  try {
+    return readElfFile(file);
+  } catch (error) {
+    fail(error.message);
   }
-  const text = (table, at) => b.toString('latin1', table.offset + at, b.indexOf(0, table.offset + at));
-  for (const s of sections) s.name = text(sections[shstrndx], s.name);
-  const bytes = (s) => b.subarray(s.offset, s.offset + s.size);
-
-  const symbols = [];
-  const symtab = sections.find((s) => s.type === 2);
-  if (!symtab) fail(`${file} has no symbol table: it was stripped`);
-  for (let o = symtab.offset; o < symtab.offset + symtab.size; o += 16) {
-    const info = b[o + 12];
-    symbols.push({
-      name: text(sections[symtab.link], b.readUInt32LE(o)), value: b.readUInt32LE(o + 4),
-      type: info & 15, section: b.readUInt16LE(o + 14),
-    });
-  }
-  return { sections, symbols, bytes };
-}
-
-function crc16(data) {
-  let crc = 0;
-  for (const byte of data) {
-    crc ^= byte << 8;
-    for (let i = 0; i < 8; i++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
-  }
-  return crc;
 }
 
 // ---- arguments ------------------------------------------------------------

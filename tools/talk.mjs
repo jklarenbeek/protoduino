@@ -23,8 +23,9 @@
 // --timeout <seconds> is how
 // long a step may take (default 30). The exit status is 0 when every step
 // worked. Uses stty to set up a port: Linux and macOS.
-import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { openLine } from './lib/line.mjs';
+import { crc16 } from './lib/elf.mjs';
 
 const SOH = 0x01, EOT = 0x04, ACK = 0x06, NAK = 0x15, CAN = 0x18, C = 0x43;
 
@@ -55,52 +56,20 @@ if ((!port && !sim) || steps.length === 0) {
 
 // ---- the line -------------------------------------------------------------
 
-let child = null, fd = -1;
+let line = null;
 function cleanup() {
-  if (child) child.kill();
-  child = null;
+  if (line) line.close();
+  line = null;
 }
 process.on('SIGINT', () => { cleanup(); process.exit(130); });
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-if (sim) {
-  // protosim makes a pseudo terminal for UART0 and links it here
-  const link = '/tmp/simavr-uart0';
-  fs.rmSync(link, { force: true });
-  const [command, ...rest] = sim.split(/\s+/).filter(Boolean);
-  child = spawn(command, rest, { stdio: 'ignore' });
-  child.on('error', (error) => fail(`cannot start ${command}: ${error.message}`));
-  for (let i = 0; i < 100 && !fs.existsSync(link); i++) await sleep(50);
-  if (!fs.existsSync(link)) fail('protosim did not open its serial line');
-  await sleep(200);
-  port = fs.realpathSync(link);
-  baud = null; // a pseudo terminal has no rate
-}
 try {
-  const flag = process.platform === 'darwin' ? '-f' : '-F';
-  execFileSync('stty', [flag, port, ...(baud ? [String(baud)] : []), 'raw', '-echo'], { stdio: 'ignore' });
+  line = await openLine({ port, baud, sim });
 } catch (error) {
-  fail(`cannot set up ${port}: ${error.message}`);
+  fail(error.message);
 }
-fd = fs.openSync(port, fs.constants.O_RDWR | fs.constants.O_NOCTTY);
 
-let pending = Buffer.alloc(0);      // received, not yet looked at
 let transcript = '';                // everything received since the last expect
-let waiting = null;
-fs.createReadStream(null, { fd, autoClose: false, highWaterMark: 256 })
-  .on('data', (data) => {
-    pending = Buffer.concat([pending, data]);
-    if (waiting) waiting();
-  })
-  .on('error', () => {});
-
-function arrived(ms) {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => { waiting = null; resolve(false); }, ms);
-    waiting = () => { clearTimeout(timer); waiting = null; resolve(true); };
-  });
-}
 
 function show(data) {
   const text = data.toString('latin1');
@@ -114,45 +83,25 @@ async function readUntil(marker, seconds) {
   const end = Date.now() + seconds * 1000;
   let seen = '';
   for (;;) {
-    if (pending.length) {
+    if (line.pending.length) {
       const before = seen.length;
-      seen += pending.toString('latin1');
+      seen += line.pending.toString('latin1');
       const at = marker ? seen.indexOf(marker) : -1;
-      const take = at < 0 ? pending.length : at + marker.length - before;
-      show(pending.subarray(0, take));
-      pending = pending.subarray(take);
+      const take = at < 0 ? line.pending.length : at + marker.length - before;
+      show(line.pending.subarray(0, take));
+      line.pending = line.pending.subarray(take);
       if (at >= 0) return true;
     }
     const left = end - Date.now();
     if (left <= 0) return false;
-    await arrived(Math.min(left, 50));
+    await line.arrived(Math.min(left, 50));
   }
 }
 
-async function byte(seconds) {
-  const end = Date.now() + seconds * 1000;
-  while (pending.length === 0) {
-    const left = end - Date.now();
-    if (left <= 0) return -1;
-    await arrived(Math.min(left, 50));
-  }
-  const value = pending[0];
-  pending = pending.subarray(1);
-  return value;
-}
-
-const type = (data) => fs.writeSync(fd, data);
+const byte = (seconds) => line.byte(seconds);
+const type = (data) => line.write(data);
 
 // ---- XMODEM-CRC -------------------------------------------------------------
-
-function crc16(data) {
-  let crc = 0;
-  for (const value of data) {
-    crc ^= value << 8;
-    for (let i = 0; i < 8; i++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
-  }
-  return crc;
-}
 
 async function sendFile(file, refusal) {
   const data = fs.readFileSync(file);
@@ -204,8 +153,8 @@ for (const step of steps) {
   } else if (step.startsWith('type:')) {
     type(step.slice(5));
   } else if (step === 'reset' || step === 'power') {
-    if (!child) fail(`${step}: only protosim can be reset from here`);
-    child.kill(step === 'reset' ? 'SIGUSR1' : 'SIGUSR2');
+    if (!line.child) fail(`${step}: only protosim can be reset from here`);
+    line.signal(step === 'reset' ? 'SIGUSR1' : 'SIGUSR2');
     greeted = false;
   } else if (step.startsWith('expect:')) {
     await readUntil(null, 0.2);
