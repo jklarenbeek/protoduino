@@ -223,11 +223,13 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
     <tr><td>T20</td><td>2560: an installed application programs a page through the service table of the 4 KB boot section, above 128 KB</td><td>Page reads back as written; interrupt state restored. With the call of the previous draft the page stayed empty</td></tr>
     <tr><td>T21</td><td>2560: the same for a page above 64 KB</td><td>Page reads back as written</td></tr>
     <tr><td>T22</td><td>328P: an image that arms the watchdog at 250 ms and never feeds it; bootloader built without watchdog care, as the previous draft was. The control for T23</td><td>After the first watchdog reset the image <strong>never started again</strong>: 15 resets in 30 s, each inside the bootloader's wait. On a chip the resets come every 16 ms (S14)</td></tr>
-    <tr><td>T23</td><td>328P: the same image, default bootloader</td><td>The image started again after each of 8 resets, 3.8 s later every time. It read the cause <code>01</code> at its first start and <code>08</code> after each watchdog reset</td></tr>
-    <tr><td>T24</td><td>328P: the same image; bootloader that does not wait after a watchdog reset</td><td>116 resets in 30 s, the image running again at once after each</td></tr>
+    <tr><td>T23</td><td>328P: the same image, default bootloader</td><td>116 resets in 30 s, the image running again at once after each. It read the cause <code>01</code> at its first start and <code>08</code> after each watchdog reset</td></tr>
+    <tr><td>T24</td><td>328P: the same image; bootloader set to wait after every reset</td><td>The image started again after each of 8 resets, 3.8 s and three probes later every time</td></tr>
     <tr><td>T25</td><td>2560, every option in the 4 KB section: the same image</td><td>115 resets in 30 s, the image running again at once after each</td></tr>
-    <tr><td>T26</td><td>328P: a reset with each cause and nobody sending, for the settings 15, 7 and 2 of <code>BOOT_CONF_WINDOW_AFTER</code></td><td>The image started after 3.8 s and three probes exactly where the setting says, and at once with no probe otherwise. A jump to the bootloader was waited for under every setting</td></tr>
+    <tr><td>T26</td><td>328P: a reset with each cause and nobody sending, for the settings 7, 15 and 2 of <code>BOOT_CONF_WINDOW_AFTER</code></td><td>The image started after 3.8 s and three probes exactly where the setting says, and at once with no probe otherwise. A jump to the bootloader was waited for under every setting</td></tr>
     <tr><td>T27</td><td>328P, reset pin only: a running image with interrupts on, a timer interrupt and the UART at 300 baud jumps to the bootloader</td><td>The bootloader probed, took the file again and started it</td></tr>
+    <tr><td>T28</td><td>328P: firmware with four flash segments: code, initial data and two blocks at fixed addresses</td><td>Flash identical, up to <code>0x5850</code></td></tr>
+    <tr><td>T29</td><td>328P: the same with a fifth segment</td><td>Refused <code>0xE0</code> at the fifth header; nothing written</td></tr>
   </tbody>
 </table>
 
@@ -237,7 +239,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 <table class="tight">
   <thead><tr><th style="width:5%">Test</th><th style="width:41%">Scenario</th><th>Outcome</th></tr></thead>
   <tbody>
-    <tr><td>M1</td><td>protoduino bootloader in the 2 KB section that offers its load thread; the loader process schedules it there</td><td>Slot identical to the reference; module started and ran as a process; entered into the module table; started from flash after a reset. 350.0 ms; heartbeat 17,743 turns, longest wait 15.0 ms</td></tr>
+    <tr><td>M1</td><td>protoduino bootloader in the 2 KB section that offers its load thread; the loader process schedules it there</td><td>Slot identical to the reference; module started and ran as a process; entered into the module table; started from flash after a reset. 350.1 ms; heartbeat 17,741 turns, longest wait 15.1 ms</td></tr>
     <tr><td>M2</td><td>Stock Optiboot 8.3 as the bootloader; the kernel links its own load thread and programs through <code>do_spm</code></td><td>The same. 361.6 ms; 16,915 turns, 15.1 ms</td></tr>
     <tr><td>M3</td><td>protoduino bootloader with only the page service; the kernel links its own load thread</td><td>The same. 361.3 ms; 16,915 turns, 15.1 ms</td></tr>
     <tr><td>M4</td><td>Kernel built for modules in flash only; module programmed together with the firmware</td><td>Module started from the module table; the kernel has no loader</td></tr>
@@ -246,8 +248,8 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
     <tr><td>M7</td><td>Kernel built to load, on a bootloader that offers no service</td><td>The kernel reports that it cannot load and carries on</td></tr>
     <tr><td>M8</td><td>Kernel built without module support, module present in flash</td><td>Module ignored</td></tr>
     <tr><td>M9</td><td>A module runs from slot 0; a second one, linked for slot 1, is loaded beside it</td><td>Both slots identical to their files; after a reset both start and take turns</td></tr>
-    <tr><td>M1'</td><td>M1 against a copy of <code>process.c</code> in which <code>process_run()</code> dispatches an event after the polls</td><td>The same load: 18,319 turns, longest wait 2.1 ms</td></tr>
-    <tr><td>M10</td><td>2560: bootloader with every option in the 4 KB section, above 128 KB; the loader process schedules its load thread through the far call</td><td>As M1. 365.3 ms; 16,878 turns, 15.3 ms</td></tr>
+    <tr><td>M1'</td><td>M1 against a copy of <code>process.c</code> in which <code>process_run()</code> dispatches an event after the polls</td><td>The same load: 18,317 turns, longest wait 2.2 ms</td></tr>
+    <tr><td>M10</td><td>2560: bootloader with every option in the 4 KB section, above 128 KB; the loader process schedules its load thread through the far call</td><td>As M1. 365.3 ms; 16,876 turns, 15.4 ms</td></tr>
     <tr><td>M11</td><td>2560: bootloader with only the page service; the kernel links its own load thread and has its pages programmed through the far call</td><td>As M3. 376.1 ms; 16,308 turns, 15.2 ms</td></tr>
     <tr><td>M12</td><td>2560: a module linked against another kernel build</td><td>Refused <code>0xA4</code> with 0 bytes programmed</td></tr>
   </tbody>
@@ -293,7 +295,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
   <tbody>
     <tr><td>R0</td><td>The fixes of section 7: the scheduler ones (14, 15, 16, 21) first, and the clock header (17), without which no kernel builds for the ATmega2560</td><td>The probes in <code>prototype/probes</code> give the corrected results, and the workarounds in <code>loader.c</code> can go</td></tr>
     <tr><td>R1</td><td>Move <code>overlay/src</code> into <code>src/</code>: stream, load thread, flash driver, module support, loader process; host tests and fuzzing for the stream</td><td>Fixtures pass in CI on the host and for two AVR parts; an example sketch loads a module</td></tr>
-    <tr><td>R2</td><td>The bootloader for the ATmega328P in its 2 KB section and for the ATmega2560 and ATmega1284P in their 4 KB section, with the fill step; protosim fixes B1 to B9 and the additions of 8.3</td><td>T1 to T27 and M1 to M12 run in protosim; first boards flashed with a terminal program</td></tr>
+    <tr><td>R2</td><td>The bootloader for the ATmega328P in its 2 KB section and for the ATmega2560 and ATmega1284P in their 4 KB section, with the fill step; protosim fixes B1 to B9 and the additions of 8.3</td><td>T1 to T29 and M1 to M12 run in protosim; first boards flashed with a terminal program</td></tr>
     <tr><td>R3</td><td>Hardware: an Uno with this bootloader and with Optiboot, a Mega 2560; the power-cut rig</td><td>M1 to M3 and M10 pass on the boards; real page times and their effect on the scheduler are measured</td></tr>
     <tr><td>R4</td><td>The <code>pd</code> tool; PlatformIO upload through it; an update request from the application; removal and reloading of modules; a shell command for the loader</td><td><code>pio run -t upload</code> sends the <code>.elf</code>; a module is replaced while the system runs</td></tr>
     <tr><td>R5</td><td>ATtiny path on hardware; relocation by fix-up stream; signed modules; a size pass (6.10)</td><td>Each on its own evidence</td></tr>
@@ -304,7 +306,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 <div>
 <h4>Risks</h4>
 <ul>
-  <li><strong>Size.</strong> The protothread form costs 374 bytes, of which assembly and numbered continuation points recovered 76. On the ATmega328P the 2 KB section is full to the byte. The parts above 64 KB use the 4 KB section, where 1,158 bytes are free.</li>
+  <li><strong>Size.</strong> The protothread form costs 374 bytes, of which assembly and numbered continuation points recovered 76. On the ATmega328P the 2 KB section has 26 bytes left. The parts above 64 KB use the 4 KB section, where 1,146 bytes are free.</li>
   <li><strong>The far call.</strong> Four instructions that rely on which registers avr-gcc passes arguments in. A compiler that changes that breaks the call without a message; T20, T21, M10 and M11 would show it.</li>
   <li><strong>Page writes still stop the system.</strong> Cooperative means between pages. Each page holds everything for 7 to 9 ms on a chip, and no AVR design can avoid that.</li>
   <li><strong>The scheduler under load.</strong> Until finding 14 is fixed, a process that waits for an event waits out every block of a transfer.</li>
@@ -317,14 +319,13 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 </div>
 <div>
 <h4>Open questions</h4>
-<p class="small"><strong>Settled on 12 November 2026:</strong> the ATmega2560 and ATmega1284P take a 4 KB boot section, and the bootloader is built with every option there. No blocking build is kept for 2 KB.</p>
+<p class="small"><strong>Settled on 12 November 2026:</strong> the ATmega2560 and ATmega1284P take a 4 KB boot section, and the bootloader is built with every option there; no blocking build is kept for 2 KB. On the ATmega328P the 2 KB section keeps the exported load thread and gains the immediate restart after a watchdog reset; segment merging made room for it, and a fourth segment entry does its work.</p>
 <ul>
   <li>Which small part is meant by &ldquo;ATtiny8&rdquo;? The answer decides whether the small-frame transport is needed early.</li>
   <li>Should updates be authenticated, and if so with what? A keyed hash costs several hundred bytes.</li>
   <li>Which binding scheme is the default for modules: exact or table?</li>
-  <li>Is the default order for filling the boot section the right one? It decides what is dropped as soon as a block cannot hold everything, and the 2 KB block of the ATmega328P is full: today it holds the load thread and not the immediate restart after a watchdog reset.</li>
   <li>Should module slots be allowed above 64 KB on the large parts? Today that is a build error; lifting it needs far reads in the scheduler.</li>
-  <li>Which resets should open the window by default? Today all of them do, which costs 3.8 s at every start; the setting for &ldquo;not after a watchdog reset&rdquo; and for &ldquo;reset pin only&rdquo; exists and is tested.</li>
+  <li>Should the default go one step further and wait only after a reset through the pin? A board would then also start at once when power comes on, where it waits 3.8 s today. It costs no flash. Against it: a board without a reset line could only be updated on request of its application, and simavr and protosim record no reset through the pin (S11), so the window could not be opened in simulation.</li>
   <li>Where should the bootloader's build live, given that it cannot be under <code>src/</code>?</li>
 </ul>
 </div>
@@ -366,7 +367,7 @@ S=../../../../protosim/libraries/simavr/simavr
 gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
     $S/obj-x86_64-linux-gnu/libsimavr.a -lelf -lm -lpthread
 
-./run_tests.sh                           <span class="c"># T1 to T27</span>
+./run_tests.sh                           <span class="c"># T1 to T29</span>
 ./run_modules.sh                         <span class="c"># M1 to M12</span>
 ./fit.sh atmega2560                      <span class="c"># fill the standard boot section of a part</span>
 ./sizes.sh                               <span class="c"># the tables of 6.8 to 6.10</span>

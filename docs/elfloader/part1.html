@@ -4,13 +4,13 @@
     <h1>A streaming ELF loader<br>for AVR</h1>
     <p class="sub">Functional and technical design of a compile-time configurable ELF32 loader: a bootloader that is one protothread, lent to the running system to load modules that are process types. With measurements and fixes for protoduino caveats.</p>
   </div>
-  <div class="meta"><span>Draft 0.5 &middot; 12 November 2026</span><span>jklarenbeek/protoduino &middot; branch ccr-8617b1c3-gjnqlx</span></div>
+  <div class="meta"><span>Draft 0.6 &middot; 12 November 2026</span><span>jklarenbeek/protoduino &middot; branch ccr-8617b1c3-gjnqlx</span></div>
 
   <div class="keyfacts">
     <div><div class="v">1 thread</div><div class="l">the bootloader is a Protothreads v2 thread, and the kernel schedules the same one</div></div>
-    <div><div class="v">2,048 B</div><div class="l">fills the 2 KB boot section of an ATmega328P, with the thread offered to the kernel</div></div>
-    <div><div class="v">17,743</div><div class="l">turns a heartbeat process took while a module was loaded beside it</div></div>
-    <div><div class="v">39 of 39</div><div class="l">simulated scenarios behaved as designed, on three parts</div></div>
+    <div><div class="v">2,022 B</div><div class="l">in the 2 KB boot section of an ATmega328P, with the thread offered to the kernel</div></div>
+    <div><div class="v">17,741</div><div class="l">turns a heartbeat process took while a module was loaded beside it</div></div>
+    <div><div class="v">41 of 41</div><div class="l">simulated scenarios behaved as designed, on three parts</div></div>
   </div>
 
   <div class="box accent">
@@ -64,14 +64,14 @@
   <thead><tr><th style="width:36%">Result</th><th>Value</th><th style="width:14%">Status</th></tr></thead>
   <tbody>
     <tr><td>Stream state, ATmega328P build</td><td>84 bytes, of which 52 are header scratch</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>Bootloader, ATmega328P</td><td>1,960 B flash, 371 B RAM. With the thread offered to the kernel 2,048 B: the 2 KB boot section, full to the byte. With every option 2,324 B, which needs the 4 KB section.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>Bootloader, ATmega2560 and ATmega1284P</td><td>2,938 B with every option, which is how it is built: these parts take the 4 KB boot section, and everything fits there with 1,158 bytes to spare. (Without the options: 2,460 B.)</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>ATtiny85 build with serial on two pins</td><td>1,998 B flash, 307 B RAM</td><td><span class="tag b">built</span></td></tr>
+    <tr><td>Bootloader, ATmega328P</td><td>1,932 B flash, 377 B RAM. With the thread offered to the kernel 2,022 B in the 2 KB boot section, 26 bytes spare. With every option 2,336 B, which needs the 4 KB section.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>Bootloader, ATmega2560 and ATmega1284P</td><td>2,950 B with every option, which is how it is built: these parts take the 4 KB boot section, and everything fits there with 1,146 bytes to spare. (Without the options: 2,338 B.)</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>ATtiny85 build with serial on two pins</td><td>1,958 B flash, 313 B RAM</td><td><span class="tag b">built</span></td></tr>
     <tr><td>Flash written by the bootloader against simavr's own ELF reader</td><td>Identical on the ATmega328P, ATmega1284P and ATmega2560, including a 106 KB image that reaches far flash</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A file for the wrong core family, offered to a device with a working application</td><td>Refused with a reason code; nothing erased; the application starts again</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>An image that the watchdog resets, because it hung or to restart itself</td><td>Starts again after every reset and reads the reset cause the bootloader hands it. The previous draft left the watchdog alone and the image never came back. With <code>BOOT_CONF_WINDOW_AFTER</code> the restart takes no wait.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>A module sent to a running protoduino kernel, loaded by the thread in the 2 KB boot section</td><td>Programmed into its slot, started with <code>process_new()</code>, entered into the module table, and started again after a reset. A heartbeat process took 17,743 turns during the 350 ms transfer.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>The same on the ATmega2560, where the thread sits in the 4 KB boot section above 128 KB</td><td>Works: the kernel reaches the thread with a far call that leaves <code>EIND</code> alone. 16,878 heartbeat turns during the 365 ms transfer. The kernel was built against a copy of the library with one header widened (7, finding 17).</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>An image that the watchdog resets, because it hung or to restart itself</td><td>Starts again at once after every reset and reads the reset cause the bootloader hands it. The previous draft left the watchdog alone and the image never came back.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>A module sent to a running protoduino kernel, loaded by the thread in the 2 KB boot section</td><td>Programmed into its slot, started with <code>process_new()</code>, entered into the module table, and started again after a reset. A heartbeat process took 17,741 turns during the 350 ms transfer.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>The same on the ATmega2560, where the thread sits in the 4 KB boot section above 128 KB</td><td>Works: the kernel reaches the thread with a far call that leaves <code>EIND</code> alone. 16,876 heartbeat turns during the 365 ms transfer. The kernel was built against a copy of the library with one header widened (7, finding 17).</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>The same with a stock Optiboot 8.3 as the bootloader</td><td>Works: the kernel links the thread and programs pages through Optiboot's <code>do_spm</code></td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A module linked against another kernel build</td><td>Refused before a single page is programmed</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A second module loaded beside a running one</td><td>Both run, and both start after a reset</td><td><span class="tag m">measured</span></td></tr>
@@ -79,7 +79,7 @@
   </tbody>
 </table>
 
-<p>The size is the weak point, and it should be stated plainly. Optiboot fits in under 512 bytes; this bootloader is 1,960 bytes, in C with its page writer in assembly, built with an old compiler. It is 320 bytes larger than the blocking version of the previous draft (1,640 bytes): the protothread form cost 374, writing the page programmer the way Optiboot does gave 62 back, numbering the continuation points gave 14, and taking care of the watchdog, which the blocking version did not do, added 22. On parts with more than 64 KB of flash it does not fit the 2 KB boot section. That question is settled: those parts take the 4 KB section, 1.6 % of the flash of an ATmega2560, and the bootloader is built with every option there. What the bytes buy is in 4.6; where they go is in 6.10.</p>
+<p>The size is the weak point, and it should be stated plainly. Optiboot fits in under 512 bytes; this bootloader is 1,932 bytes, in C with its page writer in assembly, built with an old compiler. It is 292 bytes larger than the blocking version of the previous draft (1,640 bytes). The protothread form cost 374; writing the page programmer the way Optiboot does gave 62 back and numbering the continuation points 14. Since then 56 bytes went into things the blocking version did not do: taking care of the watchdog, starting an image at once after a watchdog reset, and handing the image a UART in its reset state. They were paid for with the 62 bytes of segment merging, which a fourth entry in the segment table replaces. On parts with more than 64 KB of flash it does not fit the 2 KB boot section. That question is settled: those parts take the 4 KB section, 1.6 % of the flash of an ATmega2560, and the bootloader is built with every option there. What the bytes buy is in 4.6; where they go is in 6.10.</p>
 
 <p>Building on the library also turned up thirteen more findings in protoduino itself, among them that <code>process_run()</code> lets polls starve events and that a process which ends is never cleaned up unless another event happens to reach it. Section 7 lists them with measurements and patches.</p>
 
@@ -117,7 +117,7 @@
     <tr><td class="nw">ATmega328P</td><td class="num">32 KB</td><td class="num">2 KB</td><td class="num">128 B</td><td>0.5 to 4 KB</td><td>2 KB section <span class="tag m">measured</span></td><td>Yes. The load thread fits the 2 KB section and the kernel schedules it there. <span class="tag m">measured</span></td></tr>
     <tr><td class="nw">ATmega2560</td><td class="num">256 KB</td><td class="num">8 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section, every option <span class="tag m">measured</span></td><td>Yes. The thread sits in the 4 KB section, above 128 KB, and the kernel reaches it with a far call (6.7). <span class="tag m">measured</span> with <code>sys/clock.h</code> widened in a copy of the library (7, finding 17).</td></tr>
     <tr><td class="nw">ATmega1284P</td><td class="num">128 KB</td><td class="num">16 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section, every option <span class="tag m">measured</span></td><td>As the ATmega2560, without the far call: its boot section is in reach of a plain call. The kernel side was not run. <span class="tag p">proposed</span></td></tr>
-    <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>none</td><td><span class="tag b">built</span></td><td>Off by default: the workspace of the thread alone is 307 of its 512 bytes of RAM.</td></tr>
+    <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>none</td><td><span class="tag b">built</span></td><td>Off by default: the workspace of the thread alone is 313 of its 512 bytes of RAM.</td></tr>
     <tr><td class="nw">ATtiny25 / 45</td><td class="num">2 / 4 KB</td><td class="num">128 / 256 B</td><td class="num">32 / 64 B</td><td>none</td><td>Needs a small-frame transport <span class="tag p">proposed</span></td><td>No. Excluded at compile time.</td></tr>
     <tr><td class="nw">ATtiny4/5/9/10</td><td class="num">&le; 1 KB</td><td class="num">32 B</td><td class="num">&ndash;</td><td>none</td><td>Out of scope</td><td>&ndash;</td></tr>
   </tbody>
@@ -339,17 +339,17 @@
 <figcaption><strong>Figure 4.</strong> The load thread does no I/O and reads no clock, so the bootloader and a process can both drive it. In M1 the lower path ran the thread where it sits in the 2 KB boot section of an ATmega328P, in M10 in the 4 KB section of an ATmega2560.</figcaption>
 </figure>
 
-<p><strong>What was measured.</strong> A sketch on protoduino's scheduler ran the serial device process, a kernel process, the loader process and a heartbeat process that takes a turn as often as it can. While a 3,184-byte module file arrived in 350 ms, the heartbeat took 17,743 turns. With the blocking session of the previous draft it would have taken none. <span class="tag m">measured</span></p>
+<p><strong>What was measured.</strong> A sketch on protoduino's scheduler ran the serial device process, a kernel process, the loader process and a heartbeat process that takes a turn as often as it can. While a 3,184-byte module file arrived in 350 ms, the heartbeat took 17,741 turns. With the blocking session of the previous draft it would have taken none. <span class="tag m">measured</span></p>
 
-<p><strong>How long the others wait.</strong> The longest wait of the heartbeat was 15.0 ms, the time one XMODEM block spends on the wire. That is not the loader: <code>process_run()</code> serves polls before events, and the serial device polls on every received byte, so an event-driven process waits out the block (7, finding 14). Built against a copy of <code>process.c</code> with that one function changed, the longest wait fell to 2.1 ms, which is the time the thread needs to check a block and push it through the stream. <span class="tag m">measured</span> On a chip, each page adds 7.4 to 9.0 ms: an AVR cannot execute application code while it erases and programs application flash, and interrupts stay off for that time. No design removes that; XMODEM's stop-and-wait keeps the sender quiet meanwhile.</p>
+<p><strong>How long the others wait.</strong> The longest wait of the heartbeat was 15.1 ms, the time one XMODEM block spends on the wire. That is not the loader: <code>process_run()</code> serves polls before events, and the serial device polls on every received byte, so an event-driven process waits out the block (7, finding 14). Built against a copy of <code>process.c</code> with that one function changed, the longest wait fell to 2.2 ms, which is the time the thread needs to check a block and push it through the stream. <span class="tag m">measured</span> On a chip, each page adds 7.4 to 9.0 ms: an AVR cannot execute application code while it erases and programs application flash, and interrupts stay off for that time. No design removes that; XMODEM's stop-and-wait keeps the sender quiet meanwhile.</p>
 
 <div class="box">
 <h4>Is cooperative loading tied to a fuse setting?</h4>
 <p>No. There is one implementation of the load, the thread, so every build that can load at all loads cooperatively. The size of the boot section decides only where the thread lives:</p>
 <ul>
-  <li><strong>ATmega328P, 2 KB section.</strong> The bootloader with the thread exported is 2,048 bytes. The kernel schedules the thread in the boot section and links 1.7 KB for the loader process and module table.</li>
-  <li><strong>ATmega328P, 4 KB section.</strong> The same, plus every other option, in 2,324 bytes.</li>
-  <li><strong>ATmega1284P and ATmega2560, 4 KB section.</strong> The standard configuration for these parts: every option, the thread included, in 2,938 bytes. The kernel schedules the thread there, on the ATmega2560 through a far call.</li>
+  <li><strong>ATmega328P, 2 KB section.</strong> The bootloader with the thread exported is 2,022 bytes. The kernel schedules the thread in the boot section and links 1.7 KB for the loader process and module table.</li>
+  <li><strong>ATmega328P, 4 KB section.</strong> The same, plus every other option, in 2,336 bytes.</li>
+  <li><strong>ATmega1284P and ATmega2560, 4 KB section.</strong> The standard configuration for these parts: every option, the thread included, in 2,950 bytes. The kernel schedules the thread there, on the ATmega2560 through a far call.</li>
   <li><strong>Optiboot, or a section that is too small for the export.</strong> The kernel links its own copy of the thread, 3.1 KB in all, and loads just as cooperatively.</li>
 </ul>
 <p>The build step of 6.9 makes the choice from the block size. <code>BOOT_CONF_LOAD_SERVICE</code> forces it either way, and <code>LOADER_CONF_THREAD</code> tells the kernel which thread to schedule.</p>

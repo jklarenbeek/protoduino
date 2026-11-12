@@ -15,11 +15,11 @@ Nothing here is library code, and nothing under `src/` was changed.
 | `kernel/count_module.c` | A loadable module: one process type. |
 | `kernel/build_kernel.sh` | Builds a kernel variant and a module linked against exactly that build. `FAIR=1` builds the scheduler experiment of the document. `MCU=atmega2560` builds for that part, against a copy of the library in which `sys/clock.h` also accepts it (finding 17 of the document). |
 | `svc_app.c`, `big.c` | Application that programs a page through the bootloader (`-DSVC_PAGE=<address>` chooses the page); a 106 KB image for the ATmega2560. |
-| `wdt_app.c`, `jump_app.c` | An image that the watchdog resets after 250 ms; a running image that jumps to the bootloader to be replaced. |
+| `wdt_app.c`, `jump_app.c`, `seg_app.c` | An image that the watchdog resets after 250 ms; a running image that jumps to the bootloader to be replaced; firmware with four or five flash segments. |
 | `probes/` | Programs behind the library findings (`run_probes.sh`, `process_probe.c`) and the earlier UART and serial findings. |
 | `simprobes/` | Programs behind the simavr and protosim findings. |
 | `make_fixtures.sh` | Builds the files the tests send, and the test kernels with their modules. |
-| `run_tests.sh`, `run_modules.sh` | The simulated scenarios T1 to T27 (ATmega328P, ATmega1284P, ATmega2560) and M1 to M12 (ATmega328P, ATmega2560). |
+| `run_tests.sh`, `run_modules.sh` | The simulated scenarios T1 to T29 (ATmega328P, ATmega1284P, ATmega2560) and M1 to M12 (ATmega328P, ATmega2560). |
 | `results-*.txt` | Recorded output: sizes, block filling, T tests, M tests, library probes, simulator probes. |
 
 Requirements: `gcc-avr`, `avr-libc`, `binutils-avr`, `libelf-dev`, and protosim built
@@ -37,7 +37,7 @@ S=../../../../protosim/libraries/simavr/simavr
 gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
     $S/obj-x86_64-linux-gnu/libsimavr.a -lelf -lm -lpthread
 
-./run_tests.sh          # T1..T27: firmware loading, refusals, page service, erased flash, every option on the large parts, watchdog and reset cause
+./run_tests.sh          # T1..T29: firmware loading, refusals, page service, erased flash, every option on the large parts, watchdog and reset cause, segment count
 ./run_modules.sh        # M1..M12: run-time module loading on the real scheduler, also on Optiboot and on the ATmega2560
 ./fit.sh atmega328p 2048
 ./fit.sh atmega2560      # its standard section: 4 KB
