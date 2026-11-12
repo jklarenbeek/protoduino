@@ -170,9 +170,9 @@
 #define ELF_LOAD_CONF_IMAGE 1
 #define FLASH_CONF_DRIVER   1 /* FLASH_DRIVER_SPM */
 
-// a module slot has a lower bound too
-#if BOOT_CONF_LOAD_SERVICE && !defined(ELF_CONF_WINDOW_LO)
-#define ELF_CONF_WINDOW_LO 1
+// a module slot has a lower bound too; a firmware image starts at 0
+#ifndef ELF_CONF_WINDOW_LO
+#define ELF_CONF_WINDOW_LO BOOT_CONF_LOAD_SERVICE
 #endif
 
 #endif /* __BOOT_CONF_H__ */

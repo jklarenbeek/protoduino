@@ -4,23 +4,10 @@
 #      and module-<name>.elf: count_module.c linked against exactly that kernel build.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"; N="$1"; shift
-OVL="$HERE/../../overlay"; LIB="$HERE/../../../../src"
-# MCU=<part> builds for another part than the ATmega328P. sys/clock.h of the library
-# stops with #error for every part outside the ATmega328/168/88 families (finding 17 of
-# the document), so such a build uses a copy of the library in which that one header
-# also accepts the part. Nothing else in the copy differs.
-if [ "${MCU:-atmega328p}" != atmega328p ]; then
-  rm -rf lib-clockfix; cp -r "$LIB" lib-clockfix; LIB="$HERE/lib-clockfix"
-  python3 - "$LIB/sys/clock.h" <<'PY'
-import sys
-p=sys.argv[1]; s=open(p,encoding='utf-8-sig').read()
-a="defined (__AVR_ATmega88__)"; assert a in s
-open(p,'w').write(s.replace(a, a+" || defined(__AVR_ATmega2560__) || defined(__AVR_ATmega1284P__)",1))
-PY
-fi
+LIB="$HERE/../../../../src"; LD="$HERE/../../../../ld"
 export LIBSYS="$LIB/sys"
-CF="-std=gnu11 -Os -mmcu=${MCU:-atmega328p} -DF_CPU=16000000UL -include $HERE/core.h -I$OVL/src -I$LIB -I$LIB/sys
-    -DPROCESS_CONF_EVENT_QUEUE_SIZE=8 -DELF_CONF_WINDOW_LO=1 -DMODULE_CONF_BASE=0x6000
+CF="-std=gnu11 -Os -mmcu=${MCU:-atmega328p} -DF_CPU=16000000UL -include $HERE/core.h -I$LIB -I$LIB/sys
+    -DPROCESS_CONF_EVENT_QUEUE_SIZE=8 -DMODULE_CONF_BASE=0x6000
     -ffunction-sections -fdata-sections -mrelax -Wall -Wno-implicit-fallthrough -Wno-unused-function -Wno-unknown-pragmas"
 # FAIR=1: experiment for the document. process_run() of the library serves polls and then
 # returns; this builds against a copy in which it also dispatches one event after the polls.
@@ -41,7 +28,7 @@ fi
 avr-gcc $CF "$@" -Wl,--gc-sections -o kernel-$N.elf \
   kernel.c core.c \
   $PROCESS_C $LIB/sys/ipc.c $LIB/sys/process/serial0.c $LIB/sys/serial/serial0.c $LIB/cpu/avr/uart0.c $LIB/lib/ringb8.c \
-  $OVL/src/sys/module.c $OVL/src/sys/process/loader.c $OVL/src/cpu/avr/flash.c $OVL/src/sys/elf.c $OVL/src/sys/elf/load.c \
+  $LIB/cpu/avr/flash.c $LIB/sys/elf.c $LIB/sys/elf/load.c \
   2> kernel-$N.log || { echo "kernel $N: BUILD FAILED"; grep -E "error|undefined" kernel-$N.log | head -n 12; exit 1; }
 
 # identity of this build: CRC-16 of its flash image, as module_init() computes it
@@ -57,7 +44,7 @@ print('0x%04x'%c)" kernel-$N.bin)
 # what the kernel offers to modules: every global function and variable of this build
 avr-nm kernel-$N.elf | awk '$2 ~ /^[TDBRW]$/ && $3 !~ /^(__vector|__vectors|__bad_interrupt|__ctors|__dtors|__init|__do_|__stack|__heap|_exit|exit|main|__data|__bss|__eeprom|_etext|_edata|_end|__trampolines|__DATA_REGION|__FUSE|__TEXT_REGION|__LOCK|__SIGNATURE|__USER)/ {printf "%s = 0x%s;\n", $3, $1}' > kernel-$N-abi.ld
 
-avr-gcc $CF "$@" -nostartfiles -nostdlib -Wl,-T,$OVL/ld/module.ld -Wl,-T,kernel-$N-abi.ld \
+avr-gcc $CF "$@" -nostartfiles -nostdlib -Wl,-T,$LD/module.ld -Wl,-T,kernel-$N-abi.ld \
   -Wl,-e,module_descriptor -Wl,--defsym=__do_clear_bss=0 -Wl,--defsym=__do_copy_data=0 -Wl,--defsym=__module_kernel_id=$KID -Wl,--defsym=__module_base=${MODULE_BASE:-0x6000} \
   -o module-$N.elf count_module.c -lgcc 2> module-$N.log || { echo "module $N: BUILD FAILED"; grep -E "error|undefined|ASSERT" module-$N.log | head -n 12; exit 1; }
 set -- $(avr-size kernel-$N.elf | tail -n 1)

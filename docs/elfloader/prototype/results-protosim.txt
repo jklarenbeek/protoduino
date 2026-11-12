@@ -12,8 +12,8 @@ P5 power cycle: the new image starts at once
   [PASS] no probe before the image, cause 01  [T 01 00]
 protosim log:
   [RST] Reset vector 0x7800
-  [RST] power-on reset at 1013.848 ms → PC=0x7800 MCUSR=0x01
-  [RST] pin reset at 1020.197 ms → PC=0x7800 MCUSR=0x02
-  [RST] pin reset at 2035.546 ms → PC=0x7800 MCUSR=0x02
-  [RST] power-on reset at 5843.984 ms → PC=0x7800 MCUSR=0x01
+  [RST] power-on reset at 1009.109 ms → PC=0x7800 MCUSR=0x01
+  [RST] pin reset at 1016.020 ms → PC=0x7800 MCUSR=0x02
+  [RST] pin reset at 2033.680 ms → PC=0x7800 MCUSR=0x02
+  [RST] power-on reset at 5843.471 ms → PC=0x7800 MCUSR=0x01
 all passed

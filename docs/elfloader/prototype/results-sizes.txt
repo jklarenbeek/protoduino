@@ -32,23 +32,28 @@ info                                   +94  (2024)
 verify-at-start                        +48  (1978)
 
 == test kernel on the real scheduler, ATmega328P (kernel/kernel.c) ==
-none           text= 3924 data= 10 bss= 394
-static         text= 4818 data= 10 bss= 492
-rom            text= 7784 data= 10 bss= 915
-own-bootrom    text= 9226 data= 10 bss= 915
-own-optiboot   text= 9326 data= 10 bss= 915
+none           text= 4018 data= 10 bss= 398
+static         text= 4850 data= 10 bss= 496
+rom            text= 8278 data= 10 bss= 919
+own-bootrom    text= 9712 data= 10 bss= 919
+own-optiboot   text= 9712 data= 10 bss= 919
 
-== the same kernel for the ATmega2560 (library copy with the clock header of finding 17 widened) ==
-rom2560        text= 8034 data= 10 bss=1061
-own2560        text= 9758 data= 10 bss=1061
+== the same kernel for the ATmega2560 ==
+rom2560        text= 8320 data= 10 bss=1065
+own2560        text=10038 data= 10 bss=1065
 
 == library code a kernel links for modules, ATmega328P, bytes of flash per object ==
-sys/module.c            start modules in flash         378
-sys/module.c            also enter them into the table   494
-sys/process/loader.c    thread of the bootloader      1104
-sys/process/loader.c    own thread                     972
-cpu/avr/flash.c         through the bootloader table    60
-cpu/avr/flash.c         through Optiboot do_spm        160
-sys/elf.c               stream (own thread only)       784
-sys/elf/load.c          load thread (own thread only)   792
-cpu/avr/flash.c         the same, ATmega2560 (far call)   102
+cpu/avr/flash.c   whoever is installed (the default)       272
+cpu/avr/flash.c   through the bootloader table              60
+cpu/avr/flash.c   through Optiboot do_spm                  162
+sys/elf.c         stream (own thread only)                 784
+sys/elf/load.c    load thread (own thread only)            792
+cpu/avr/flash.c   the default, ATmega2560 (far call)       102
+
+== what the headers of the sketch add to a kernel, ATmega328P: their functions in kernel-rom.elf ==
+module_is_installed                                         56
+module_start                                                64
+loader_has_thread                                           86
+module_check                                               100
+process_thread_loader                                      940
+together (sys/module.h, mod/loader.h)                     1246

@@ -1,34 +1,5 @@
 #!/bin/bash
 # build.sh <name> <mcu> <boot_start> [extra -D flags...]  -> out/<name>.elf, prints size
-# Builds the bootloader of ../overlay/boot against the library in ../../../src.
-# <boot_start> "default" takes the boot section boot.conf.h assumes for the part:
-# 2 KB up to 64 KB of flash, 4 KB above.
-# SVC_BACK=n places the service table n bytes below the end of flash, for a
-# simulator that cannot load the last flash byte. The harness here restores
-# that byte, so the tests use the real layout.
-set -u
-HERE="$(cd "$(dirname "$0")" && pwd)"; mkdir -p "$HERE/out"
-OVL="$HERE/../overlay"; LIB="$HERE/../../../src"
-NAME="$1"; MCU="$2"; START="$3"; shift 3
-FLASHEND=$(echo "#include <avr/io.h>
-FLASHEND" | avr-gcc -mmcu=$MCU -E -P - | tail -n 1 | tr -d ' ()')
-DSTART="-DBOOT_CONF_START=$START"
-if [ "$START" = default ]; then
-  START=$(printf '0x%X' $(( FLASHEND + 1 - (FLASHEND > 0xFFFF ? 4096 : 2048) ))); DSTART=""
-fi
-SVC=""
-B=${SVC_BACK:-0}
-case " $* " in *BOOT_CONF_PAGE_SERVICE=1*|*BOOT_CONF_LOAD_SERVICE=1*)
-  SVC="-Wl,-u,bootrom_table -Wl,-u,bootrom_info -Wl,--section-start=.bootrom=$(printf '0x%X' $(( FLASHEND - 11 - B ))) -Wl,--section-start=.bootrom_info=$(printf '0x%X' $(( FLASHEND - 3 - B )))";;
-esac
-avr-gcc -std=gnu11 -Os -mmcu="$MCU" -DF_CPU=16000000UL $DSTART "$@" \
-  -I"$OVL/src" -I"$OVL/boot" -I"$LIB" \
-  -Wall -Wextra -Wno-implicit-fallthrough -Wno-unused-function -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-array-bounds \
-  -ffunction-sections -fdata-sections -fno-jump-tables -fno-move-loop-invariants -fno-ivopts -fno-tree-scev-cprop -mrelax \
-  -nostartfiles -mstrict-X ${OPTX:-} -Wl,--gc-sections -Wl,--defsym=__do_clear_bss=0 -Wl,--section-start=.text="$START" $SVC \
-  -o "$HERE/out/$NAME.elf" "$OVL/boot/boot.c" 2> "$HERE/out/$NAME.log"
-rc=$?
-if [ $rc -ne 0 ]; then echo "$NAME: BUILD FAILED"; grep -E "error|undefined" "$HERE/out/$NAME.log" | head -n 8; exit 1; fi
-grep -E "warning" "$HERE/out/$NAME.log" | grep -v "pragma message\|#pragma" | head -n 3
-set -- $(avr-size "$HERE/out/$NAME.elf" | tail -n 1)
-printf '%-34s %-11s text=%5d data=%d bss=%4d\n' "$NAME" "$MCU" "$1" "$2" "$3"
+# The bootloader build of the library (boot/build.sh), with its output here.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+OUT="$HERE/out" exec "$HERE/../../../boot/build.sh" "$@"

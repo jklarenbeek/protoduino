@@ -20,6 +20,10 @@
  *   PROCESS_WAIT_EVENT_UNTIL(timer_expired(&self->period));
  *
  * - One event in the queue, whatever the number of processes.
+ * - The tick carries no data. A process that posts an event to itself to
+ *   get its next turn has to tell that event from the tick, by its number
+ *   or by its data: one that answers every tick with another event of its
+ *   own fills the queue.
  * - A paused process does not get it.
  * - The period bounds how late a timer is noticed and how fast a writer
  *   gets through a full pipe: TICK_CONF_MILLIS, 16 ms by default.

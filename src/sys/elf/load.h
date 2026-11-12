@@ -12,7 +12,7 @@
  * - Does no I/O and reads no clock. Bytes go in and out through a mailbox,
  *   and elf_load_timeout() tells the thread that the line stayed silent.
  *   The bootloader fills the mailbox from a polled UART; a process fills
- *   it from its pipes (see ./src/sys/process/loader.h).
+ *   it from its pipes (see ./src/mod/loader.h).
  * - All state lives in struct elf_load, owned by the caller. The same code can
  *   therefore run in the boot section for the bootloader and, called through
  *   ./src/sys/bootrom.h, for the running system.

@@ -11,10 +11,13 @@
 #define FLASH_DRIVER_SPM      1  // this code executes SPM: it is linked into the boot section
 #define FLASH_DRIVER_BOOTROM  2  // the protoduino bootloader does, through its service table
 #define FLASH_DRIVER_OPTIBOOT 3  // Optiboot 8 or later does, through its do_spm entry
+#define FLASH_DRIVER_AUTO     4  // whichever of the two is installed, found out at run time
 
-// who executes the SPM instruction.
+// who executes the SPM instruction. The default serves a sketch on either
+// bootloader without a setting; naming the one in use saves the code for
+// the other.
 #ifndef FLASH_CONF_DRIVER
-#define FLASH_CONF_DRIVER FLASH_DRIVER_BOOTROM
+#define FLASH_CONF_DRIVER FLASH_DRIVER_AUTO
 #endif
 
 // flag to program a page with a routine written in assembly, when this

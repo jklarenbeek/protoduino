@@ -13,15 +13,21 @@
  *
  * MODULE_CONF_SUPPORT   0 no modules, 1 start modules in flash, 2 load at run time
  * LOADER_CONF_THREAD    LOADER_THREAD_ROM (1) or LOADER_THREAD_OWN (2)
- * FLASH_CONF_DRIVER     FLASH_DRIVER_BOOTROM (2) or FLASH_DRIVER_OPTIBOOT (3)
+ *
+ * Who programs a page is found out at run time (FLASH_DRIVER_AUTO, the
+ * default of ./src/cpu/avr/flash.conf.h): the protoduino bootloader or
+ * Optiboot.
  */
 #include <protoduino.h>
 #include <stdlib.h>
 #include <sys/process.h>
 #include <sys/process/serial.h>
 #include <sys/timer.h>
+#include <sys/tick.h>
 #include <sys/module.h>
-#include <sys/process/loader.h>
+#if MODULE_CONF_SUPPORT >= 2
+#include <mod/loader.h>
+#endif
 
 /* =========================================================================
  * heartbeat process
@@ -46,9 +52,11 @@ PROCESS_THREAD(heartbeat, ev, data)
   self->last = clock_time();
 
   while (1) {
-    /* An event of our own: it queues behind everybody else's. */
+    /* An event of our own: it queues behind everybody else's. Only that
+     * event is a turn: the tick reaches every process, and a process that
+     * answered each tick with another event would fill the queue. */
     process_post(pt_process, EVENT_HEARTBEAT, NULL);
-    PROCESS_WAIT_EVENT();
+    PROCESS_WAIT_EVENT_UNTIL(ev == EVENT_HEARTBEAT);
 
     clock_time_t now = clock_time();
     if (now - self->last > self->longest)
@@ -132,7 +140,9 @@ PROCESS_THREAD(kernel, ev, data)
     heartbeat_proc.beats   = 0;
     heartbeat_proc.longest = 0;
     heartbeat_proc.last    = clock_time();
-    loader_start(self->slot, pt_process);
+    /* the file arrives on the serial device; we are told when the module runs */
+    if (loader_start(self->slot, &serial_process0_proc.base) != NULL)
+      loader_proc.notify = pt_process;
 
     /* The loader tells us that the module runs; the scheduler tells its
      * error logger, which is us, that the loader ended with an error. */
@@ -192,6 +202,7 @@ void setup(void)
 void loop(void)
 {
   process_run();
+  tick_run();
 
   /* serial_process0 moves bytes from its tx_pipe to the UART buffer only
    * when it is polled, and stops when that buffer is full. Nothing polls

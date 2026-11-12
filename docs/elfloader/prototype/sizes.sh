@@ -33,20 +33,28 @@ echo
 echo "== test kernel on the real scheduler, ATmega328P (kernel/kernel.c) =="
 (cd kernel && for v in none static rom own-bootrom own-optiboot; do set -- $(avr-size kernel-$v.elf | tail -n 1); printf '%-14s text=%5d data=%3d bss=%4d\n' $v $1 $2 $3; done)
 echo
-echo "== the same kernel for the ATmega2560 (library copy with the clock header of finding 17 widened) =="
+echo "== the same kernel for the ATmega2560 =="
 (cd kernel && for v in rom2560 own2560; do set -- $(avr-size kernel-$v.elf | tail -n 1); printf '%-14s text=%5d data=%3d bss=%4d\n' $v $1 $2 $3; done)
 echo
 echo "== library code a kernel links for modules, ATmega328P, bytes of flash per object =="
-OVL=../overlay; LIB=../../../src
-CF="-std=gnu11 -Os -mmcu=atmega328p -DF_CPU=16000000UL -include kernel/core.h -I$OVL/src -I$LIB -I$LIB/sys -DELF_CONF_WINDOW_LO=1 -ffunction-sections -w"
+LIB=../../../src
+CF="-std=gnu11 -Os -mmcu=atmega328p -DF_CPU=16000000UL -include kernel/core.h -I$LIB -I$LIB/sys -ffunction-sections -w"
 obj() { avr-gcc $CF "${@:2}" -c "$1" -o out/o.o 2>/dev/null && avr-size out/o.o | tail -n 1 | awk '{print $1}'; }
-printf '%-52s %5s\n' "sys/module.c            start modules in flash"       "$(obj $OVL/src/sys/module.c -DMODULE_CONF_SUPPORT=1)"
-printf '%-52s %5s\n' "sys/module.c            also enter them into the table" "$(obj $OVL/src/sys/module.c -DMODULE_CONF_SUPPORT=2)"
-printf '%-52s %5s\n' "sys/process/loader.c    thread of the bootloader"     "$(obj $OVL/src/sys/process/loader.c -DMODULE_CONF_SUPPORT=2 -DLOADER_CONF_THREAD=1)"
-printf '%-52s %5s\n' "sys/process/loader.c    own thread"                   "$(obj $OVL/src/sys/process/loader.c -DMODULE_CONF_SUPPORT=2 -DLOADER_CONF_THREAD=2)"
-printf '%-52s %5s\n' "cpu/avr/flash.c         through the bootloader table"  "$(obj $OVL/src/cpu/avr/flash.c -DFLASH_CONF_DRIVER=2)"
-printf '%-52s %5s\n' "cpu/avr/flash.c         through Optiboot do_spm"       "$(obj $OVL/src/cpu/avr/flash.c -DFLASH_CONF_DRIVER=3)"
-printf '%-52s %5s\n' "sys/elf.c               stream (own thread only)"      "$(obj $OVL/src/sys/elf.c)"
-printf '%-52s %5s\n' "sys/elf/load.c          load thread (own thread only)" "$(obj $OVL/src/sys/elf/load.c)"
+printf '%-56s %5s\n' "cpu/avr/flash.c   whoever is installed (the default)"  "$(obj $LIB/cpu/avr/flash.c)"
+printf '%-56s %5s\n' "cpu/avr/flash.c   through the bootloader table"        "$(obj $LIB/cpu/avr/flash.c -DFLASH_CONF_DRIVER=2)"
+printf '%-56s %5s\n' "cpu/avr/flash.c   through Optiboot do_spm"             "$(obj $LIB/cpu/avr/flash.c -DFLASH_CONF_DRIVER=3)"
+printf '%-56s %5s\n' "sys/elf.c         stream (own thread only)"            "$(obj $LIB/sys/elf.c)"
+printf '%-56s %5s\n' "sys/elf/load.c    load thread (own thread only)"       "$(obj $LIB/sys/elf/load.c)"
 CF="${CF/atmega328p/atmega2560}"
-printf '%-52s %5s\n' "cpu/avr/flash.c         the same, ATmega2560 (far call)" "$(obj $OVL/src/cpu/avr/flash.c -DFLASH_CONF_DRIVER=2)"
+printf '%-56s %5s\n' "cpu/avr/flash.c   the default, ATmega2560 (far call)"  "$(obj $LIB/cpu/avr/flash.c)"
+echo
+echo "== what the headers of the sketch add to a kernel, ATmega328P: their functions in kernel-rom.elf =="
+avr-nm -S --size-sort kernel/kernel-rom.elf | python3 -c '
+import sys, re
+t = 0
+for line in sys.stdin:
+    f = line.split()
+    if len(f) == 4 and f[2] in "tT" and re.match(r"(module_|loader_|process_thread_loader)", f[3]):
+        n = int(f[1], 16); t += n
+        print("%-56s %5d" % (f[3], n))
+print("%-56s %5d" % ("together (sys/module.h, mod/loader.h)", t))'

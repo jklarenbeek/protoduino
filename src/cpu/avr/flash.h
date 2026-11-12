@@ -6,8 +6,9 @@
 /* Self-programming of the flash memory, one page at a time.
  *
  * An AVR can only execute SPM from its boot section, so a running system
- * needs somebody there to do it. FLASH_CONF_DRIVER names that somebody; the
- * functions below read the same whoever it is.
+ * needs somebody there to do it. FLASH_CONF_DRIVER names that somebody, or
+ * leaves it to be found out at run time; the functions below read the same
+ * whoever it is.
  *
  * While a page is erased and programmed the processor cannot execute code
  * from the application section, and interrupt handlers live there. A page

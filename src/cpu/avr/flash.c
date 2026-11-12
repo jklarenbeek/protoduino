@@ -166,27 +166,28 @@ CC_NO_INLINE void flash_page_write(flash_addr_t base, const uint8_t *data)
 
 #endif /* FLASH_CONF_SPM_ASM */
 
-#elif FLASH_CONF_DRIVER == FLASH_DRIVER_BOOTROM
+#else /* the running system: somebody in the boot section executes SPM */
 
+#define FLASH_BY_BOOTROM \
+  (FLASH_CONF_DRIVER == FLASH_DRIVER_BOOTROM || FLASH_CONF_DRIVER == FLASH_DRIVER_AUTO)
+
+// Optiboot has not been made to work above 128 KB of flash: there the
+// automatic choice is the protoduino bootloader alone.
+#if FLASH_CONF_DRIVER == FLASH_DRIVER_OPTIBOOT && defined(__AVR_3_BYTE_PC__)
+#error "flash: FLASH_DRIVER_OPTIBOOT has not been made to work above 128 KB of flash"
+#endif
+#define FLASH_BY_OPTIBOOT \
+  (FLASH_CONF_DRIVER == FLASH_DRIVER_OPTIBOOT \
+   || (FLASH_CONF_DRIVER == FLASH_DRIVER_AUTO && !defined(__AVR_3_BYTE_PC__)))
+
+#if FLASH_BY_BOOTROM
 #include "../../sys/bootrom.h"
+#endif
 
-bool flash_is_writable(void)
-{
-  return bootrom_is_present();
-}
-
-void flash_page_write(flash_addr_t base, const uint8_t *data)
-{
-  bootrom_page_write(base, data);
-}
-
-#elif FLASH_CONF_DRIVER == FLASH_DRIVER_OPTIBOOT
+#if FLASH_BY_OPTIBOOT
 
 // Optiboot 8 and later: the second word of the bootloader is "rjmp do_spm",
 // and the last byte of flash holds its major version.
-#if defined(__AVR_3_BYTE_PC__)
-#error "flash: FLASH_DRIVER_OPTIBOOT has not been made to work above 128 KB of flash"
-#endif
 typedef void (*flash_do_spm_fn)(uint16_t address, uint8_t command, uint16_t data);
 
 #if (FLASHEND > 0xFFFFUL)
@@ -195,14 +196,17 @@ typedef void (*flash_do_spm_fn)(uint16_t address, uint8_t command, uint16_t data
 #define FLASH_RD8(a) pgm_read_byte(a)
 #endif
 
-bool flash_is_writable(void)
+static bool flash_optiboot_is_present(void)
 {
-  return FLASH_RD8(FLASHEND) >= 8
+  uint8_t major = FLASH_RD8(FLASHEND);
+
+  // a version, not erased flash
+  return major >= 8 && major < 0x80
       // an rjmp, not the "ret" of a build without do_spm
       && (FLASH_RD8(FLASH_CONF_OPTIBOOT_START + 3) & 0xF0) == 0xC0;
 }
 
-void flash_page_write(flash_addr_t base, const uint8_t *data)
+static void flash_optiboot_page_write(flash_addr_t base, const uint8_t *data)
 {
   flash_do_spm_fn do_spm = (flash_do_spm_fn)((FLASH_CONF_OPTIBOOT_START + 2) >> 1);
   flash_index_t i = 0;
@@ -218,6 +222,36 @@ void flash_page_write(flash_addr_t base, const uint8_t *data)
     while (i != (flash_index_t)SPM_PAGESIZE);
     do_spm(base, __BOOT_PAGE_WRITE, 0);
   }
+}
+
+#endif /* FLASH_BY_OPTIBOOT */
+
+bool flash_is_writable(void)
+{
+#if FLASH_BY_BOOTROM
+  if (bootrom_is_present())
+    return true;
+#endif
+#if FLASH_BY_OPTIBOOT
+  if (flash_optiboot_is_present())
+    return true;
+#endif
+  return false;
+}
+
+// Only when flash_is_writable() says so.
+void flash_page_write(flash_addr_t base, const uint8_t *data)
+{
+#if FLASH_BY_BOOTROM && FLASH_BY_OPTIBOOT
+  if (bootrom_is_present())
+    bootrom_page_write(base, data);
+  else
+    flash_optiboot_page_write(base, data);
+#elif FLASH_BY_BOOTROM
+  bootrom_page_write(base, data);
+#else
+  flash_optiboot_page_write(base, data);
+#endif
 }
 
 #endif

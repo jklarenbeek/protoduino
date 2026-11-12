@@ -12,7 +12,7 @@
  * The bootloader is one protothread, elf_load_thread(), and the loop below
  * that schedules it. At reset nothing else exists, so the loop is the whole
  * system. Once the image runs, the same thread can be scheduled by a
- * process (see ./src/sys/process/loader.h) while every other process keeps
+ * process (see ./src/mod/loader.h) while every other process keeps
  * its turn.
  *
  * One translation unit: the sources are included below, so that the

@@ -18,7 +18,7 @@ eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T3 328P: protoduino example 12, full ELF (debug info included) ===
-mcu=atmega328p loader=1930 bytes at 0x7800  file=29624 bytes (232 blocks)
+mcu=atmega328p loader=1930 bytes at 0x7800  file=29636 bytes (232 blocks)
 C-probes=1 acks=233 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
 transfer: 3179.6 ms of simulated time (50873194 cycles); app reached=yes
 flash vs simavr's ELF reader: image 1474 bytes, region 0..0x7780 compared, 0 mismatches
@@ -91,11 +91,11 @@ exit=0
 === T10 328P: application programs a page through the loader's service table ===
 application ran; flash page @0x6000: a0 a1 a2 a3 a4 a5 a6 a7 ... DDRB=ff
 page written by the application: as expected, interrupts enabled again
-mcu=atmega328p loader=2048 bytes at 0x7800  file=7092 bytes (56 blocks)
-C-probes=1 acks=57 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 767.3 ms of simulated time (12277026 cycles); app reached=yes
-flash vs simavr's ELF reader: image 302 bytes, region 0..0x7780 compared, 0 mismatches
-record @0x7780: 70 44 00 00 80 01 00 45 d9 ae 6f
+mcu=atmega328p loader=2048 bytes at 0x7800  file=7304 bytes (58 blocks)
+C-probes=1 acks=59 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
+transfer: 796.7 ms of simulated time (12747830 cycles); app reached=yes
+flash vs simavr's ELF reader: image 514 bytes, region 0..0x7780 compared, 0 mismatches
+record @0x7780: 70 44 00 00 80 02 00 ce 76 b6 d4
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 

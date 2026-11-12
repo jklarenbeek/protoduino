@@ -7,6 +7,11 @@
 /* Configuration (override in protoduino-config.h)                     */
 /* ------------------------------------------------------------------ */
 
+/* The defaults are those of a kernel that loads modules with the load
+ * thread of the library (LOADER_THREAD_OWN in ./src/mod/loader.h). The
+ * bootloader sets its own in ./boot/boot.conf.h. A sketch cannot change
+ * them: the library is compiled apart from it. */
+
 // width of the file offsets and addresses the stream carries around:
 // 16 covers every part with up to 64 KB of flash, 24 covers the rest.
 #ifndef ELF_CONF_ADDR_BITS
@@ -51,7 +56,7 @@
 
 // flag to give the flash window a lower bound as well (module slots).
 #ifndef ELF_CONF_WINDOW_LO
-#define ELF_CONF_WINDOW_LO 0
+#define ELF_CONF_WINDOW_LO 1
 #endif
 
 // flag to check the key of a module while it arrives (see elf/load.h).

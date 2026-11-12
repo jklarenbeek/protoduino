@@ -34,10 +34,17 @@
  *
  *   MODULE(blink);
  *
- * In the kernel:
+ * In the sketch that is the kernel, before the header is included:
+ *
+ *   #define MODULE_CONF_SUPPORT 1     // 2: also load at run time
+ *   #include <sys/module.h>
  *
  *   module_init();
  *   module_autostart();   // start what the module table lists
+ *
+ * - The slot functions are part of the sketch: they are compiled with the
+ *   settings of the sketch (./src/sys/module.conf.h), and one source file
+ *   of a program includes this header with MODULE_CONF_SUPPORT set.
  */
 
 #include <protoduino.h>
@@ -83,26 +90,63 @@ extern const uint8_t __module_kernel_id;
 
 #if MODULE_CONF_SUPPORT > 0
 
+#include <avr/pgmspace.h>
+#include <util/crc16.h>
+
+#if MODULE_CONF_SUPPORT > 1
+#include "flash.h"
+#endif
+
 // first address of a slot, and of the module table behind the last slot
 #define MODULE_SLOT_ADDR(slot) \
   ((uint16_t)(MODULE_CONF_BASE) + (uint16_t)(slot) * (uint16_t)(MODULE_CONF_SLOT_SIZE))
 #define MODULE_TABLE_ADDR MODULE_SLOT_ADDR(MODULE_CONF_SLOTS)
 
+/* The module table: one page behind the last slot.
+ *
+ *   [0..1]        'p' 'M'
+ *   [2 + 2*slot]  kernel_id of the module in that slot; 0xFFFF: none
+ */
+#define MODULE_TABLE_ENTRY(slot) (MODULE_TABLE_ADDR + 2 + 2 * (uint16_t)(slot))
+
+// end of the kernel image in flash, from the linker
+extern const char __data_load_end[];
+
+uint16_t module_id;
+
+// RAM for the process struct of each module
+uint8_t module_ram[MODULE_CONF_SLOTS][MODULE_CONF_RAM_SIZE];
+
 /**
  * Work out the identity of this kernel build: a CRC-16 of its own image in
  * flash. Call once, before any other module function.
  */
-void module_init(void);
+static inline void module_init(void)
+{
+  uint16_t crc = 0;
+
+  for (uint16_t a = 0; a != (uint16_t)__data_load_end; a++)
+    crc = _crc_xmodem_update(crc, pgm_read_byte(a));
+  module_id = crc;
+}
 
 /** Identity of this kernel build. */
-uint16_t module_kernel_id(void);
+static CC_ALWAYS_INLINE uint16_t module_kernel_id(void)
+{
+  return module_id;
+}
 
 /**
  * Checks whether the module table lists a module for this kernel in a slot.
  *
  * \return true if the slot holds a module that can be started.
  */
-bool module_is_installed(uint8_t slot);
+static inline bool module_is_installed(uint8_t slot)
+{
+  return slot < MODULE_CONF_SLOTS
+      && pgm_read_word(MODULE_TABLE_ADDR) == MODULE_MAGIC
+      && pgm_read_word(MODULE_TABLE_ENTRY(slot)) == module_id;
+}
 
 /**
  * Checks the descriptor at the start of a slot.
@@ -113,22 +157,73 @@ bool module_is_installed(uint8_t slot);
  *   ERR_INIT_DEPENDENCY linked against another kernel build
  *   ERR_HEAP_OOM        its process struct does not fit MODULE_CONF_RAM_SIZE
  */
-uint8_t module_check(uint8_t slot);
+static inline uint8_t module_check(uint8_t slot)
+{
+  const module_t *m = (const module_t *)MODULE_SLOT_ADDR(slot);
+  const process_type_t *type;
+
+  if (slot >= MODULE_CONF_SLOTS || pgm_read_word(&m->magic) != MODULE_MAGIC)
+    return ERR_BIN_MAGIC;
+  if (pgm_read_byte(&m->abi) != MODULE_ABI)
+    return ERR_BIN_VERSION;
+  if (pgm_read_word(&m->kernel_id) != module_id)
+    return ERR_INIT_DEPENDENCY;
+
+  type = (const process_type_t *)pgm_read_ptr(&m->type);
+  if (pgm_read_byte(&type->size) > MODULE_CONF_RAM_SIZE)
+    return ERR_HEAP_OOM;
+
+  return ERR_SUCCESS;
+}
+
+/**
+ * The process type of the module in a slot. Only for a slot that
+ * module_is_installed() or module_check() accepts.
+ */
+static CC_ALWAYS_INLINE const process_type_t *module_type(uint8_t slot)
+{
+  return (const process_type_t *)pgm_read_ptr(&((const module_t *)MODULE_SLOT_ADDR(slot))->type);
+}
+
+/**
+ * The process a slot runs in. Its state is PROCESS_STATE_NONE while the
+ * module is not running.
+ */
+static CC_ALWAYS_INLINE struct process *module_process(uint8_t slot)
+{
+  return (struct process *)module_ram[slot];
+}
 
 /**
  * Start the process of the module in a slot.
  *
- * \return the process, or NULL when module_check() fails or the scheduler
- *         refuses the process.
+ * \return the process, or NULL when module_check() fails, the module runs
+ *         already or the scheduler refuses the process.
  */
-struct process *module_start(uint8_t slot);
+static inline struct process *module_start(uint8_t slot)
+{
+  if (module_check(slot) != ERR_SUCCESS || module_process(slot)->state != PROCESS_STATE_NONE)
+    return NULL;
+  // a module is a process type like any other from here on
+  return process_new(module_type(slot), module_ram[slot]);
+}
 
 /**
  * Start the process of every module the module table lists.
  *
  * \return number of processes started.
  */
-uint8_t module_autostart(void);
+static inline uint8_t module_autostart(void)
+{
+  uint8_t started = 0;
+
+  for (uint8_t slot = 0; slot < MODULE_CONF_SLOTS; slot++)
+  {
+    if (module_is_installed(slot) && module_start(slot) != NULL)
+      started++;
+  }
+  return started;
+}
 
 #if MODULE_CONF_SUPPORT > 1
 /**
@@ -138,7 +233,22 @@ uint8_t module_autostart(void);
  * \param installed true: the slot holds a checked module for this kernel.
  * \param page      SPM_PAGESIZE bytes of scratch memory.
  */
-void module_table_write(uint8_t slot, bool installed, uint8_t *page);
+static inline void module_table_write(uint8_t slot, bool installed, uint8_t *page)
+{
+  uint16_t entry = installed ? module_id : 0xFFFF;
+  uint16_t i;
+
+  // the table as it is, or an empty one
+  for (i = 0; i < SPM_PAGESIZE; i++)
+    page[i] = pgm_read_word(MODULE_TABLE_ADDR) == MODULE_MAGIC ? pgm_read_byte(MODULE_TABLE_ADDR + i) : 0xFF;
+
+  page[0] = (uint8_t)MODULE_MAGIC;
+  page[1] = (uint8_t)(MODULE_MAGIC >> 8);
+  page[2 + 2 * slot] = (uint8_t)entry;
+  page[3 + 2 * slot] = (uint8_t)(entry >> 8);
+
+  flash_page_write(MODULE_TABLE_ADDR, page);
+}
 #endif
 
 #endif /* MODULE_CONF_SUPPORT > 0 */

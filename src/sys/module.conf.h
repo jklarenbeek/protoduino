@@ -4,13 +4,13 @@
 #define __MODULE_CONF_H__
 
 /* ------------------------------------------------------------------ */
-/* Configuration (override in protoduino-config.h)                     */
+/* Configuration (define in the sketch, before <sys/module.h>)         */
 /* ------------------------------------------------------------------ */
 
 // what the kernel can do with modules:
 //   0  nothing: no module support is compiled in
 //   1  start the modules that are already in flash
-//   2  also load modules while running (see process/loader.h)
+//   2  also load modules while running (see ./src/mod/loader.h)
 #ifndef MODULE_CONF_SUPPORT
 #define MODULE_CONF_SUPPORT 0
 #endif
