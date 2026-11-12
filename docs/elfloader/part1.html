@@ -2,24 +2,24 @@
   <div class="top">
     <div class="kicker">protoduino &middot; design document</div>
     <h1>A streaming ELF loader<br>for AVR</h1>
-    <p class="sub">Functional and technical design of a compile-time configurable ELF32 loader: bootloader core, flash service and loadable processes. With measurements from a working prototype and fixes for current protoduino caveats.</p>
+    <p class="sub">Functional and technical design of a compile-time configurable ELF32 loader: a bootloader that is one protothread, lent to the running system to load modules that are process types. With measurements and fixes for protoduino caveats.</p>
   </div>
-  <div class="meta"><span>Draft 0.1 &middot; 12 November 2026</span><span>jklarenbeek/protoduino &middot; branch ccr-8617b1c3-gjnqlx</span></div>
+  <div class="meta"><span>Draft 0.2 &middot; 12 November 2026</span><span>jklarenbeek/protoduino &middot; branch ccr-8617b1c3-gjnqlx</span></div>
 
   <div class="keyfacts">
-    <div><div class="v">84 B</div><div class="l">of loader state on an ATmega328P; no heap, no seeking</div></div>
-    <div><div class="v">1,640 B</div><div class="l">serial ELF bootloader for the ATmega328P, as measured</div></div>
-    <div><div class="v">2,036 B</div><div class="l">with the run-time module loader: it fills the 2 KB boot section</div></div>
-    <div><div class="v">21 of 21</div><div class="l">simulated scenarios behaved as designed, including module loading on Optiboot</div></div>
+    <div><div class="v">1 thread</div><div class="l">the bootloader is a Protothreads v2 thread, and the kernel schedules the same one</div></div>
+    <div><div class="v">2,042 B</div><div class="l">fills the 2 KB boot section of an ATmega328P, with the thread offered to the kernel</div></div>
+    <div><div class="v">18,053</div><div class="l">turns a heartbeat process took while a module was loaded beside it</div></div>
+    <div><div class="v">22 of 22</div><div class="l">simulated scenarios behaved as designed, also on Optiboot</div></div>
   </div>
 
   <div class="box accent">
     <h4>What is real in this document</h4>
     <ul>
-      <li>A prototype of the loader core and of a serial bootloader built on it was written and run for this document. Every figure marked <span class="tag m">measured</span> comes from it: avr-gcc 7.3.0, and simavr at the commit that protosim pins.</li>
-      <li>Nothing has run on hardware. Power loss during an update was not simulated, and simavr's flash model is more forgiving than a chip (8.1).</li>
-      <li>Run-time module loading was exercised with a stand-in kernel, not with protoduino's scheduler (6.8). Relocation (4.7) and the ATtiny path (6.6) are designs. The ATtiny build compiles; it has not executed anywhere.</li>
-      <li>No protoduino, protosim or simavr source file was changed. The fixes in section 7 and section 8 are proposals. The prototype sits beside this document in <code>docs/elfloader/prototype/</code>, outside <code>src/</code>.</li>
+      <li>The loader was written and run for this document. Every figure marked <span class="tag m">measured</span> comes from it: avr-gcc 7.3.0, and simavr at the commit that protosim pins.</li>
+      <li>Module loading runs on protoduino's unmodified scheduler, serial device process and pipes, in a sketch built without the Arduino core, on the ATmega328P.</li>
+      <li>Nothing has run on hardware. Power loss was not simulated. simavr programs a page in no time, so timings leave out the 7 to 9 ms a real page costs (8.1). Relocation (4.8) is a design; the ATtiny build compiles and has not executed.</li>
+      <li>No protoduino, protosim or simavr source file was changed; the fixes in sections 7 and 8 are proposals. The code is in <code>docs/elfloader/overlay/</code>, laid out as it would land in the library; the test bench is in <code>docs/elfloader/prototype/</code>.</li>
     </ul>
   </div>
 
@@ -47,35 +47,39 @@
 
 <h2><span class="n">1</span>Summary</h2>
 
-<p>The loader takes the file the linker writes, the <code>.elf</code>, and treats it as a stream. The first 52 bytes say what the file is. The next 32 bytes per program header say which bytes belong where. Everything after that is delivered to flash in the order it arrives. The loader never seeks backwards and never allocates, and all of its state fits in one 84-byte structure. When the last loadable byte has been delivered it is done; the symbol tables and debug information that make up most of the file never have to be sent.</p>
+<p>The loader takes the file the linker writes, the <code>.elf</code>, and treats it as a stream. The first 52 bytes say what the file is. The next 32 bytes per program header say which bytes belong where. Everything after that is delivered to flash in the order it arrives. The stream never seeks backwards and never allocates, and all of its state fits in one 84-byte structure. When the last loadable byte has been delivered it is done; the symbol tables and debug information that make up most of the file never have to be sent.</p>
 
-<p>That one core is used in parts, chosen at compile time:</p>
+<p>Around the stream sits one Protothreads v2 thread, <code>elf_load_thread()</code>. It receives the file with XMODEM-CRC, feeds the stream and programs the pages. It does no input or output of its own and reads no clock: bytes pass through a small mailbox in its workspace, and it returns to its caller between any two of them. That one thread is used in three places, chosen at compile time:</p>
 <ul>
-  <li><strong>As a bootloader.</strong> Core, a polled serial port and XMODEM-CRC in the boot section. Any terminal program can send the unmodified <code>.elf</code>. An image record written last decides whether the application may start.</li>
-  <li><strong>As a boot ROM for the running system.</strong> The same boot section exports a small table: an entry that programs one page and, when it fits the section, the whole load session. A kernel can then have a module loaded while it runs for under a kilobyte of its own code.</li>
-  <li><strong>Inside the kernel.</strong> Where the bootloader is Optiboot, or a protoduino loader built without the module loader, the kernel links the same session code itself and writes pages through whatever the bootloader offers.</li>
+  <li><strong>As the bootloader.</strong> At reset nothing else exists, so a loop of a dozen lines schedules the thread from a polled <code>uart0</code>. Any terminal program can send the unmodified <code>.elf</code>. An image record written last decides whether the application may start.</li>
+  <li><strong>As a boot ROM for the running system.</strong> The boot section exports the address of the thread. A protoduino process schedules it with the bytes its pipe delivers, and every other process keeps its turn while a module arrives. The kernel pays for a process, not for a loader.</li>
+  <li><strong>Inside the kernel.</strong> Where the bootloader is Optiboot, or a protoduino bootloader built without the export, the kernel links its own copy of the thread and has pages programmed through whatever the bootloader offers.</li>
 </ul>
 
-<p>Module support has three levels, also chosen at compile time: none; start the modules that are already in flash; or load modules at run time as well. The build fills the boot section that the fuses reserve with as many features as fit, in a set order of priority (6.9).</p>
+<p>Loading is therefore cooperative everywhere, and it is not a feature that a larger boot section switches on. The fuses decide only where the thread lives: in the boot section when it fits, in the kernel when it does not (4.6). The build fills the section that the fuses reserve with as many options as fit, in a set order of priority (6.9).</p>
 
-<p>Modules fit protoduino in particular. Protothread processes keep their state in a struct the kernel hands them, so a module needs no static RAM, and the hardest part of dynamic loading on an AVR, relocating data addresses, does not arise.</p>
+<p>Modules fit protoduino in particular. A module is a process type: the same record <code>PROCESS_DEFINE</code> emits for a built-in process, linked into a flash slot and started with <code>process_new()</code>. Protothread processes keep their state in a struct the kernel hands them, so a module needs no static RAM, and the hardest part of dynamic loading on an AVR, relocating data addresses, does not arise.</p>
 
 <table>
   <thead><tr><th style="width:36%">Result</th><th>Value</th><th style="width:14%">Status</th></tr></thead>
   <tbody>
-    <tr><td>Loader state, ATmega328P build</td><td>84 bytes, of which 52 are header scratch</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>Serial ELF bootloader, ATmega328P</td><td>1,640 B flash, 350 B RAM. With the run-time module loader 2,036 B, which fills the 2 KB boot section to within 12 bytes. With every option 2,286 B, which needs the 4 KB section.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>Serial ELF bootloader, ATmega2560</td><td>2,182 B. The 2 KB section holds a 2,024 B build with the page-write service; the module loader (2,524 B) and every option (2,832 B) need the 4 KB section.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>ATtiny85 build with bit-banged serial</td><td>1,700 B flash, 286 B RAM</td><td><span class="tag b">built</span></td></tr>
-    <tr><td>Flash written by the loader against simavr's own ELF reader</td><td>Identical on both parts, including a 106 KB image that reaches far flash</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>Stream state, ATmega328P build</td><td>84 bytes, of which 52 are header scratch</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>Bootloader, ATmega328P</td><td>2,014 B flash, 371 B RAM. With the thread offered to the kernel 2,042 B in the 2 KB boot section, 6 bytes spare. With every option 2,358 B, which needs the 4 KB section.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>Bootloader, ATmega2560</td><td>2,514 B; 2,972 B with every option. It needs the 4 KB section; the 2 KB section is too small for it.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>ATtiny85 build with serial on two pins</td><td>2,046 B flash, 307 B RAM</td><td><span class="tag b">built</span></td></tr>
+    <tr><td>Flash written by the bootloader against simavr's own ELF reader</td><td>Identical on both parts, including a 106 KB image that reaches far flash</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A file for the wrong core family, offered to a device with a working application</td><td>Refused with a reason code; nothing erased; the application starts again</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>A module sent to a running kernel, loaded by the boot section on the kernel's behalf</td><td>Written into its slot, run, recorded, and started again after a reset</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>The same with a stock Optiboot 8.3 as the bootloader</td><td>Works: the kernel carries the loader and writes through Optiboot's <code>do_spm</code></td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>A module sent to a running protoduino kernel, loaded by the thread in the 2 KB boot section</td><td>Programmed into its slot, started with <code>process_new()</code>, entered into the module table, and started again after a reset. A heartbeat process took 18,053 turns during the 350 ms transfer.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>The same with a stock Optiboot 8.3 as the bootloader</td><td>Works: the kernel links the thread and programs pages through Optiboot's <code>do_spm</code></td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>A module linked against another kernel build</td><td>Refused before a single page is programmed</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>A second module loaded beside a running one</td><td>Both run, and both start after a reset</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A module that declares static RAM</td><td>Fails at link time with a clear message</td><td><span class="tag m">measured</span></td></tr>
   </tbody>
 </table>
 
-<p>The size is the weak point, and it should be stated plainly. Optiboot fits in under 512 bytes; this loader is 1,640 bytes, in plain C with an old compiler, and it does not fit a 1 KB boot section. Section 6.10 shows where the bytes go and what could shrink them. Reaching 1 KB is a goal, not a result.</p>
+<p>The size is the weak point, and it should be stated plainly. Optiboot fits in under 512 bytes; this bootloader is 2,014 bytes, in plain C with an old compiler. Writing it as a protothread cost 374 bytes against the blocking version of the previous draft (1,640 bytes), and on parts with more than 64 KB of flash that pushed it out of the 2 KB boot section into the 4 KB one. What the bytes buy is in 4.6; where they go is in 6.10.</p>
+
+<p>Building on the library also turned up eleven more findings in protoduino itself, among them that <code>process_run()</code> lets polls starve events and that a process which ends is never cleaned up unless another event happens to reach it. Section 7 lists them with measurements and patches.</p>
 
 <h2><span class="n">2</span>Goals, non-goals and target parts</h2>
 
@@ -89,6 +93,7 @@
   <li><strong>Refuse before erasing.</strong> The wrong file must be rejected while the installed image is still intact.</li>
   <li><strong>Always recoverable.</strong> On parts with a hardware boot section, no failed update may leave a device that cannot be reached over the same serial line.</li>
   <li><strong>Modules are processes, loadable at run time.</strong> Wherever the part can carry it and unless it is configured out. Three levels: none, modules already in flash, run-time loading.</li>
+  <li><strong>Loading never stops the system.</strong> The loader is a protothread among protothreads, and it reads like the rest of protoduino.</li>
   <li><strong>Not tied to our bootloader.</strong> A protoduino kernel can load modules on top of Optiboot as well.</li>
 </ul>
 </div>
@@ -96,7 +101,7 @@
 <h4>Non-goals</h4>
 <ul>
   <li><strong>Linking on the device.</strong> Relocatable <code>.o</code> files, symbol tables and name lookups stay on the host.</li>
-  <li><strong>Authenticated updates in the first version.</strong> Integrity is checked; origin is not. A place for a signature is reserved (6.8).</li>
+  <li><strong>Authenticated updates in the first version.</strong> Integrity is checked; origin is not. The reserved byte of the module descriptor is where a signature would be announced (6.8).</li>
   <li><strong>C++ runtime features in modules.</strong> No exceptions, RTTI or static constructors.</li>
   <li><strong>Parts without room for a page buffer.</strong> The ATtiny4/5/9/10 have 32 bytes of RAM.</li>
   <li><strong>UPDI-era parts in this document.</strong> tinyAVR 0/1/2 and AVR Dx program flash through NVMCTRL. They need another flash back-end, which the layering allows but which is not designed here.</li>
@@ -107,10 +112,10 @@
 <table>
   <thead><tr><th>Part</th><th class="num">Flash</th><th class="num">RAM</th><th class="num">Page</th><th>Boot section</th><th>Bootloader</th><th style="width:31%">Run-time modules</th></tr></thead>
   <tbody>
-    <tr><td class="nw">ATmega328P</td><td class="num">32 KB</td><td class="num">2 KB</td><td class="num">128 B</td><td>0.5 to 4 KB</td><td><span class="tag m">measured</span></td><td>Yes. The module loader fits the 2 KB section. <span class="tag m">measured</span></td></tr>
-    <tr><td class="nw">ATmega2560</td><td class="num">256 KB</td><td class="num">8 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td><span class="tag m">measured</span></td><td>Yes. The module loader needs the 4 KB section. <span class="tag b">built</span></td></tr>
-    <tr><td class="nw">ATmega1284P</td><td class="num">128 KB</td><td class="num">16 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td><span class="tag b">built</span></td><td>As the ATmega2560. <span class="tag b">built</span></td></tr>
-    <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>none</td><td><span class="tag b">built</span></td><td>Off by default: the load workspace alone is 286 of its 512 bytes of RAM.</td></tr>
+    <tr><td class="nw">ATmega328P</td><td class="num">32 KB</td><td class="num">2 KB</td><td class="num">128 B</td><td>0.5 to 4 KB</td><td>2 KB section <span class="tag m">measured</span></td><td>Yes. The load thread fits the 2 KB section and the kernel schedules it there. <span class="tag m">measured</span></td></tr>
+    <tr><td class="nw">ATmega2560</td><td class="num">256 KB</td><td class="num">8 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section <span class="tag m">measured</span></td><td>Bootloader with every option fits the 4 KB section. The kernel side was not built: <code>sys/clock.h</code> rejects the part (7, finding 17). <span class="tag p">proposed</span></td></tr>
+    <tr><td class="nw">ATmega1284P</td><td class="num">128 KB</td><td class="num">16 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section <span class="tag b">built</span></td><td>As the ATmega2560.</td></tr>
+    <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>none</td><td><span class="tag b">built</span></td><td>Off by default: the workspace of the thread alone is 307 of its 512 bytes of RAM.</td></tr>
     <tr><td class="nw">ATtiny25 / 45</td><td class="num">2 / 4 KB</td><td class="num">128 / 256 B</td><td class="num">32 / 64 B</td><td>none</td><td>Needs a small-frame transport <span class="tag p">proposed</span></td><td>No. Excluded at compile time.</td></tr>
     <tr><td class="nw">ATtiny4/5/9/10</td><td class="num">&le; 1 KB</td><td class="num">32 B</td><td class="num">&ndash;</td><td>none</td><td>Out of scope</td><td>&ndash;</td></tr>
   </tbody>
@@ -132,7 +137,7 @@
     <tr>
       <td><strong>Optiboot</strong> with avrdude</td>
       <td>Under 512 bytes, which is the bar for size. But the device receives anonymous pages: it has no idea what the image is, keeps no record of whether it is complete, and starts whatever is there after a timeout. The host has to turn the ELF into a hex file and speak a programmer protocol. Version 8 added <code>do_spm()</code> so an application can write flash.</td>
-      <td>The device reads the ELF header itself and keeps an image record. The <code>do_spm()</code> idea is kept and widened into a service table (6.7). Optiboot also stays a supported choice: a protoduino kernel loads modules on top of it (6.8).</td>
+      <td>The device reads the ELF header itself and keeps an image record. The <code>do_spm()</code> idea is kept and widened: the boot section lends out its whole load thread (6.7). Optiboot also stays a supported choice: a protoduino kernel loads modules on top of it (6.8).</td>
     </tr>
     <tr>
       <td><strong>urboot, micronucleus</strong><br><span class="small">parts without a boot section</span></td>
@@ -190,7 +195,7 @@
   <text x="555" y="47" text-anchor="middle" fill="#46505a">never needed by the loader</text>
   <line x1="410" y1="14" x2="410" y2="66" stroke="#8a4b06" stroke-width="1.4" stroke-dasharray="3 2"/>
   <text x="406" y="77" text-anchor="end" fill="#8a4b06" font-weight="600">the loader is finished here</text>
-  <text x="0" y="104" font-weight="600" fill="#1a1f26">To scale: protoduino example 12, 29,404 bytes</text>
+  <text x="0" y="104" font-weight="600" fill="#1a1f26">To scale: protoduino example 12, 29,624 bytes</text>
   <rect x="0" y="112" width="700" height="14" fill="#eceff2" stroke="#cfd6dd"/>
   <rect x="0" y="112" width="39" height="14" fill="#0b5c7a"/>
   <text x="46" y="123" fill="#46505a">first 1,637 bytes: headers and the 1,474-byte image. The other 94 % is never read.</text>
@@ -202,8 +207,8 @@
 <table class="tight">
   <thead><tr><th>File</th><th class="num">File size</th><th class="num">Loader finished within</th><th>Result against <code>avr-objcopy</code></th></tr></thead>
   <tbody>
-    <tr><td>Test program, ATmega328P, with EEPROM data, fuses and signature</td><td class="num">12,860 B</td><td class="num">660 B</td><td>Flash and EEPROM identical</td></tr>
-    <tr><td>protoduino example 12 (UART echo), ATmega328P</td><td class="num">29,404 B</td><td class="num">1,637 B</td><td>Identical, also when fed one byte at a time</td></tr>
+    <tr><td>Test program, ATmega328P, with EEPROM data, fuses and signature</td><td class="num">12,868 B</td><td class="num">660 B</td><td>Flash and EEPROM identical</td></tr>
+    <tr><td>protoduino example 12 (UART echo), ATmega328P</td><td class="num">29,624 B</td><td class="num">1,637 B</td><td>Identical, also when fed one byte at a time</td></tr>
     <tr><td>106 KB test image, ATmega2560</td><td class="num">117,616 B</td><td class="num">106,986 B</td><td>Identical</td></tr>
   </tbody>
 </table>
@@ -212,7 +217,7 @@
 
 <h3><span class="n">4.2</span>One core, used in parts</h3>
 
-<p>The core is a state machine with no input or output of its own. Bytes are pushed in from whatever carries them; bytes that belong in a memory are handed to a sink. Around it sits one session, the code that receives a file and drives the core, written so that all of its state is in a workspace the caller owns. That makes the session usable from three places: the bootloader at reset, the boot section called by the running kernel, and a kernel that links it in.</p>
+<p>The stream is a state machine with no input or output of its own. Bytes are pushed in from whatever carries them; bytes that belong in a memory are handed to a sink. Around it sits one protothread, the code that receives a file and feeds the stream, written so that all of its state is in a workspace the caller owns. That makes the thread usable from three places: the bootloader at reset, the boot section scheduled by the running kernel, and a kernel that links it in.</p>
 
 <figure>
 <svg viewBox="0 0 700 172" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif" font-size="9.5">
@@ -220,16 +225,16 @@
   <text x="80" y="11" text-anchor="middle" font-weight="600" fill="#5b6672">SOURCES</text>
   <text x="350" y="11" text-anchor="middle" font-weight="600" fill="#5b6672">CORE</text>
   <text x="610" y="11" text-anchor="middle" font-weight="600" fill="#5b6672">SINKS</text>
-  <rect x="0" y="20" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="80" y="38" text-anchor="middle">XMODEM-CRC, polled UART</text>
-  <rect x="0" y="58" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="80" y="76" text-anchor="middle">pipe from a serial process</text>
+  <rect x="0" y="20" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="80" y="38" text-anchor="middle">load thread fed by uart0, polled</text>
+  <rect x="0" y="58" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="80" y="76" text-anchor="middle">load thread fed by a process pipe</text>
   <rect x="0" y="96" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="80" y="114" text-anchor="middle">any other byte source</text>
   <rect x="230" y="20" width="240" height="106" rx="4" fill="#e3f0f5" stroke="#0b5c7a" stroke-width="1.3"/>
-  <text x="350" y="42" text-anchor="middle" font-weight="700" font-size="11" fill="#0b5c7a">elfld: streaming ELF32 core</text>
+  <text x="350" y="42" text-anchor="middle" font-weight="700" font-size="11" fill="#0b5c7a">elf_stream: streaming ELF32 core</text>
   <text x="350" y="60" text-anchor="middle" fill="#10323f">checks the header, remembers the segments,</text>
   <text x="350" y="73" text-anchor="middle" fill="#10323f">delivers each byte with its address</text>
   <text x="350" y="94" text-anchor="middle" fill="#10323f">84 B of state, owned by the caller</text>
   <text x="350" y="107" text-anchor="middle" fill="#10323f">no I/O, no heap, no seeking</text>
-  <rect x="540" y="20" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="620" y="38" text-anchor="middle">flash: page cache and SPM</text>
+  <rect x="540" y="20" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="620" y="38" text-anchor="middle">flash: page cache and flash driver</text>
   <rect x="540" y="58" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="620" y="76" text-anchor="middle">EEPROM</text>
   <rect x="540" y="96" width="160" height="30" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="620" y="114" text-anchor="middle">compare: signature, verify</text>
   <line x1="160" y1="35" x2="226" y2="60" stroke="#5b6672" marker-end="url(#ar)"/>
@@ -239,19 +244,19 @@
   <line x1="470" y1="73" x2="536" y2="73" stroke="#5b6672" marker-end="url(#ar)"/>
   <line x1="470" y1="86" x2="536" y2="111" stroke="#5b6672" marker-end="url(#ar)"/>
   <rect x="0" y="140" width="344" height="28" rx="3" fill="#fff" stroke="#8a94a0"/><text x="172" y="158" text-anchor="middle"><tspan font-weight="600">Policy, bootloader:</tspan> image record, when to start the image</text>
-  <rect x="356" y="140" width="344" height="28" rx="3" fill="#fff" stroke="#8a94a0"/><text x="528" y="158" text-anchor="middle"><tspan font-weight="600">Policy, kernel:</tspan> module slots, records, process start</text>
+  <rect x="356" y="140" width="344" height="28" rx="3" fill="#fff" stroke="#8a94a0"/><text x="528" y="158" text-anchor="middle"><tspan font-weight="600">Policy, kernel:</tspan> slots, module table, process_new()</text>
 </svg>
-<figcaption><strong>Figure 2.</strong> The pieces. The top row of each column is what the prototype contains.</figcaption>
+<figcaption><strong>Figure 2.</strong> The pieces. All of them are built except the third source; the compare sink covers the signature, not yet a verify mode.</figcaption>
 </figure>
 
 <p>Which parts end up where depends on two choices: what sits in the boot section, and how much module support the kernel is built with.</p>
 
 <table class="keep">
-  <thead><tr><th style="width:28%">In the boot section</th><th style="width:24%">Kernel built for</th><th>Who loads a module at run time</th><th style="width:9%">Tested</th></tr></thead>
+  <thead><tr><th style="width:30%">In the boot section</th><th style="width:22%">Kernel built for</th><th>Who runs the load thread</th><th style="width:9%">Tested</th></tr></thead>
   <tbody>
-    <tr><td>protoduino loader with the module loader</td><td>run-time loading, ROM</td><td>The boot section, called by the kernel</td><td>M1</td></tr>
-    <tr><td>protoduino loader with the page-write service</td><td>run-time loading, own loader</td><td>The kernel; pages go through the service</td><td>M3</td></tr>
-    <tr><td>Optiboot 8 or later</td><td>run-time loading, own loader</td><td>The kernel; pages go through <code>do_spm</code></td><td>M2</td></tr>
+    <tr><td>protoduino bootloader that offers its load thread</td><td>run-time loading, thread of the bootloader</td><td>The loader process schedules the thread inside the boot section</td><td>M1, M9</td></tr>
+    <tr><td>protoduino bootloader with only the page service</td><td>run-time loading, own thread</td><td>The loader process schedules the kernel's copy; pages go through the page service</td><td>M3</td></tr>
+    <tr><td>Optiboot 8 or later</td><td>run-time loading, own thread</td><td>The same; pages go through <code>do_spm</code></td><td>M2</td></tr>
     <tr><td>anything</td><td>modules already in flash</td><td>Nobody. Modules are programmed with the firmware and only started.</td><td>M4</td></tr>
     <tr><td>anything</td><td>no modules</td><td>&ndash;</td><td>M8</td></tr>
   </tbody>
@@ -265,10 +270,10 @@
   <thead><tr><th>Load address</th><th>Memory</th><th>What the loader does</th><th>Option</th></tr></thead>
   <tbody>
     <tr><td><code>0x00....</code> upward</td><td>Flash</td><td>Writes, inside the permitted window only</td><td>always</td></tr>
-    <tr><td><code>0x80....</code></td><td>RAM</td><td>Nothing to write. <code>.bss</code> has no file bytes. The declared extent can be recorded.</td><td><code>ELFLD_FEAT_RAM_EXTENT</code></td></tr>
-    <tr><td><code>0x81....</code></td><td>EEPROM</td><td>Writes the EEPROM image</td><td><code>ELFLD_FEAT_EEPROM</code></td></tr>
+    <tr><td><code>0x80....</code></td><td>RAM</td><td>Nothing to write. <code>.bss</code> has no file bytes.</td><td>&ndash;</td></tr>
+    <tr><td><code>0x81....</code></td><td>EEPROM</td><td>Writes the EEPROM image</td><td><code>ELF_CONF_EEPROM</code></td></tr>
     <tr><td><code>0x82....</code>, <code>0x83....</code></td><td>Fuses, lock bits</td><td>Ignores; software cannot write them</td><td>&ndash;</td></tr>
-    <tr><td><code>0x84....</code></td><td>Signature</td><td>Compares with the chip's own signature bytes</td><td><code>ELFLD_FEAT_SIGNATURE</code></td></tr>
+    <tr><td><code>0x84....</code></td><td>Signature</td><td>Compares with the chip's own signature bytes</td><td><code>ELF_CONF_SIGNATURE</code></td></tr>
   </tbody>
 </table>
 
@@ -303,18 +308,61 @@
 
 <h3><span class="n">4.5</span>The boot section as a small ROM</h3>
 
-<p>On a megaAVR the SPM instruction works only from the boot section, so an application cannot program flash by itself, and a run-time loader in the application cannot exist without help. The boot section therefore exports a table at a fixed place at the very end of flash. Its first service programs one page from the caller's buffer, as Optiboot's <code>do_spm()</code> does. Its second goes further: it runs the whole load session, the same code that loads firmware at reset, on a workspace the caller brings. The kernel asks for a module to be loaded into a range of flash and gets back a result and the module's entry address. The boot section is paid for anyway; this makes it do the kernel's loading too (6.7). <span class="tag m">measured</span></p>
+<p>On a megaAVR the SPM instruction works only from the boot section, so an application cannot program flash by itself, and a run-time loader in the application cannot exist without help. The boot section therefore exports a table at a fixed place at the very end of flash. Its first entry programs one page from the caller's buffer, as Optiboot's <code>do_spm()</code> does. Its second is the address of the load thread itself: the same code that loaded the firmware at reset, to be scheduled by the running system on a workspace the system owns. The boot section is paid for anyway; this makes it do the kernel's loading too (6.7). <span class="tag m">measured</span></p>
 
-<h3><span class="n">4.6</span>A module is a process type</h3>
+<h3><span class="n">4.6</span>One thread, two schedulers</h3>
 
-<p>protoduino already has the right descriptor. <code>process_type_t</code> is a small record in flash holding a name, a thread function, an instance size and a priority, and <code>process_new(type, storage)</code> turns it into a running process in memory the caller supplies. A loadable module is exactly that record plus its code, linked into a flash slot. Loading a module means writing its bytes and calling the two functions every built-in process already uses. A stand-in kernel showed the mechanics end to end (6.8); joining them to the real scheduler is the next step.</p>
+<p>The previous draft exported a blocking session: the kernel called into the boot section and got control back seconds later, when the module was in flash. This draft exports a protothread, and that changes what the kernel can do while a module arrives.</p>
+
+<figure>
+<svg viewBox="0 0 700 176" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif" font-size="9.5">
+  <defs><marker id="ar6" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6672"/></marker></defs>
+  <text x="0" y="11" font-weight="600" fill="#5b6672">AT RESET: THE BOOTLOADER IS THE WHOLE SYSTEM</text>
+  <rect x="0" y="20" width="150" height="40" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="75" y="37" text-anchor="middle" font-weight="600">uart0, polled</text><text x="75" y="50" text-anchor="middle" fill="#5b6672">rx_is_ready, tx_write8</text>
+  <rect x="190" y="20" width="170" height="40" rx="3" fill="#fff" stroke="#8a94a0"/><text x="275" y="37" text-anchor="middle" font-weight="600">boot_schedule()</text><text x="275" y="50" text-anchor="middle" fill="#5b6672">a loop; its idle passes are the clock</text>
+  <text x="0" y="111" font-weight="600" fill="#5b6672">WHILE THE SYSTEM RUNS: ONE PROCESS AMONG OTHERS</text>
+  <rect x="0" y="120" width="150" height="40" rx="3" fill="#f3f5f7" stroke="#cfd6dd"/><text x="75" y="137" text-anchor="middle" font-weight="600">serial_process0</text><text x="75" y="150" text-anchor="middle" fill="#5b6672">rx_pipe, tx_pipe</text>
+  <rect x="190" y="120" width="170" height="40" rx="3" fill="#fff" stroke="#8a94a0"/><text x="275" y="137" text-anchor="middle" font-weight="600">loader process</text><text x="275" y="150" text-anchor="middle" fill="#5b6672">a turn per event; clock_time()</text>
+  <rect x="420" y="46" width="280" height="88" rx="4" fill="#e3f0f5" stroke="#0b5c7a" stroke-width="1.3"/>
+  <text x="560" y="66" text-anchor="middle" font-weight="700" font-size="11" fill="#0b5c7a">elf_load_thread(struct elf_load *self)</text>
+  <text x="560" y="84" text-anchor="middle" fill="#10323f">mailbox in: one byte, or &ldquo;the line is silent&rdquo;</text>
+  <text x="560" y="97" text-anchor="middle" fill="#10323f">mailbox out: up to three reply bytes</text>
+  <text x="560" y="115" text-anchor="middle" fill="#10323f">returns PT_WAITING between any two bytes</text>
+  <line x1="150" y1="40" x2="187" y2="40" stroke="#5b6672" marker-end="url(#ar6)"/>
+  <line x1="150" y1="140" x2="187" y2="140" stroke="#5b6672" marker-end="url(#ar6)"/>
+  <line x1="360" y1="40" x2="417" y2="72" stroke="#5b6672" marker-end="url(#ar6)"/>
+  <line x1="360" y1="140" x2="417" y2="108" stroke="#5b6672" marker-end="url(#ar6)"/>
+  <text x="368" y="94" fill="#5b6672">the same</text><text x="368" y="105" fill="#5b6672">code</text>
+</svg>
+<figcaption><strong>Figure 4.</strong> The load thread does no I/O and reads no clock, so the bootloader and a process can both drive it. In the first test (M1) the lower path ran the thread where it sits in the 2 KB boot section.</figcaption>
+</figure>
+
+<p><strong>What was measured.</strong> A sketch on protoduino's scheduler ran the serial device process, a kernel process, the loader process and a heartbeat process that takes a turn as often as it can. While a 3,184-byte module file arrived in 350 ms, the heartbeat took 18,053 turns. With the blocking session of the previous draft it would have taken none. <span class="tag m">measured</span></p>
+
+<p><strong>How long the others wait.</strong> The longest wait of the heartbeat was 15.1 ms, the time one XMODEM block spends on the wire. That is not the loader: <code>process_run()</code> serves polls before events, and the serial device polls on every received byte, so an event-driven process waits out the block (7, finding 14). Built against a copy of <code>process.c</code> with that one function changed, the longest wait fell to 2.0 ms, which is the time the thread needs to check a block and push it through the stream. <span class="tag m">measured</span> On a chip, each page adds 7.4 to 9.0 ms: an AVR cannot execute application code while it erases and programs application flash, and interrupts stay off for that time. No design removes that; XMODEM's stop-and-wait keeps the sender quiet meanwhile.</p>
+
+<div class="box">
+<h4>Is cooperative loading tied to a fuse setting?</h4>
+<p>No. There is one implementation of the load, the thread, so every build that can load at all loads cooperatively. The size of the boot section decides only where the thread lives:</p>
+<ul>
+  <li><strong>ATmega328P, 2 KB section.</strong> The bootloader with the thread exported is 2,042 bytes. The kernel schedules the thread in the boot section and links 1.7 KB for the loader process and module table.</li>
+  <li><strong>ATmega328P, 4 KB section.</strong> The same, plus every other option, in 2,358 bytes.</li>
+  <li><strong>ATmega1284P and ATmega2560.</strong> The bootloader needs the 4 KB section and then exports the thread too (2,970 and 2,972 bytes with everything).</li>
+  <li><strong>Optiboot, or a section that is too small for the export.</strong> The kernel links its own copy of the thread, 3.1 KB in all, and loads just as cooperatively.</li>
+</ul>
+<p>The build step of 6.9 makes the choice from the block size. <code>BOOT_CONF_LOAD_SERVICE</code> forces it either way, and <code>LOADER_CONF_THREAD</code> tells the kernel which thread to schedule.</p>
+</div>
+
+<h3><span class="n">4.7</span>A module is a process type</h3>
+
+<p>protoduino already has the right descriptor. <code>process_type_t</code> is a small record in flash holding a name, a thread function, an instance size and a priority, and <code>process_new(type, storage)</code> turns it into a running process in memory the caller supplies. A loadable module is exactly that record plus its code, linked into a flash slot. Its source is an ordinary process, written with <code>PROCESS_DEFINE</code> and <code>PROCESS_THREAD</code>, with one more line: <code>MODULE(name)</code>. Loading a module means programming its bytes and calling the function every built-in process type is started with. <span class="tag m">measured</span></p>
 
 <p>Protothreads are stackless, and a protoduino process keeps its variables in its instance struct. A module written that way has no <code>.data</code> and no <code>.bss</code>, so there is nothing in RAM to place or relocate: the kernel hands the thread a pointer, and the module works wherever that points. The rule is enforced at link time rather than left to discipline (6.8).</p>
 
-<h3><span class="n">4.7</span>Relocation without a relocator</h3>
+<h3><span class="n">4.8</span>Relocation without a relocator</h3>
 
-<p>The first module scheme links each module for one slot, which needs no code on the device. To let one file load into any slot, addresses inside the module must be adjusted, and the usual way needs a relocation engine. There is a cheaper way. If slots are aligned to 512 bytes, moving a module changes only the high byte of every byte address and of every word address; low bytes never change and no carry crosses between them. A fix-up then is one position in the stream whose high byte gets a constant added. The host sorts those positions by offset and puts the list ahead of the code, and the loader applies them as the bytes go by, still in one pass. On parts with absolute call instructions, calls from the module into the kernel need no fix-up at all. <span class="tag p">proposed</span></p>
+<p>A module is linked for one slot, which needs no code on the device. To let one file load into any slot, addresses inside the module must be adjusted, and the usual way needs a relocation engine. There is a cheaper way. If slots are aligned to 512 bytes, moving a module changes only the high byte of every byte address and of every word address; low bytes never change and no carry crosses between them. A fix-up then is one position in the stream whose high byte gets a constant added. The host sorts those positions by offset and puts the list ahead of the code, and the loader applies them as the bytes go by, still in one pass. On parts with absolute call instructions, calls from the module into the kernel need no fix-up at all. <span class="tag p">proposed</span></p>
 
-<h3><span class="n">4.8</span>The same core on the host, and the simulator as oracle</h3>
+<h3><span class="n">4.9</span>The same core on the host, and the simulator as oracle</h3>
 
-<p>The core is plain C with no AVR dependency, so it compiles unchanged for the host. That gives three things: unit tests and fuzzing at desktop speed; a host tool that can say exactly what a device will accept, because it runs the device's code; and, compiled to WebAssembly, the same check inside a Node command-line tool or protosim's web front end. For end-to-end tests, the simulator already contains a trusted ELF reader. Flashing a file through the loader inside simavr and comparing the result with what simavr's own reader produces for the same file tests the loader against an independent implementation. Section 9 reports that comparison.</p>
+<p>The stream is plain C with no AVR dependency, so it compiles unchanged for the host. That gives three things: unit tests and fuzzing at desktop speed; a host tool that can say exactly what a device will accept, because it runs the device's code; and, compiled to WebAssembly, the same check inside a Node command-line tool or protosim's web front end. For end-to-end tests, the simulator already contains a trusted ELF reader. Flashing a file through the loader inside simavr and comparing the result with what simavr's own reader produces for the same file tests the loader against an independent implementation. Section 9 reports that comparison.</p>

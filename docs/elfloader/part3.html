@@ -1,6 +1,6 @@
 <h2 class="newpage"><span class="n">7</span>Fixes for current protoduino caveats</h2>
 
-<p>These came out of reviewing the UART and serial layers as a base for the loader. Each was checked by running protoduino's real sources under protosim, except where marked as read. None has been applied. Four are defects; the rest are small.</p>
+<p>Findings 1 to 9 came out of reviewing the UART and serial layers as a base for the loader. Findings 10 to 21 came out of building the loader process and a module on the scheduler, the pipes and the serial device process. Each was checked by running protoduino's real sources in simulation, except where marked as read. None has been applied. The ones a user is most likely to meet are 14 and 15 in the scheduler, 11 to 13 in the serial path, and 10 with a newer compiler.</p>
 
 <table>
   <thead><tr><th style="width:4%">#</th><th style="width:24%">Where</th><th>What happens</th><th style="width:27%">Evidence</th></tr></thead>
@@ -14,6 +14,18 @@
     <tr><td>7</td><td><code>uart_private_impl.h</code></td><td>The interrupt handlers and callback pointers are always compiled in. A bootloader that wants the same register mapping without vectors cannot have it.</td><td><span class="tag r">read</span> The polled calls themselves work with interrupts off <span class="tag m">measured</span>: input <code>hello</code> echoed in full.</td></tr>
     <tr><td>8</td><td><code>platformio.ini</code></td><td><code>lib_deps</code> is an absolute path on one Windows machine, so the project builds nowhere else as checked in.</td><td><span class="tag r">read</span></td></tr>
     <tr><td>9</td><td><code>uart_private_impl.h:44, :162</code></td><td>A baud rate of 0 divides by zero in <code>openex()</code>. A <code>#pragma message</code> prints on every build of every UART instance.</td><td><span class="tag r">read</span></td></tr>
+    <tr><td>10</td><td><code>src/cc.h</code>, <code>CC_EXTERN</code>; <code>sys/process.h</code></td><td><code>CC_EXTERN</code> is <code>extern "C"</code> in C++ and nothing in C. <code>CC_EXTERN struct process *process_current;</code> and <code>PROCESS_EXTERN()</code> therefore define the variable in every C file that includes the header. avr-gcc 7 merges the copies silently; from GCC 10 on, the link fails. A module got its own <code>process_current</code> this way, in RAM it is not allowed to have.</td><td><span class="tag m">measured</span> <code>nm</code> shows a common symbol; with <code>-fno-common</code>: &ldquo;multiple definition of `process_current'&rdquo;</td></tr>
+    <tr><td>11</td><td><code>src/sys/serial.h:6&ndash;7</code>, <code>serial.conf.h</code></td><td><code>serial.h</code> includes <code>protoduino-config.h</code> before <code>cc.h</code>, so <code>serial.conf.h</code> chooses the buffer sizes before <code>RAMEND</code> is defined. Undefined, it counts as 0, and every part gets the 16-byte buffers meant for parts with less than 1 KB of RAM.</td><td><span class="tag m">measured</span> ATmega328P: both rings 16 bytes; 64 when <code>avr/io.h</code> is included first</td></tr>
+    <tr><td>12</td><td><code>src/sys/process/ serial_private.h</code>, service loop</td><td>On a poll the serial device moves as many bytes from <code>tx_pipe</code> as the UART ring has room for, then waits for the next event. Nothing polls it for the rest, so they stay in the pipe until somebody happens to write or receive again.</td><td><span class="tag m">measured</span> 80 bytes written at once: 15 left the UART</td></tr>
+    <tr><td>13</td><td><code>src/sys/process/ serial.h</code>, usage text</td><td>The documented way to choose a baud rate, setting <code>baud</code> and then calling <code>process_new()</code>, has no effect: <code>process_new()</code> clears the struct. The device opens at the default 9600.</td><td><span class="tag m">measured</span> 115200 requested: <code>UBRR0L</code> = 207, which is 9600</td></tr>
+    <tr><td>14</td><td><code>src/sys/process.c</code>, <code>process_run()</code></td><td><code>if (do_poll()) return; do_event();</code> dispatches an event only when no poll was pending. A process that polls itself on every turn stops all events for good. And because the serial device polls on every received byte, events also stop while bytes arrive back to back.</td><td><span class="tag m">measured</span> a self-polling process ran; a second process never got its INIT event. During a transfer a heartbeat waited 15.1 ms, the length of a block; 2.0 ms with the change below.</td></tr>
+    <tr><td>15</td><td><code>process.c</code>, <code>call_process()</code></td><td>When a process ends, the scheduler arms <code>PT_FINAL</code> and waits for the next invocation to run the <code>PT_FINALLY</code> block and unlink it. Nothing causes that invocation: <code>process_poll()</code> ignores a process in that state. The process stays linked, its cleanup never runs and its pool slot is never free, unless an event happens to be addressed to it.</td><td><span class="tag m">measured</span> a process that ended: after 2.5 s its cleanup had not run and its state was still EXITING</td></tr>
+    <tr><td>16</td><td><code>process.c</code>, <code>process_start()</code></td><td>The return value of the <code>process_post()</code> that delivers the INIT event is ignored. With the default queue of three usable entries, a fourth process started in a row is linked into the list and never runs.</td><td><span class="tag r">read</span></td></tr>
+    <tr><td>17</td><td><code>src/sys/clock.h</code></td><td>Accepts only the ATmega328, 168 and 88 families and stops with <code>#error</code> on every other part, although <code>cpu/avr/clock.h</code> has nothing in it that depends on the part. Timers, and everything that uses them, do not build for the ATmega2560 that example 22 targets.</td><td><span class="tag m">measured</span> &ldquo;clock: Unsupported Platform!&rdquo; for <code>-mmcu=atmega2560</code></td></tr>
+    <tr><td>18</td><td><code>src/sys/pt/pipe.h:11&ndash;17</code></td><td><code>PT_STDIN()</code> and <code>PT_STDOUT()</code> yield the pipe struct, not its address, so <code>PT_PIPE_AVAILABLE()</code>, <code>PT_PIPE_READ()</code> and the others do not compile with the <code>struct ipc_pt</code> they are written for. The <code>_EX</code> forms, which processes use, are fine.</td><td><span class="tag m">measured</span> &ldquo;incompatible type for argument 1 of 'ipc_pipe_available'&rdquo;</td></tr>
+    <tr><td>19</td><td><code>serial_private.h</code>, <code>_on_rx</code></td><td>The receive callback of the serial process returns nothing, but is installed where the serial layer expects a function that returns whether it has consumed the byte. The layer acts on whatever is left in the result register: sometimes it stores the byte in its own ring as well, which nobody reads, and counts overflows there.</td><td><span class="tag m">measured</span> compiler: &ldquo;incompatible pointer type&rdquo;; effect <span class="tag r">read</span></td></tr>
+    <tr><td>20</td><td><code>uart_private_impl.h</code>, <code>openex()</code></td><td>The divisor and the reported baud rate are computed at run time with 32-bit divisions, also when the rate is a constant. A program whose only UART call is <code>uart0_open(115200)</code> pays 292 bytes for it.</td><td><span class="tag m">measured</span> <code>uart0_openex</code> 224 B, <code>__udivmodsi4</code> 68 B</td></tr>
+    <tr><td>21</td><td><code>sys/pt.h</code> <code>PT_RAISE()</code> with <code>sys/process.h</code></td><td><code>PT_RAISE()</code> returns <code>PT_WAITING</code> and lets the handler run the next time the thread is scheduled. A process is only scheduled when an event or a poll arrives, so a process that raises may never reach its <code>PT_CATCHANY</code> block, and its error is never reported. There is no <code>PROCESS_RAISE()</code>.</td><td><span class="tag m">measured</span> the first loader process: a refused module produced no report until its raise was preceded by a poll</td></tr>
   </tbody>
 </table>
 
@@ -50,6 +62,49 @@ void CC_TMPL_FN(close)(void)
   }
   CC_TMPL2_FN(tx_enable_int)();
   return cnt;</code></pre>
+<pre><code><span class="c">/* 10. cc.h: a declaration must be a declaration in C as well */</span>
+#ifdef __cplusplus
+#define CC_EXTERN extern "C"
+#else
+#define CC_EXTERN extern
+#endif
+<span class="c">/*     and process.c then needs the one definition:  struct process *process_current; */</span>
+
+<span class="c">/* 11. sys/serial.h: the configuration needs the device header first */</span>
+#include &lt;cc.h&gt;                     <span class="c">/* brings in avr/io.h: RAMEND, RAMSTART */</span>
+#include &lt;protoduino-config.h&gt;
+
+<span class="c">/* 12. sys/process/serial_private.h: keep going while tx_pipe holds bytes */</span>
+      CC_TMPL2_FN(flush)();
+      if (ipc_pipe_available(&amp;self-&gt;tx_pipe) &gt; 0)
+        process_poll(pt_process);
+
+<span class="c">/* 14. sys/process.c: polls first, then one event in the same call */</span>
+void process_run(void)
+{
+  do_poll();
+  do_event();
+}
+
+<span class="c">/* 15. sys/process.c, call_process(): a process that ended gets the turn its cleanup needs */</span>
+    PT_FINAL(&amp;p-&gt;pt);
+    process_post(p, PROCESS_EVENT_EXIT, NULL);
+
+<span class="c">/* 19. sys/process/serial_private.h: say that the byte has been taken */</span>
+static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
+{
+  uint8_t b = (uint8_t)ch;
+  ipc_pipe_write(&amp;CC_CONCAT2(CC_TMPL_PREFIX, _proc).rx_pipe, &amp;b, 1);
+  process_poll(&amp;CC_CONCAT2(CC_TMPL_PREFIX, _proc).base);
+  return true;
+}
+
+<span class="c">/* 21. sys/process.h: raise in a process, and get the turn in which the handler runs */</span>
+#define PROCESS_RAISE(err)                 \
+  do {                                     \
+    process_poll(pt_process);              \
+    PT_RAISE(&amp;pt_process-&gt;pt, (err));  \
+  } while (0)</code></pre>
 
 <ul>
   <li><strong>4.</strong> Replace <code>docs/loader.md</code> with a short page that points here, and mark the README entry as a design, not a feature.</li>
@@ -58,14 +113,22 @@ void CC_TMPL_FN(close)(void)
   <li><strong>7.</strong> Add <code>UART_CONF_ISR</code>, default 1. With 0, the handlers, the callback setters and the receive-interrupt enable in <code>openex()</code> are left out, and the bootloader can use the same template.</li>
   <li><strong>8.</strong> A relative library reference in <code>platformio.ini</code>.</li>
   <li><strong>9.</strong> Return <code>ERR_SERIAL_BAUD</code> for a zero rate; put the message behind a verbose-build switch.</li>
+  <li><strong>13.</strong> Correct the usage text: set <code>baud</code> after <code>process_new()</code>, before the scheduler runs; or let <code>process_new()</code> leave the bytes behind <code>struct process</code> alone when the type asks for it.</li>
+  <li><strong>14, with 12.</strong> With polls no longer ahead of events, a device may poll itself until its work is done without stopping anybody. The measurement of 4.6 is this change and nothing else: <code>prototype/kernel/build_kernel.sh</code> with <code>FAIR=1</code> builds against a copy of <code>process.c</code> in which only <code>process_run()</code> differs.</li>
+  <li><strong>16.</strong> Let <code>process_start()</code> return whether the INIT event was queued, and <code>process_new()</code> return NULL when it was not.</li>
+  <li><strong>17.</strong> Select <code>cpu/avr/clock.h</code> on <code>__AVR__</code>, as <code>sys/uart.h</code> does for its driver.</li>
+  <li><strong>18.</strong> <code>#define PT_STDIN(pt) (&amp;(pt)-&gt;pipein)</code> and the same for <code>PT_STDOUT</code>.</li>
+  <li><strong>20, with 7.</strong> A compile-time form: <code>#define UART_UBRR(baud) ((F_CPU / 4 / (baud) - 1) / 2)</code> and <code>uartN_open_ubrr(ubrr, flags)</code> that only writes registers. With the polled calls as <code>static inline</code> in the header, a bootloader could then open, poll and close the port through the library and pay nothing for it. The bootloader of this document would lose its one direct register access.</li>
 </ul>
+
+<p>The loader works on the library as it is. It carries a workaround for 14, 15 and 21, marked in <code>src/sys/process/loader.c</code>; the test sketch carries one for 12 and 13; the module link carries one for 10.</p>
 
 <div class="box">
 <h4>Findings from my first review that testing withdrew</h4>
 <p>They are listed so the record is straight. The polled receive calls do work after <code>open()</code> when interrupts are off. <code>rx_clear_errors()</code> does clear an overrun under simavr (S7 in 8.1); on a real chip those flags are read-only and clear when the data register is read, so the call is harmless there. The transmit path through the data-register-empty interrupt is sound: 18 bytes went out in 19 handler calls. The 57600 special case is the deliberate Arduino-compatible behaviour. The read-modify-write on the control register can at worst cause one extra interrupt that switches itself off.</p>
 </div>
 
-<h2 class="newpage"><span class="n">8</span>Simulator findings: simavr and protosim</h2>
+<h2><span class="n">8</span>Simulator findings: simavr and protosim</h2>
 
 <p>Running the prototype and the probes turned up behaviour in both simulators that matters to anyone testing firmware with them. This section lists all of it: where simavr differs from a real chip, defects in protosim, and what protosim would need to test this loader without a separate harness. The versions are protosim <code>6fadc6f</code> and simavr <code>a6fc4cc</code>, the commit protosim pins. Nothing was changed in either project. Recorded probe output is in <code>prototype/results-simulators.txt</code>.</p>
 
@@ -124,84 +187,88 @@ void CC_TMPL_FN(close)(void)
 <h2><span class="n">9</span>Verification</h2>
 
 <h3><span class="n">9.1</span>End to end in simulation</h3>
-<p>The loader ran inside simavr. A harness sent each file with XMODEM as a terminal program would, at 115200 baud, and afterwards compared the simulated flash below the record page with what simavr's own ELF reader produces for the same file.</p>
+<p>The bootloader ran inside simavr. A harness sent each file with XMODEM as a terminal program would, at 115200 baud, and afterwards compared the simulated flash below the record page with what simavr's own ELF reader produces for the same file.</p>
 
 <table class="tight">
   <thead><tr><th style="width:5%">Test</th><th style="width:42%">Scenario</th><th>Outcome</th></tr></thead>
   <tbody>
-    <tr><td>T1</td><td>328P: unmodified avr-gcc ELF, 12,860 bytes, clean line</td><td>Flash identical to the reference; record written; application reached</td></tr>
+    <tr><td>T1</td><td>328P: unmodified avr-gcc ELF, 12,868 bytes, clean line</td><td>Flash identical to the reference; record written; application reached</td></tr>
     <tr><td>T2</td><td>328P: block 3 damaged in transit, acknowledgement of block 5 lost</td><td>One block sent again after a negative acknowledgement, one duplicate dropped; flash identical</td></tr>
-    <tr><td>T3</td><td>328P: protoduino example 12, 29,404 bytes with debug information</td><td>Flash identical; 3.06 s of line time</td></tr>
-    <tr><td>T4</td><td>328P: the same example stripped, 2,048 bytes</td><td>Flash identical; 0.22 s</td></tr>
-    <tr><td>T5</td><td>328P, empty chip: an ATmega2560 file</td><td>Refused <code>0x81</code>; flash untouched</td></tr>
-    <tr><td>T6</td><td>328P, empty chip: random bytes</td><td>Refused <code>0x80</code>; flash untouched</td></tr>
-    <tr><td>T7</td><td>328P: install, reset, then offer an ATmega2560 file</td><td>Refused <code>0x81</code>; the installed application intact and started again after the window</td></tr>
+    <tr><td>T3</td><td>328P: protoduino example 12, 29,624 bytes with debug information</td><td>Flash identical; 3.17 s of line time</td></tr>
+    <tr><td>T4</td><td>328P: the same example stripped, 2,048 bytes</td><td>Flash identical; 0.23 s</td></tr>
+    <tr><td>T5</td><td>328P, empty chip: an ATmega2560 file</td><td>Refused <code>0xD0</code>; flash untouched</td></tr>
+    <tr><td>T6</td><td>328P, empty chip: random bytes</td><td>Refused <code>0x51</code>; flash untouched</td></tr>
+    <tr><td>T7</td><td>328P: install, reset, then offer an ATmega2560 file</td><td>Refused <code>0xD0</code>; the installed application intact and started again 4.8 s after the reset</td></tr>
     <tr><td>T8</td><td>328P, all options: file with EEPROM data and a matching signature</td><td>Flash identical; EEPROM holds <code>01 02 03 04 05</code></td></tr>
-    <tr><td>T9</td><td>328P, all options: an ATmega168P file, same core family, other device</td><td>Refused <code>0x87</code> at the signature; no record written; the loader keeps control</td></tr>
-    <tr><td>T10</td><td>328P: an installed application programs a page through the service table</td><td>Page reads back as written; the caller's interrupt state restored</td></tr>
+    <tr><td>T9</td><td>328P, all options: an ATmega168P file, same core family, other device</td><td>Refused <code>0x53</code> at the signature; no record written; the bootloader keeps control</td></tr>
+    <tr><td>T10</td><td>328P: an installed application programs a page with <code>flash_page_write()</code> through the service table</td><td>Page reads back as written; the caller's interrupt state restored</td></tr>
     <tr><td>T11</td><td>2560: small image</td><td>Flash identical; record written; application reached</td></tr>
-    <tr><td>T12</td><td>2560: 106,830-byte image reaching far flash, 839 blocks</td><td>Flash identical; 12.0 s of line time</td></tr>
-    <tr><td>T13</td><td>328P: execution started in erased flash below the loader, at both word alignments, with the skip taken and not taken</td><td>The loader was reached in all four cases. In a control build without the landing pad, one case skipped the loader's first instruction and ran its rule table as code</td></tr>
+    <tr><td>T12</td><td>2560: 106,830-byte image reaching far flash, 839 blocks</td><td>Flash identical; 12.7 s of line time</td></tr>
+    <tr><td>T13</td><td>328P: execution started in erased flash below the bootloader, at both word alignments, with the skip taken and not taken</td><td>The bootloader was reached in all four cases. In a control build without the landing pad, one case skipped its first instruction and ran the rule table as code</td></tr>
   </tbody>
 </table>
 
 <h3><span class="n">9.2</span>Run-time module loading in simulation</h3>
-<p>Here the bootloader only sits in flash. A stand-in kernel runs on the ATmega328P, and the harness sends it a module with XMODEM while it runs. Afterwards the module slot is compared with simavr's own load of the module file, the kernel image is checked for changes, and the part is reset to see what starts from flash. What the kernel is, and is not, is set out in 6.8.</p>
+<p>Here the bootloader only sits in flash. The test kernel of 6.8 runs on the ATmega328P: protoduino's scheduler with the serial device process, a kernel process, a heartbeat process and the loader process. The harness sends it a module with XMODEM while it runs. Afterwards the slots are compared with simavr's own load of the module file, the kernel image is checked for changes, and the part is reset to see what starts from flash. The kernel prints how many turns the heartbeat took during the load and the longest time it waited for one.</p>
 
 <table class="tight">
-  <thead><tr><th style="width:5%">Test</th><th style="width:44%">Scenario</th><th>Outcome</th></tr></thead>
+  <thead><tr><th style="width:5%">Test</th><th style="width:41%">Scenario</th><th>Outcome</th></tr></thead>
   <tbody>
-    <tr><td>M1</td><td>protoduino bootloader with the module loader; the kernel calls its session service</td><td>Slot identical to the reference; module ran and kept its state; recorded; started from flash after a reset</td></tr>
-    <tr><td>M2</td><td>Stock Optiboot 8.3 as the bootloader; the kernel carries the loader and writes through <code>do_spm</code></td><td>The same</td></tr>
-    <tr><td>M3</td><td>protoduino bootloader with only the page-write service; the kernel carries the loader</td><td>The same</td></tr>
-    <tr><td>M4</td><td>Kernel built for modules in flash only; module programmed together with the firmware</td><td>Module started; the kernel has no loader</td></tr>
-    <tr><td>M5</td><td>A module linked against another kernel build</td><td>Loaded into the slot, then refused by the kernel; not recorded; nothing started after a reset</td></tr>
-    <tr><td>M6</td><td>A firmware image offered to the module loader</td><td>Refused <code>0x83</code> before any write: it lies outside the slot</td></tr>
+    <tr><td>M1</td><td>protoduino bootloader in the 2 KB section that offers its load thread; the loader process schedules it there</td><td>Slot identical to the reference; module started and ran as a process; entered into the module table; started from flash after a reset. 350.0 ms; heartbeat 18,053 turns, longest wait 15.1 ms</td></tr>
+    <tr><td>M2</td><td>Stock Optiboot 8.3 as the bootloader; the kernel links its own load thread and programs through <code>do_spm</code></td><td>The same. 361.5 ms; 16,859 turns, 15.1 ms</td></tr>
+    <tr><td>M3</td><td>protoduino bootloader with only the page service; the kernel links its own load thread</td><td>The same. 361.4 ms; 16,858 turns, 15.1 ms</td></tr>
+    <tr><td>M4</td><td>Kernel built for modules in flash only; module programmed together with the firmware</td><td>Module started from the module table; the kernel has no loader</td></tr>
+    <tr><td>M5</td><td>A module linked against another kernel build</td><td>Refused <code>0xA4</code> with <strong>0 bytes programmed</strong>; the kernel process got the error from the scheduler and reported it</td></tr>
+    <tr><td>M6</td><td>A firmware image offered to the loader process</td><td>Refused <code>0xA2</code> before any write: it lies below the slot</td></tr>
     <tr><td>M7</td><td>Kernel built to load, on a bootloader that offers no service</td><td>The kernel reports that it cannot load and carries on</td></tr>
     <tr><td>M8</td><td>Kernel built without module support, module present in flash</td><td>Module ignored</td></tr>
+    <tr><td>M9</td><td>A module runs from slot 0; a second one, linked for slot 1, is loaded beside it</td><td>Both slots identical to their files; after a reset both start and take turns</td></tr>
+    <tr><td>M1'</td><td>M1 against a copy of <code>process.c</code> in which <code>process_run()</code> dispatches an event after the polls</td><td>The same load: 18,686 turns, longest wait 2.0 ms</td></tr>
   </tbody>
 </table>
-<p>In every load the kernel image was unchanged afterwards.</p>
+<p>In every load the kernel image was unchanged afterwards. The heartbeat figures are from simavr, which programs a page in no time; on a chip each page adds 7.4 to 9.0 ms to the longest wait.</p>
 
 <h3><span class="n">9.3</span>On the host</h3>
-<p>The same core, compiled natively, was fed real files in chunks of random size and its output compared with <code>avr-objcopy</code>.</p>
+<p>The same stream, compiled natively, was fed real files in chunks of random size and its output compared with <code>avr-objcopy</code>.</p>
 <ul>
-  <li>Flash and EEPROM images identical for the test program built for ATmega328P, ATmega2560 and ATtiny85; identical for example 12, for its stripped form, for one-byte-at-a-time feeding, and for the 106 KB image.</li>
-  <li>The signature bytes extracted from the three files were those of the three parts.</li>
-  <li>Refused as designed: a file for another family (<code>0x81</code>), an image larger than the window (<code>0x83</code>), a non-ELF file, a relocatable <code>.o</code> and an x86-64 object (all <code>0x80</code>). A truncated file leaves the core waiting for more.</li>
-  <li>A module was accepted in its own slot and refused in another; the firmware was refused in a module slot.</li>
+  <li>Flash images identical for the test program, for example 12, for its stripped form, for one-byte-at-a-time feeding, and for the 106 KB image. The signature bytes extracted from the test program were those of the ATmega328P.</li>
+  <li>Refused as designed: a file for another family (<code>0xD0</code>) and a non-ELF file (<code>0x51</code>), both within the first 127 bytes.</li>
   <li>The step that fills the boot section was run for every block size of three parts (6.9).</li>
 </ul>
 
-<h3><span class="n">9.4</span>Not verified</h3>
+<h3><span class="n">9.4</span>The library findings</h3>
+<p><code>prototype/probes/run_probes.sh</code> reproduces findings 10 to 15 and 17 to 20 of section 7 with small sketches on the unmodified library; its output is in <code>results-library.txt</code>.</p>
+
+<h3><span class="n">9.5</span>Not verified</h3>
 <ul>
   <li>Anything on hardware, including fuse and lock-bit settings and real programming times.</li>
   <li>Loss of power during an update. The transaction argument in 4.4 is by construction.</li>
   <li>The ATtiny path: it has never executed. Only its run-through mechanism was checked, on the ATmega328P (T13).</li>
   <li>Flash discipline. simavr accepts a missing erase, a missing read-while-write re-enable and SPM from the application section (8.1), so the simulated results cannot show that the loader gets these right.</li>
   <li>The image CRC check at start-up, the information reply, and the service table on parts above 128 KB.</li>
-  <li>Modules as protoduino processes: the tests use a stand-in kernel, one slot and a polled serial port (6.8).</li>
+  <li>How long a real page write holds the system up during a load, and what that does to <code>micros()</code>.</li>
+  <li>Module loading on any part but the ATmega328P, and with the Arduino core in place of the stand-in for it.</li>
   <li>Optiboot on a real board, and Optiboot versions other than the 8.3 image that was used.</li>
 </ul>
 
-<h3><span class="n">9.5</span>Test plan from here</h3>
+<h3><span class="n">9.6</span>Test plan from here</h3>
 <ul>
-  <li><strong>Host unit tests in CI</strong> for the core, with the files above as fixtures, and a fuzzer on <code>elfld_write()</code>. The core is small, pure C and takes untrusted input, which is the ideal fuzzing target.</li>
-  <li><strong>protosim end to end</strong> per supported part, once the additions of 8.3 exist and B1 is fixed, with the oracle comparison as the pass criterion. The module scenarios M1 to M8 belong in the same suite.</li>
+  <li><strong>Host unit tests in CI</strong> for the core, with the files above as fixtures, and a fuzzer on <code>elf_stream_write()</code>. The stream is small, pure C and takes untrusted input, which is the ideal fuzzing target.</li>
+  <li><strong>protosim end to end</strong> per supported part, once the additions of 8.3 exist and B1 is fixed, with the oracle comparison as the pass criterion. The module scenarios M1 to M9 belong in the same suite.</li>
   <li><strong>Hardware</strong>: an Uno and a Mega 2560, with an ISP programmer at hand for fuses. A relay on the supply to cut power at random points of an update, hundreds of times, checking that the board always answers afterwards.</li>
 </ul>
 
 <h2><span class="n">10</span>Roadmap, risks and open questions</h2>
 
 <table>
-  <thead><tr><th style="width:6%">Step</th><th style="width:40%">Deliverable</th><th>Done when</th></tr></thead>
+  <thead><tr><th style="width:6%">Step</th><th style="width:44%">Deliverable</th><th>Done when</th></tr></thead>
   <tbody>
-    <tr><td>R0</td><td>The fixes of section 7</td><td>The probes in <code>prototype/probes</code> give the corrected results</td></tr>
-    <tr><td>R1</td><td>Core and session in <code>src/sys/elf</code>, host tests, fuzzing</td><td>Fixtures pass in CI on the host and for two AVR parts</td></tr>
-    <tr><td>R2</td><td>Bootloader for ATmega328P and ATmega2560 with the fill step; protosim fixes B1 to B9 and the additions of 8.3</td><td>T1 to T13 run in protosim; first boards flashed with a terminal program</td></tr>
-    <tr><td>R3</td><td>Modules in the real kernel: descriptor macro, records, <code>process_new()</code> and <code>process_start()</code>; all three levels; ROM loader and own loader; Optiboot back-end</td><td>M1 to M8 pass with protoduino's scheduler, and on an Uno with Optiboot</td></tr>
-    <tr><td>R4</td><td>The <code>pd</code> tool; PlatformIO upload through it; <code>elfboot_request()</code>; descriptor check before the first write; several slots and removal</td><td><code>pio run -t upload</code> sends the <code>.elf</code>; the power-cut rig passes</td></tr>
-    <tr><td>R5</td><td>ATtiny path on hardware; relocation by fix-up stream; signed modules; a size pass in assembly</td><td>Each on its own evidence</td></tr>
+    <tr><td>R0</td><td>The fixes of section 7, the scheduler ones (14, 15, 16, 21) first</td><td>The probes in <code>prototype/probes</code> give the corrected results, and the workarounds in <code>loader.c</code> can go</td></tr>
+    <tr><td>R1</td><td>Move <code>overlay/src</code> into <code>src/</code>: stream, load thread, flash driver, module support, loader process; host tests and fuzzing for the stream</td><td>Fixtures pass in CI on the host and for two AVR parts; an example sketch loads a module</td></tr>
+    <tr><td>R2</td><td>The bootloader for ATmega328P and ATmega2560 with the fill step; protosim fixes B1 to B9 and the additions of 8.3</td><td>T1 to T13 and M1 to M9 run in protosim; first boards flashed with a terminal program</td></tr>
+    <tr><td>R3</td><td>Hardware: an Uno with this bootloader and with Optiboot, a Mega 2560; the power-cut rig</td><td>M1 to M3 pass on the boards; real page times and their effect on the scheduler are measured</td></tr>
+    <tr><td>R4</td><td>The <code>pd</code> tool; PlatformIO upload through it; an update request from the application; removal and reloading of modules; a shell command for the loader</td><td><code>pio run -t upload</code> sends the <code>.elf</code>; a module is replaced while the system runs</td></tr>
+    <tr><td>R5</td><td>ATtiny path on hardware; relocation by fix-up stream; signed modules; a size pass (6.10)</td><td>Each on its own evidence</td></tr>
   </tbody>
 </table>
 
@@ -209,12 +276,13 @@ void CC_TMPL_FN(close)(void)
 <div>
 <h4>Risks</h4>
 <ul>
-  <li><strong>Size.</strong> The 1 KB boot section may stay out of reach. The design does not depend on it; a 2 KB section costs the application 1 KB.</li>
-  <li><strong>ATtiny recovery.</strong> Without hardware protection for the loader's pages, a faulty application can destroy it. The claim for these parts is deliberately weaker.</li>
+  <li><strong>Size.</strong> The protothread form costs 374 bytes. On parts above 64 KB the bootloader needs the 4 KB section; on the ATmega328P the 2 KB section is full to within 6 bytes.</li>
+  <li><strong>Page writes still stop the system.</strong> Cooperative means between pages. Each page holds everything for 7 to 9 ms on a chip, and no AVR design can avoid that.</li>
+  <li><strong>The scheduler under load.</strong> Until finding 14 is fixed, a process that waits for an event waits out every block of a transfer.</li>
+  <li><strong>ATtiny recovery.</strong> Without hardware protection for the bootloader's pages, a faulty application can destroy it. The claim for these parts is deliberately weaker.</li>
   <li><strong>Exact binding.</strong> Convenient while developing, awkward for distributing modules. The table scheme is the answer and costs flash.</li>
-  <li><strong>The system stops while loading.</strong> The ROM loader blocks for the whole transfer, and any flash write keeps interrupts off for milliseconds.</li>
-  <li><strong>Optiboot is a moving target.</strong> The kernel relies on where Optiboot puts <code>do_spm</code> and on its size. Both are checked at start-up, but only version 8.3 was tried.</li>
-  <li><strong>Old compiler.</strong> All sizes are from avr-gcc 7.3.0. A newer one may be better or worse.</li>
+  <li><strong>Optiboot is a moving target.</strong> The flash driver relies on where Optiboot puts <code>do_spm</code> and on its size. Both are checked at run time, but only version 8.3 was tried.</li>
+  <li><strong>Old compiler.</strong> All sizes are from avr-gcc 7.3.0. A newer one may be better or worse, and it turns finding 10 into a link error.</li>
 </ul>
 </div>
 <div>
@@ -223,9 +291,9 @@ void CC_TMPL_FN(close)(void)
   <li>Which small part is meant by &ldquo;ATtiny8&rdquo;? The answer decides whether the small-frame transport is needed early.</li>
   <li>Should updates be authenticated, and if so with what? A keyed hash costs several hundred bytes.</li>
   <li>Which binding scheme is the default for modules: exact or table?</li>
-  <li>May loading a module stop the system for seconds, as the ROM loader does, or must it be cooperative?</li>
-  <li>Is the default order for filling the boot section the right one?</li>
-  <li>Should the loader wait after every reset, or only on request? It changes start-up time by seconds.</li>
+  <li>Is the default order for filling the boot section the right one? On the ATmega328P it trades the merging of segments for the load thread.</li>
+  <li>Is a 4 KB boot section acceptable on the ATmega2560 and ATmega1284P, or should a blocking build be kept for the 2 KB section there?</li>
+  <li>Should the bootloader wait after every reset, or only on request? It changes start-up time by seconds.</li>
   <li>Where should the bootloader's build live, given that it cannot be under <code>src/</code>?</li>
 </ul>
 </div>
@@ -246,7 +314,7 @@ void CC_TMPL_FN(close)(void)
     <tr><td></td><td>42, 44</td><td><code>e_phentsize</code>, <code>e_phnum</code></td><td>Must be 32; count of program headers, below 256</td></tr>
     <tr><td>Program header</td><td>0</td><td><code>p_type</code></td><td>Only 1, a loadable segment, is considered</td></tr>
     <tr><td></td><td>4</td><td><code>p_offset</code></td><td>Where the segment's bytes are in the file; must not go backwards</td></tr>
-    <tr><td></td><td>8, 20</td><td><code>p_vaddr</code>, <code>p_memsz</code></td><td>Run address and size in memory; used only to record a RAM extent</td></tr>
+    <tr><td></td><td>8, 20</td><td><code>p_vaddr</code>, <code>p_memsz</code></td><td>Run address and size in memory; not used</td></tr>
     <tr><td></td><td>12</td><td><code>p_paddr</code></td><td>Load address. Its top byte selects the memory; the rest is the address there.</td></tr>
     <tr><td></td><td>16</td><td><code>p_filesz</code></td><td>Bytes to deliver; a segment with none is skipped</td></tr>
   </tbody>
@@ -254,23 +322,26 @@ void CC_TMPL_FN(close)(void)
 <p class="small">For the ATmega328P test program avr-gcc wrote six loadable segments: code at load address 0; initial <code>.data</code> at run address <code>0x800100</code> but load address <code>0x136</code>, directly after the code; <code>.bss</code> with no file bytes; EEPROM at <code>0x810000</code>; fuses at <code>0x820000</code>; signature at <code>0x840000</code>. <span class="tag m">measured</span></p>
 
 <h2><span class="n">B</span>Reproducing the measurements</h2>
-<p>Everything is in <code>docs/elfloader/prototype/</code>. It needs <code>gcc-avr</code>, <code>avr-libc</code>, <code>libelf-dev</code> and protosim built with its simavr submodule. The Optiboot image is not included: copy <code>optiboot_atmega328.hex</code> from the Optiboot repository into <code>fixtures/</code> for M2, M4 and M8.</p>
-<pre><code>./make_fixtures.sh                       <span class="c"># test files, and the stand-in kernels with their modules</span>
+<p>The code is in <code>docs/elfloader/overlay/</code>, the test bench in <code>docs/elfloader/prototype/</code>. It needs <code>gcc-avr</code>, <code>avr-libc</code>, <code>libelf-dev</code> and protosim built with its simavr submodule. The Optiboot image is not included: copy <code>optiboot_atmega328.hex</code> from the Optiboot repository into <code>fixtures/</code> for M2, M4 and M8.</p>
+<pre><code>./make_fixtures.sh                       <span class="c"># test files, and the test kernels with their modules</span>
 
-<span class="c"># core on the host, against a file built with avr-gcc</span>
-gcc -std=c99 -O2 -DELFLD_FEAT_EEPROM=1 -DELFLD_FEAT_SIGNATURE=1 -o host_test host_test.c elfld.c
+<span class="c"># the stream on the host, against a file built with avr-gcc</span>
+gcc -std=gnu11 -O2 -DELF_CONF_EEPROM=1 -DELF_CONF_SIGNATURE=1 -DELF_CONF_MAX_SEGMENTS=6 \
+    -I../overlay/src -I../../../src -o host_test host_test.c ../overlay/src/sys/elf.c
 ./host_test fixtures/app-atmega328p.elf 5 out.bin
 
-<span class="c"># the harness that runs the loader inside simavr</span>
+<span class="c"># the harness that runs the bootloader inside simavr</span>
 S=../../../../protosim/libraries/simavr/simavr
 gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
     $S/obj-x86_64-linux-gnu/libsimavr.a -lelf -lm -lpthread
 
 ./run_tests.sh                           <span class="c"># T1 to T13</span>
-./run_modules.sh                         <span class="c"># M1 to M8</span>
+./run_modules.sh                         <span class="c"># M1 to M9</span>
 ./fit.sh atmega328p 2048                 <span class="c"># fill one boot section</span>
-./build.sh m2560 atmega2560 0x3F000 -DELFBOOT_FEAT_MODULES=1</code></pre>
-<p class="small">Recorded outputs are in <code>results-sizes.txt</code>, <code>results-fit.txt</code>, <code>results-tests.txt</code>, <code>results-modules.txt</code> and <code>results-simulators.txt</code>. The UART and serial findings of section 7 come from <code>probes/</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>; the simulator findings of section 8 from <code>simprobes/</code> and <code>sim_harness --fallthrough</code>.</p>
+./sizes.sh                               <span class="c"># the tables of 6.8 to 6.10</span>
+probes/run_probes.sh                     <span class="c"># findings 10 to 20 of section 7</span>
+./build.sh m2560 atmega2560 0x3F000 -DBOOT_CONF_LOAD_SERVICE=1</code></pre>
+<p class="small">Recorded outputs are in <code>results-sizes.txt</code>, <code>results-fit.txt</code>, <code>results-tests.txt</code>, <code>results-modules.txt</code>, <code>results-library.txt</code> and <code>results-simulators.txt</code>. Findings 1 to 9 of section 7 come from the other programs in <code>probes/</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>; the simulator findings of section 8 from <code>simprobes/</code> and <code>sim_harness --fallthrough</code>.</p>
 
 <h3>Sources</h3>
 <ul class="src">
