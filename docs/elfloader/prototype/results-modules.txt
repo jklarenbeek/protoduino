@@ -1,58 +1,74 @@
 
-=== M1 protoduino bootloader with the module loader; the kernel calls it (ROM loader) ===
-kernel before the transfer : kernel up id=deac | no module in flash | waiting for a module
-transfer                   : 840 bytes, 7 blocks, acks=8 naks=0
-kernel after the transfer  : load result 01 | module runs: 41 42 43 | recorded | end
-module slot 0x6000..0x7000  : 34 bytes of module, 0 mismatches against simavr's ELF reader
+=== M1 protoduino bootloader (2 KB) that offers its load thread; the loader process schedules it ===
+kernel before the transfer : kernel up id=1c8f | modules started from flash: 0 | waiting for a module for slot 0
+transfer                   : 3184 bytes, 25 blocks, acks=26 naks=0, 350.0 ms
+kernel after the transfer  :  m0module started | heartbeat turns during the load: 18053, longest wait 15136 us | end m1 m2
+module slots 0x6000..0x7000 : 237 bytes programmed (0 before the transfer), 0 differ from simavr's reading of the file
 kernel image               : 0 bytes changed by the load
-after a reset              : kernel up id=deac | module in flash: 41 42 43 | waiting for a moduleC
+after a reset              : kernel up id=1c8f | modules started from flash: 1 | waiting for a module for slot 1 m0 m1 m2C
 exit=0
 
-=== M2 stock Optiboot 8.3; the kernel carries its own loader and writes through do_spm ===
-kernel before the transfer : kernel up id=d0a0 | no module in flash | waiting for a module
-transfer                   : 840 bytes, 7 blocks, acks=8 naks=0
-kernel after the transfer  : load result 01 | module runs: 41 42 43 | recorded | end
-module slot 0x6000..0x7000  : 34 bytes of module, 0 mismatches against simavr's ELF reader
+=== M2 stock Optiboot 8.3; the kernel links its own load thread and writes pages through do_spm ===
+kernel before the transfer : kernel up id=4ff4 | modules started from flash: 0 | waiting for a module for slot 0
+transfer                   : 3312 bytes, 26 blocks, acks=27 naks=0, 361.5 ms
+kernel after the transfer  :  m0module started | heartbeat turns during the load: 16859, longest wait 15068 us | end m1 m2
+module slots 0x6000..0x7000 : 237 bytes programmed (0 before the transfer), 0 differ from simavr's reading of the file
 kernel image               : 0 bytes changed by the load
-after a reset              : kernel up id=d0a0 | module in flash: 41 42 43 | waiting for a moduleC
+after a reset              : kernel up id=4ff4 | modules started from flash: 1 | waiting for a module for slot 1 m0 m1 m2C
 exit=0
 
-=== M3 protoduino bootloader with only the page-write service; the kernel carries its own loader ===
-kernel before the transfer : kernel up id=e661 | no module in flash | waiting for a module
-transfer                   : 840 bytes, 7 blocks, acks=8 naks=0
-kernel after the transfer  : load result 01 | module runs: 41 42 43 | recorded | end
-module slot 0x6000..0x7000  : 34 bytes of module, 0 mismatches against simavr's ELF reader
+=== M3 protoduino bootloader with only the page service; the kernel links its own load thread ===
+kernel before the transfer : kernel up id=fda4 | modules started from flash: 0 | waiting for a module for slot 0
+transfer                   : 3312 bytes, 26 blocks, acks=27 naks=0, 361.4 ms
+kernel after the transfer  :  m0module started | heartbeat turns during the load: 16858, longest wait 15056 us | end m1 m2
+module slots 0x6000..0x7000 : 237 bytes programmed (0 before the transfer), 0 differ from simavr's reading of the file
 kernel image               : 0 bytes changed by the load
-after a reset              : kernel up id=e661 | module in flash: 41 42 43 | waiting for a moduleC
+after a reset              : kernel up id=fda4 | modules started from flash: 1 | waiting for a module for slot 1 m0 m1 m2C
 exit=0
 
-=== M4 kernel built to use only modules already in flash; module programmed with the firmware (Optiboot) ===
-kernel output              : kernel up id=b769 | module in flash: 41 42 43 | end
+=== M4 kernel that only starts modules already in flash; module programmed with the firmware (Optiboot) ===
+kernel output              : kernel up id=cdc | modules started from flash: 1 | end m0 m1 m2
 exit=0
 
 === M5 a module linked against another kernel build is offered ===
-kernel before the transfer : kernel up id=deac | no module in flash | waiting for a module
-transfer                   : 840 bytes, 7 blocks, acks=8 naks=0
-kernel after the transfer  : load result 01 | module runs: refused, reason 02 | end
-module slot 0x6000..0x7000  : 34 bytes of module, 0 mismatches against simavr's ELF reader
+kernel before the transfer : kernel up id=1c8f | modules started from flash: 0 | waiting for a module for slot 0
+transfer                   : 2828 bytes, 23 blocks, acks=0 naks=0 REFUSED
+refusal code               : 0xa4
+kernel after the transfer  : load error a4 | heartbeat turns during the load: 17959, longest wait 10080 us | end
+module slots 0x6000..0x7000 : 0 bytes programmed (0 before the transfer), 0 differ from simavr's reading of the file
 kernel image               : 0 bytes changed by the load
-after a reset              : kernel up id=deac | no module in flash | waiting for a moduleC
 exit=0
 
-=== M6 a firmware image is offered to the module loader ===
-kernel before the transfer : kernel up id=deac | no module in flash | waiting for a module
+=== M6 a firmware image is offered to the loader process ===
+kernel before the transfer : kernel up id=1c8f | modules started from flash: 0 | waiting for a module for slot 0
 transfer                   : 12868 bytes, 101 blocks, acks=0 naks=0 REFUSED
-refusal code               : 0x83
-kernel after the transfer  : load result 83 | end
-module slot 0x6000..0x7000  : 0 bytes of module, 0 mismatches against simavr's ELF reader
+refusal code               : 0xa2
+kernel after the transfer  : load error a2 | heartbeat turns during the load: 17959, longest wait 10080 us | end
+module slots 0x6000..0x7000 : 0 bytes programmed (0 before the transfer), 0 differ from simavr's reading of the file
 kernel image               : 0 bytes changed by the load
-after a reset              : kernel up id=deac | no module in flash | waiting for a moduleC
-exit=1
+exit=0
 
 === M7 kernel built to load, but the bootloader offers no service ===
-kernel output              : kernel up id=deac | no module in flash | no flash service in the bootloader | end
+kernel output              : kernel up id=1c8f | modules started from flash: 0 | the bootloader offers no way to load a module | end
 exit=0
 
 === M8 kernel built without module support, module present in flash ===
 kernel output              : kernel up | end
+exit=0
+
+=== M9 a module runs from slot 0; a second one, linked for slot 1, is loaded beside it ===
+kernel before the transfer : kernel up id=1c8f | modules started from flash: 1 | waiting for a module for slot 1 m0 m1 m2
+transfer                   : 3184 bytes, 25 blocks, acks=26 naks=0, 350.1 ms
+kernel after the transfer  :  m0module started | heartbeat turns during the load: 18053, longest wait 15064 us | end m1 m2
+module slots 0x6000..0x7000 : 474 bytes programmed (237 before the transfer), 0 differ from simavr's reading of the files
+kernel image               : 0 bytes changed by the load
+after a reset              : kernel up id=1c8f | modules started from flash: 2 | every slot holds a module | end m0 m0 m1 m1 m2 m2
+exit=0
+=== experiment: the same kernel and module, built against a copy of process.c whose process_run() dispatches one event after the polls (FAIR=1) ===
+kernel before the transfer : kernel up id=7d6e | modules started from flash: 0 | waiting for a module for slot 0
+transfer                   : 3184 bytes, 25 blocks, acks=26 naks=0, 350.2 ms
+kernel after the transfer  :  m0module started | heartbeat turns during the load: 18686, longest wait 2012 us | end m1 m2
+module slots 0x6000..0x7000 : 237 bytes programmed (0 before the transfer), 0 differ from simavr's reading of the file
+kernel image               : 0 bytes changed by the load
+after a reset              : kernel up id=7d6e | modules started from flash: 1 | waiting for a module for slot 1 m0 m1 m2C
 exit=0

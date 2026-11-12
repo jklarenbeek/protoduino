@@ -11,23 +11,23 @@ START=$(printf '0x%X' $(( FLASHEND + 1 - BLOCK )))
 
 # name : flags, most valuable first
 FEATURES=(
-  "family-check:-DELFLD_FEAT_ARCH_CHECK=1"
-  "page-service:-DELFBOOT_FEAT_SERVICE=1"
-  "module-loader:-DELFBOOT_FEAT_MODULES=1 -DELFBOOT_FEAT_SERVICE=1"
-  "image-crc:-DELFBOOT_FEAT_IMAGE_CRC=1"
-  "merge-segments:-DELFLD_FEAT_COALESCE=1 -DELFLD_CONF_MAX_SEGMENTS=3"
-  "signature:-DELFLD_FEAT_SIGNATURE=1"
-  "eeprom:-DELFLD_FEAT_EEPROM=1"
-  "info:-DELFBOOT_FEAT_INFO=1 -DELFBOOT_INFO_STRING=MCUNAME"
-  "verify-at-start:-DELFBOOT_FEAT_VERIFY_BOOT=1"
+  "family-check:-DELF_CONF_ARCH_CHECK=1"
+  "page-service:-DBOOT_CONF_PAGE_SERVICE=1"
+  "load-thread:-DBOOT_CONF_LOAD_SERVICE=1 -DBOOT_CONF_PAGE_SERVICE=1"
+  "image-crc:-DBOOT_CONF_IMAGE_CRC=1"
+  "merge-segments:-DELF_CONF_COALESCE=1 -DELF_CONF_MAX_SEGMENTS=3"
+  "signature:-DELF_CONF_SIGNATURE=1"
+  "eeprom:-DELF_CONF_EEPROM=1"
+  "info:-DBOOT_CONF_INFO=1 -DBOOT_CONF_INFO_TEXT=MCUNAME"
+  "verify-at-start:-DBOOT_CONF_VERIFY=1"
 )
 # every switch starts off; later -D of the same macro wins
-BASE="-DELFLD_FEAT_ARCH_CHECK=0 -DELFBOOT_FEAT_IMAGE_CRC=0 -DELFLD_FEAT_COALESCE=0 -DELFLD_CONF_MAX_SEGMENTS=2"
+BASE="-DELF_CONF_ARCH_CHECK=0 -DBOOT_CONF_IMAGE_CRC=0 -DELF_CONF_COALESCE=0 -DELF_CONF_MAX_SEGMENTS=2"
 
 size_of() {   # prints the loader size, or nothing if it does not build or link
   local out
   local args=() a
-  for a in "$@"; do [ "$a" = "-DELFBOOT_INFO_STRING=MCUNAME" ] && a="-DELFBOOT_INFO_STRING=\"$MCU\""; args+=("$a"); done
+  for a in "$@"; do [ "$a" = "-DBOOT_CONF_INFO_TEXT=MCUNAME" ] && a="-DBOOT_CONF_INFO_TEXT=\"$MCU\""; args+=("$a"); done
   out=$(./build.sh "fit-$MCU-$BLOCK" "$MCU" "$START" "${args[@]}" 2>/dev/null) || return
   echo "$out" | sed -n 's/.*text= *\([0-9]*\).*/\1/p'
 }

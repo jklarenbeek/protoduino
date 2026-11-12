@@ -1,46 +1,45 @@
-############ sizes: avr-gcc 7.3.0, -Os -mrelax -mstrict-X, text bytes ############
-328P default                       atmega328p  text= 1640 data=0 bss= 350
-328P smallest                      atmega328p  text= 1540 data=0 bss= 344
-328P -family-check                 atmega328p  text= 1628 data=0 bss= 350
-328P -merge-segments               atmega328p  text= 1578 data=0 bss= 350
-328P -image-crc                    atmega328p  text= 1614 data=0 bss= 350
-328P +page-service                 atmega328p  text= 1672 data=0 bss= 350
-328P +module-loader                atmega328p  text= 2036 data=0 bss= 352
-328P +signature                    atmega328p  text= 1716 data=0 bss= 353
-328P +eeprom                       atmega328p  text= 1724 data=0 bss= 353
-328P +info                         atmega328p  text= 1694 data=0 bss= 350
-328P +verify-at-start              atmega328p  text= 1702 data=0 bss= 350
-328P everything                    atmega328p  text= 2286 data=0 bss= 362
-1284P default                      atmega1284p text= 2180 data=0 bss= 492
-2560 default                       atmega2560  text= 2182 data=0 bss= 492
-2560 smallest                      atmega2560  text= 1984 data=0 bss= 483
-2560 +module-loader                atmega2560  text= 2524 data=0 bss= 495
-2560 everything                    atmega2560  text= 2832 data=0 bss= 508
-tiny85 default                     attiny85    text= 1700 data=0 bss= 286
---- per-function sizes, 328P default ---
-  468 boot_main
-  348 elfld_write
-  242 add_phdr
-  120 check_ehdr
-  100 sess_page_program
-   86 sess_page_commit.isra.2.part.3
-   52 _crc_xmodem_update
-   46 crc_flash
-   36 elfld_begin
-   36 sess_getch.isra.0.constprop.11
-   34 ehdr_rules
-   24 start_image
-   16 __do_clear_bss
-   14 sess_putch
-   12 boot_init
-    4 boot_vec
-    2 boot_go
-sum: 1640
---- workspace (RAM), 328P and 2560 ---
-350 ws
---- kernel demo (ATmega328P): cost of each module mode ---
-kernel none               flash=  290  ram=  36
-kernel static             flash=  656  ram= 122
-kernel rom                flash= 1148  ram= 374
-kernel linked-svc         flash= 2322  ram= 726
-kernel linked-optiboot    flash= 2414  ram= 726
+== bootloader, bytes of flash (text) and RAM (bss) ==
+smallest                           atmega328p  text= 1926 data=0 bss= 365
+default                            atmega328p  text= 2014 data=0 bss= 371
+default + page service             atmega328p  text= 2026 data=0 bss= 371
+default + load thread              atmega328p  text= 2102 data=0 bss= 373
+everything                         atmega328p  text= 2358 data=0 bss= 376
+smallest                           atmega1284p text= 2330 data=0 bss= 507
+default                            atmega1284p text= 2512 data=0 bss= 516
+default + page service             atmega1284p text= 2524 data=0 bss= 516
+default + load thread              atmega1284p text= 2622 data=0 bss= 519
+everything                         atmega1284p text= 2970 data=0 bss= 522
+smallest                           atmega2560  text= 2332 data=0 bss= 507
+default                            atmega2560  text= 2514 data=0 bss= 516
+default + page service             atmega2560  text= 2526 data=0 bss= 516
+default + load thread              atmega2560  text= 2624 data=0 bss= 519
+everything                         atmega2560  text= 2972 data=0 bss= 522
+default, virtual reset, soft uart  attiny85    text= 2046 data=0 bss= 307
+
+== one option at a time, ATmega328P, relative to the default ==
+without family-check           -12  (2002)
+without merge-segments         -62  (1952)
+without image-crc              -14  (2000)
+page-service                   +12  (2026)
+load-thread (with page-service)   +88  (2102)
+signature                      +60  (2074)
+eeprom                         +78  (2092)
+info                           +96  (2110)
+verify-at-start                +48  (2062)
+
+== test kernel on the real scheduler, ATmega328P (kernel/kernel.c) ==
+none           text= 3924 data= 10 bss= 394
+static         text= 4818 data= 10 bss= 492
+rom            text= 7782 data= 10 bss= 917
+own-bootrom    text= 9272 data= 10 bss= 917
+own-optiboot   text= 9372 data= 10 bss= 917
+
+== library code a kernel links for modules, ATmega328P, bytes of flash per object ==
+sys/module.c            start modules in flash         378
+sys/module.c            also enter them into the table   494
+sys/process/loader.c    thread of the bootloader      1102
+sys/process/loader.c    own thread                    1018
+cpu/avr/flash.c         through the bootloader table    60
+cpu/avr/flash.c         through Optiboot do_spm        160
+sys/elf.c               stream (own thread only)       784
+sys/elf/load.c          load thread (own thread only)   790

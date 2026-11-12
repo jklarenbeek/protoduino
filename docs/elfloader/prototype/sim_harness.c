@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 {
   if (argc < 4) { fprintf(stderr, "usage\n"); return 2; }
   const char *mcu = argv[1], *boot = argv[2], *app = argv[3], *send = argv[3];
-  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0; const char *kernel_elf = NULL; int preinstall = 0, no_send = 0; unsigned long slot_lo = 0x6000, slot_hi = 0x7000;
+  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0; const char *kernel_elf = NULL; int preinstall = 0, no_send = 0, probe_times = 0; long dump_addr = 0, dump_len = 0; uint64_t settle = 4000000ull; int page_bad = 0; unsigned long slot_lo = 0x6000, slot_hi = 0x7000;
   for (int i = 4; i < argc; i++) {
     if (!strcmp(argv[i], "--corrupt")) corrupt_blk = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--drop-ack")) drop_ack_blk = atoi(argv[++i]);
@@ -109,6 +109,9 @@ int main(int argc, char **argv)
     else if (!strcmp(argv[i], "--kernel")) kernel_elf = argv[++i];
     else if (!strcmp(argv[i], "--preinstall")) preinstall = 1;
     else if (!strcmp(argv[i], "--no-send")) no_send = 1;
+    else if (!strcmp(argv[i], "--probe-times")) probe_times = 1;
+    else if (!strcmp(argv[i], "--settle")) settle = strtoull(argv[++i], 0, 0) * 1000000ull;
+    else if (!strcmp(argv[i], "--dump-ram")) { dump_addr = strtol(argv[++i], 0, 0); dump_len = strtol(argv[++i], 0, 0); }
     else if (!strcmp(argv[i], "--slot")) { slot_lo = strtoul(argv[++i], 0, 0); slot_hi = strtoul(argv[++i], 0, 0); }
     else if (!strcmp(argv[i], "--fallthrough")) { fall_addr = strtol(argv[++i], 0, 0); fall_r31 = strtol(argv[++i], 0, 0); }
   }
@@ -171,6 +174,16 @@ int main(int argc, char **argv)
   avr_irq_register_notify(avr_io_getirq(avr, AVR_IOCTL_UART_GETIRQ('0'), UART_IRQ_OUTPUT), from_device, NULL);
   avr_cycle_timer_register(avr, 2000, pump, NULL);
 
+  /* Probe timing: nobody answers; print when each 'C' arrives. */
+  if (probe_times) {
+    cur_blk = 0xFFFF; unsigned seen = 0; uint64_t last = 0;
+    while (avr->cycle < max_cycles && seen < 4) {
+      int st = avr_run(avr); if (st == cpu_Done || st == cpu_Crashed) break;
+      if (c_probes != seen) { seen = c_probes; printf("probe %u at %.3f s (+%.3f s)\n", seen, avr->cycle / 16e6, (avr->cycle - last) / 16e6); last = avr->cycle; }
+    }
+    return 0;
+  }
+
   /* Kernel test: the bootloader is only present in flash; the kernel runs and
    * loads the offered file (a module) while it is running. */
   if (kernel_elf) {
@@ -184,8 +197,10 @@ int main(int argc, char **argv)
       /* the module is already in flash, as if programmed together with the firmware:
        * its image in the slot and a module record that points at its descriptor */
       for (unsigned long i = slot_lo; i < slot_hi; i++) avr->flash[i] = oa->flash[i];
+      /* module table (sys/module.h): 'p' 'M', then per slot the kernel id of its module,
+       * which is what the module carries at offset 4 of its descriptor */
       avr->flash[slot_hi + 0] = 'p'; avr->flash[slot_hi + 1] = 'M';
-      avr->flash[slot_hi + 2] = (uint8_t)slot_lo; avr->flash[slot_hi + 3] = (uint8_t)(slot_lo >> 8);
+      avr->flash[slot_hi + 2] = oa->flash[slot_lo + 4]; avr->flash[slot_hi + 3] = oa->flash[slot_lo + 5];
     }
     if (no_send) collect_all = 1;                   /* nobody answers; just record what the kernel prints */
     static char text[3][400]; int tl[3] = {0, 0, 0};
@@ -197,21 +212,37 @@ int main(int argc, char **argv)
       if (st == cpu_Done || st == cpu_Crashed) break;
       if (devtext_len != before && tl[cur_blk ? 2 : 0] < 399) { /* text printed outside the transfer */ }
       if (finished && !quiet_from) quiet_from = avr->cycle;
-      if (quiet_from && avr->cycle > quiet_from + 4000000) break;
+      if (quiet_from && avr->cycle > quiet_from + settle) break;
       if (no_send && avr->cycle > 40000000ull) break;
     }
     memcpy(text[0], devtext, devtext_len); tl[0] = devtext_len;
     memcpy(text[2], posttext, posttext_len); tl[2] = posttext_len;
-    if (no_send) { printf("kernel output              : %.*s\n", tl[0], text[0]); return 0; }
+    if (no_send) {
+      printf("kernel output              : %.*s\n", tl[0], text[0]);
+      if (dump_len) { printf("ram @0x%lx:", dump_addr); for (long i = 0; i < dump_len; i++) printf(" %02x", avr->data[dump_addr + i]); printf("\n"); }
+      return 0;
+    }
     printf("kernel before the transfer : %.*s\n", tl[0], text[0]);
-    printf("transfer                   : %zu bytes, %zu blocks, acks=%u naks=%u%s\n", file_len, nblocks, acks, naks, refused >= 0 ? " REFUSED" : "");
+    printf("transfer                   : %zu bytes, %zu blocks, acks=%u naks=%u%s", file_len, nblocks, acks, naks, refused >= 0 ? " REFUSED" : "");
+    if (eot_acked) printf(", %.1f ms", (t_eot_ack - t_first_block) / 16e3);
+    printf("\n");
     if (refused >= 0) printf("refusal code               : 0x%02x\n", refused);
     printf("kernel after the transfer  : %.*s\n", tl[2], text[2]);
-    size_t mm = 0, used = 0;
-    for (unsigned long i = slot_lo; i < slot_hi; i++) { if (oa->flash[i] != 0xFF) used++; if (avr->flash[i] != oa->flash[i]) mm++; }
-    printf("module slot 0x%lx..0x%lx  : %zu bytes of module, %zu mismatches against simavr's ELF reader\n", slot_lo, slot_hi, used, mm);
+    if (dump_len) { printf("ram @0x%lx:", dump_addr); for (long i = 0; i < dump_len; i++) printf(" %02x", avr->data[dump_addr + i]); printf("  pc=0x%x sreg=%d%d%d%d%d%d%d%d\n", avr->pc, avr->sreg[7], avr->sreg[6], avr->sreg[5], avr->sreg[4], avr->sreg[3], avr->sreg[2], avr->sreg[1], avr->sreg[0]); }
+    /* what the slots should hold now: what was there before, plus the file if it was accepted */
+    static uint8_t expect[1 << 18]; memset(expect, 0xFF, sizeof expect);
+    if (preinstall) for (unsigned long i = slot_lo; i < slot_hi; i++) expect[i] = oa->flash[i];
+    if (refused < 0) {
+      elf_firmware_t sf = {{0}};
+      avr_t *os = avr_make_mcu_by_name(mcu); avr_init(os); os->log = LOG_ERROR; memset(os->flash, 0xFF, os->flashend + 1);
+      if (!elf_read_firmware(send, &sf)) { avr_load_firmware(os, &sf); for (unsigned long i = slot_lo; i < slot_hi; i++) if (os->flash[i] != 0xFF) expect[i] = os->flash[i]; }
+    }
+    size_t mm = 0, used = 0, was = 0;
+    for (unsigned long i = slot_lo; i < slot_hi; i++) { if (avr->flash[i] != 0xFF) used++; if (preinstall && oa->flash[i] != 0xFF) was++; if (avr->flash[i] != expect[i]) mm++; }
+    printf("module slots 0x%lx..0x%lx : %zu bytes programmed (%zu before the transfer), %zu differ from simavr's reading of the file%s\n", slot_lo, slot_hi, used, was, mm, preinstall ? "s" : "");
     size_t kdiff = 0; for (uint32_t i = 0; i < slot_lo; i++) if (avr->flash[i] != ok->flash[i]) kdiff++;
     printf("kernel image               : %zu bytes changed by the load\n", kdiff);
+    if (refused >= 0) return (expect_refusal && mm == 0 && kdiff == 0) ? 0 : 1;
     /* now reset: the module must be started from flash without being sent again */
     cur_blk = 0xFFFF; devtext_len = 0; posttext_len = 0; finished = 0; c_probes = 0; after_can = 0; txq_len = txq_pos = 0;
     collect_all = 1;
@@ -219,7 +250,7 @@ int main(int argc, char **argv)
     uint64_t t0 = avr->cycle;
     while (avr->cycle < t0 + 24000000ull) { st = avr_run(avr); if (st == cpu_Done || st == cpu_Crashed) break; }
     printf("after a reset              : %.*s\n", devtext_len, devtext);
-    return (mm == 0 && refused < 0 && kdiff == 0) ? 0 : 1;
+    return (mm == 0 && kdiff == 0 && !expect_refusal) ? 0 : 1;
   }
 
   /* Erased-flash test: start executing in erased flash with a chosen r31 and
@@ -273,10 +304,15 @@ int main(int argc, char **argv)
     printf("application ran; flash page @0x%lx:", check_page);
     for (int i = 0; i < 8; i++) printf(" %02x", avr->flash[check_page + i]);
     printf(" ... DDRB=%02x\n", avr->data[0x24]);
+    /* the page must hold what the application wrote (0xA0 + i), interrupts must be on again */
+    for (uint32_t i = 0; i < page; i++) if (avr->flash[check_page + i] != (uint8_t)(0xA0 + i)) page_bad++;
+    if (avr->data[0x24] != 0xFF) page_bad++;
+    printf("page written by the application: %s\n", page_bad ? "WRONG" : "as expected, interrupts enabled again");
   }
 
   size_t mism = 0, first = 0, image = 0;
   for (size_t i = 0; i < rec; i++) {
+    if (check_page >= 0 && i >= (size_t)check_page && i < (size_t)check_page + page) continue;   /* judged above */
     if (oa->flash[i] != 0xFF) image = i + 1;
     if (avr->flash[i] != oa->flash[i]) { if (!mism) first = i; mism++; }
   }
@@ -294,5 +330,5 @@ int main(int argc, char **argv)
     avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &d);
     printf("eeprom[0..4]: %02x %02x %02x %02x %02x\n", ee[0], ee[1], ee[2], ee[3], ee[4]); }
   if (expect_refusal) return refused >= 0 && !app_pc_seen ? 0 : 1;
-  return (mism == 0 && app_pc_seen) ? 0 : 1;
+  return (mism == 0 && app_pc_seen && !page_bad) ? 0 : 1;
 }

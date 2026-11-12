@@ -3,11 +3,11 @@
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"
 E="${FIXTURES:-$HERE/fixtures}"
 run() { echo; echo "=== $1 ==="; shift; ./sim_harness "$@" 2>&1 | grep -v "^Loaded\|would overflow" | sed 's/\x1b\[[0-9;]*m//g; s|'"$E"'/||g'; echo "exit=${PIPESTATUS[0]}"; }
-ALL='-DELFBOOT_FEAT_VERIFY_BOOT=1 -DELFLD_FEAT_EEPROM=1 -DELFLD_FEAT_SIGNATURE=1 -DELFBOOT_FEAT_INFO=1 -DELFBOOT_FEAT_MODULES=1 -DELFLD_CONF_MAX_SEGMENTS=4'
+ALL='-DBOOT_CONF_VERIFY=1 -DELF_CONF_EEPROM=1 -DELF_CONF_SIGNATURE=1 -DBOOT_CONF_INFO=1 -DBOOT_CONF_LOAD_SERVICE=1 -DELF_CONF_MAX_SEGMENTS=4'
 ./build.sh "328P base" atmega328p 0x7800 >/dev/null
-./build.sh "328P all" atmega328p 0x7000 $ALL '-DELFBOOT_INFO_STRING="m328p ps=128 hi=6f80"' >/dev/null
-SVC_BACK=4 ./build.sh "328P service" atmega328p 0x7800 -DELFBOOT_FEAT_SERVICE=1 >/dev/null
-./build.sh "328P nopad" atmega328p 0x7800 -DELFBOOT_FEAT_LANDING_PAD=0 >/dev/null
+./build.sh "328P all" atmega328p 0x7000 $ALL '-DBOOT_CONF_INFO_TEXT="m328p ps=128 hi=6f80"' >/dev/null
+SVC_BACK=4 ./build.sh "328P service" atmega328p 0x7800 -DBOOT_CONF_PAGE_SERVICE=1 >/dev/null
+./build.sh "328P nopad" atmega328p 0x7800 -DBOOT_CONF_LANDING_PAD=0 >/dev/null
 ./build.sh "2560 base" atmega2560 0x3F000 >/dev/null
 run "T1 328P: unmodified avr-gcc ELF, clean line" atmega328p "out/328P base.elf" $E/app-atmega328p.elf
 run "T2 328P: block 3 corrupted, ACK of block 5 lost" atmega328p "out/328P base.elf" $E/app-atmega328p.elf --corrupt 3 --drop-ack 5

@@ -1,0 +1,150 @@
+// file: ./src/sys/module.h
+
+#ifndef __MODULE_H__
+#define __MODULE_H__
+
+/* Loadable modules.
+ *
+ * A module is a process type that was not linked into the kernel. It is an
+ * ELF file, linked to run in one flash slot against the symbols of one
+ * kernel build. Nothing has to be relocated when it arrives: the load
+ * thread (./src/sys/elf/load.h) programs it and the kernel starts it with
+ * process_new(), like a process type of its own.
+ *
+ * - A module has no static variables. Its state lives in its process
+ *   struct, the fields of PROCESS_DEFINE, in RAM that the kernel hands out.
+ * - A module starts with its descriptor; the entry point of the ELF file is
+ *   the address of that descriptor.
+ * - A module only runs on the kernel build it was linked against.
+ *   module_kernel_id() names that build.
+ * - A slot holds a module once the module table says so. The table is
+ *   written after the module has been checked, so a load that was cut
+ *   short leaves nothing that could be started.
+ *
+ * In the module:
+ *
+ *   PROCESS_DEFINE(blink, "blink", 3,
+ *     uint8_t count;
+ *   );
+ *
+ *   PROCESS_THREAD(blink, ev, data)
+ *   {
+ *     ...
+ *   }
+ *
+ *   MODULE(blink);
+ *
+ * In the kernel:
+ *
+ *   module_init();
+ *   module_autostart();   // start what the module table lists
+ */
+
+#include <protoduino.h>
+#include "process.h"
+#include "module.conf.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define MODULE_MAGIC 0x4D70 /* 'p' 'M' */
+#define MODULE_ABI   2
+
+/* First bytes of every module. kernel_id sits at ELF_LOAD_KEY_OFFSET, where
+ * the load thread looks for it while the module arrives. */
+typedef struct module {
+  uint16_t              magic;     /**< MODULE_MAGIC                           */
+  uint8_t               abi;       /**< MODULE_ABI                             */
+  uint8_t               flags;     /**< reserved, 0                            */
+  uint16_t              kernel_id; /**< kernel build the module is linked for  */
+  const process_type_t *type;      /**< the process type the module adds       */
+} module_t;
+
+/* Supplied when a module is linked: the address of this symbol is the
+ * identity of the kernel build (see ld/module.ld). */
+extern const uint8_t __module_kernel_id;
+
+/**
+ * MODULE(name)
+ *
+ * Emits the descriptor of a module that adds the process type `name`,
+ * declared with PROCESS_DEFINE or DEVICE_DEFINE in the same file.
+ */
+#define MODULE(name)                                                           \
+  const module_t module_descriptor                                             \
+      __attribute__((section(".module"), used)) = {                            \
+    MODULE_MAGIC,                                                              \
+    MODULE_ABI,                                                                \
+    0,                                                                         \
+    (uint16_t)&__module_kernel_id,                                             \
+    &process_type_##name                                                       \
+  }
+
+#if MODULE_CONF_SUPPORT > 0
+
+// first address of a slot, and of the module table behind the last slot
+#define MODULE_SLOT_ADDR(slot) \
+  ((uint16_t)(MODULE_CONF_BASE) + (uint16_t)(slot) * (uint16_t)(MODULE_CONF_SLOT_SIZE))
+#define MODULE_TABLE_ADDR MODULE_SLOT_ADDR(MODULE_CONF_SLOTS)
+
+/**
+ * Work out the identity of this kernel build: a CRC-16 of its own image in
+ * flash. Call once, before any other module function.
+ */
+void module_init(void);
+
+/** Identity of this kernel build. */
+uint16_t module_kernel_id(void);
+
+/**
+ * Checks whether the module table lists a module for this kernel in a slot.
+ *
+ * \return true if the slot holds a module that can be started.
+ */
+bool module_is_installed(uint8_t slot);
+
+/**
+ * Checks the descriptor at the start of a slot.
+ *
+ * \return ERR_SUCCESS, or why what is in the slot cannot run here:
+ *   ERR_BIN_MAGIC       no module descriptor
+ *   ERR_BIN_VERSION     descriptor of another module ABI
+ *   ERR_INIT_DEPENDENCY linked against another kernel build
+ *   ERR_HEAP_OOM        its process struct does not fit MODULE_CONF_RAM_SIZE
+ */
+uint8_t module_check(uint8_t slot);
+
+/**
+ * Start the process of the module in a slot.
+ *
+ * \return the process, or NULL when module_check() fails or the scheduler
+ *         refuses the process.
+ */
+struct process *module_start(uint8_t slot);
+
+/**
+ * Start the process of every module the module table lists.
+ *
+ * \return number of processes started.
+ */
+uint8_t module_autostart(void);
+
+#if MODULE_CONF_SUPPORT > 1
+/**
+ * Enter a slot into the module table, or take it out.
+ *
+ * \param slot      The slot.
+ * \param installed true: the slot holds a checked module for this kernel.
+ * \param page      SPM_PAGESIZE bytes of scratch memory.
+ */
+void module_table_write(uint8_t slot, bool installed, uint8_t *page);
+#endif
+
+#endif /* MODULE_CONF_SUPPORT > 0 */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __MODULE_H__ */

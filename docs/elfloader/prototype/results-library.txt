@@ -1,0 +1,24 @@
+--- 1. CC_EXTERN is empty in C: a variable declared with it is defined in every C file
+00000002 C process_current
+    two such files, linked with -fno-common (the default from GCC 10 on):
+x.o:(.bss.process_current+0x0): multiple definition of `process_current'
+--- 2. serial ring buffers on the ATmega328P (2048 bytes of RAM; serial.conf.h asks for 64 above 1023)
+00000000 00000010 b _serial0_rx_ringb8_data
+00000000 00000010 b _serial0_tx_ringb8_data
+--- 3. 80 bytes written to serial_process0 at once, nobody polls it again: bytes that left the UART
+    15 of 80 bytes: abcdefghijklmno
+--- 4. baud = 115200 set before process_new(): UBRR0L (16 = 115200, 207 = 9600)
+ram @0xc4: cf
+--- 5. a process that ends: result[0] ran, result[1] PT_FINALLY ran, result[2] state (0 NONE, 4 EXITING), after 2.5 s
+ram @0x14a: 01 00 04
+--- 6. a process polls itself every turn: result[0] its turns (mod 256), result[1] second process got INIT, after 2.5 s
+ram @0x15a: 2f 00
+--- 7. sys/clock.h on an ATmega2560
+src/sys/clock.h:6:2: error: #error "clock: Unsupported Platform!"
+--- 8. PT_PIPE_AVAILABLE() with the struct ipc_pt it is documented for
+../../../../src/sys/pt/pipe.h:17:22: error: incompatible type for argument 1 of 'ipc_pipe_available'
+--- 9. the receive callback serial_process0 installs
+src/sys/process/serial0.c:10:33: warning: passing argument 1 of 'serial0_on_recieved' from incompatible pointer type [-Wincompatible-pointer-types]
+--- 10. uart0_openex() and the division it pulls in, bytes
+0000029e 00000044 T __udivmodsi4
+0000009e 000000e0 T uart0_openex
