@@ -19,7 +19,7 @@ const html = `<!doctype html>
 
 const out = join(here, '..', 'elf-loader-design.pdf');
 const footer = `<div style="width:100%; font-family:Inter,sans-serif; font-size:7.5px; color:#5b6672; padding:0 17mm; display:flex; justify-content:space-between;">
-  <span>protoduino &middot; A streaming ELF loader for AVR &middot; draft 0.8</span>
+  <span>protoduino &middot; A streaming ELF loader for AVR &middot; draft 0.9</span>
   <span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`;
 
 const browser = await chromium.launch();

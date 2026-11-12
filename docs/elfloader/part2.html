@@ -12,7 +12,7 @@
     <tr><td>UC5</td><td>Ask the device what it is</td><td>Send <code>?</code> before a transfer. The bootloader answers with a line that names it.</td><td><span class="tag b">built</span></td></tr>
     <tr><td>UC6</td><td>Load a module while the system runs</td><td>A process starts the loader process for a free slot. The loader schedules the load thread with the bytes from the serial device process, while every other process keeps running. It then checks the module, enters it into the module table, starts it with <code>process_new()</code> and tells whoever asked.</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>UC6b</td><td>Run with modules that are already in flash</td><td>A kernel built without the loader starts the modules its module table lists. They were programmed with the firmware or loaded earlier.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>UC7</td><td>List, stop and remove modules</td><td>Commands of the shell (<code>src/mod/shell.h</code>): <code>mods</code>, <code>stop</code>, <code>kill</code>, <code>get</code>, <code>del</code>. Removal is <code>module_table_write(slot, false, ...)</code> and <code>process_destroy()</code>.</td><td><span class="tag m">measured</span> S1, S3, S4</td></tr>
+    <tr><td>UC7</td><td>List, stop and remove modules</td><td>Commands of the shell (<code>src/mod/shell.h</code>): <code>mods</code>, <code>stop</code>, <code>kill</code>, <code>get</code>, <code>del</code>. Removal is <code>module_table_write(slot, false, ...)</code> and <code>process_destroy()</code>.</td><td><span class="tag m">measured</span> U1, U3, U4</td></tr>
   </tbody>
 </table>
 
@@ -99,7 +99,8 @@ src/mod/shell.h                          <span class="c">a command line that sta
 boot/boot.c  boot.conf.h  softuart.h     <span class="c">the bootloader, and build.sh that builds it         457</span>
 src/sys/lc-counter.h                     <span class="c">continuation points numbered from 1 (6.10)          147</span>
 ld/module.ld                             <span class="c">linker script for modules</span>
-tools/module.mjs  tools/talk.mjs         <span class="c">Node 22: build a module for a kernel; talk and send 180 + 230</span></code></pre>
+tools/module.mjs  tools/talk.mjs         <span class="c">Node 22: build a module for a kernel; talk and send 180 + 230</span>
+src/mod/port.h  tools/port.mjs           <span class="c">the small parts: a port on the part, the shell on the PC</span></code></pre>
 <p>Two kinds of code, because an Arduino library is compiled apart from the sketch that uses it. The stream, the load thread and the flash driver are library sources: they are compiled with the defaults of their <code>*.conf.h</code>, and a sketch that does not use them pays nothing, because the linker leaves them out. Module slots and the loader process depend on settings only the sketch knows (how many slots, where, which load thread), so they are headers that the sketch includes after its settings, like the process types of <code>src/mod/</code>. A sketch in the Arduino IDE can therefore load modules without a change to the library.</p>
 <p>The Arduino build compiles every source file under <code>src/</code>. The bootloader has its own entry code and no C runtime, so it stays outside that tree. It is one translation unit: <code>boot.c</code> includes <code>sys/elf.c</code>, <code>sys/elf/load.c</code>, <code>cpu/avr/flash.c</code> and the library's own <code>cpu/avr/uart0.c</code>, so that the compiler sees the stream, its sink and the drivers together.</p>
 
@@ -611,7 +612,7 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 
 <h4>What the tests are and are not</h4>
 <p>The kernel in M1 to M12 is <code>prototype/kernel/kernel.c</code>: a sketch with <code>setup()</code> and <code>loop()</code> on <code>process.c</code>, <code>ipc.c</code>, the serial device process, the serial layer and the UART driver of the library, built without the Arduino core. A stand-in of 40 lines supplies <code>main()</code>, timer 0 and <code>micros()</code>. Its kernel process doubles as the error logger of the scheduler, which is how it learns that a load failed.</p>
-<p>The kernel in S3 and S4 (9.2) is a sketch of the examples, <code>42-shell-loader</code>: a shell, two modules and two slots. Built with the Arduino builder against the Arduino core, and with avr-gcc alone, it was uploaded through the bootloader inside protosim and took modules over its command line. Still open:</p>
+<p>The kernel in U3 and U4 (9.2) is a sketch of the examples, <code>42-shell-loader</code>: a shell, two modules and two slots. Built with the Arduino builder against the Arduino core, and with avr-gcc alone, it was uploaded through the bootloader inside protosim and took modules over its command line. Still open:</p>
 <ul>
   <li>Hardware.</li>
   <li>The ATmega1284P kernel, which was not built.</li>
