@@ -212,8 +212,14 @@ static void boot_image_start(void)
 {
 #if !BOOT_CONF_SOFT_UART
   // not uart0_close(): it ends with sei(), and the image has not set up
-  // its interrupt handlers yet.
+  // its interrupt handlers yet. The image finds the UART as a reset leaves
+  // it: off, single speed, divisor zero.
   UCSR0B = 0;
+#if BOOT_CONF_UART_RESET
+  UCSR0A = 0;
+  UBRR0H = 0;
+  UBRR0L = 0;
+#endif
 #endif
 #ifdef RAMPZ
   RAMPZ = 0;

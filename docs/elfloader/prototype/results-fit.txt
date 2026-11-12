@@ -1,12 +1,12 @@
 atmega328p    512 B block: the smallest loader (1872 B) does not fit
 atmega328p   1024 B block: the smallest loader (1872 B) does not fit
-atmega328p   2048 B block at 0x7800    2048 B used,    0 B spare: family-check page-service load-thread image-crc merge-segments
-atmega328p   4096 B block at 0x7000    2324 B used, 1772 B spare: family-check page-service load-thread image-crc merge-segments quick-restart signature eeprom info verify-at-start
+atmega328p   2048 B block at 0x7800    2022 B used,   26 B spare: family-check page-service load-thread image-crc quick-restart uart-reset
+atmega328p   4096 B block at 0x7000    2336 B used, 1760 B spare: family-check page-service load-thread image-crc quick-restart uart-reset merge-segments signature eeprom info verify-at-start
 atmega1284p  1024 B block: the smallest loader does not fit
 atmega1284p  2048 B block: the smallest loader does not fit
-atmega1284p  4096 B block at 0x1F000   2938 B used, 1158 B spare: family-check page-service load-thread image-crc merge-segments quick-restart signature eeprom info verify-at-start
-atmega1284p  8192 B block at 0x1E000   2938 B used, 5254 B spare: family-check page-service load-thread image-crc merge-segments quick-restart signature eeprom info verify-at-start
+atmega1284p  4096 B block at 0x1F000   2950 B used, 1146 B spare: family-check page-service load-thread image-crc quick-restart uart-reset merge-segments signature eeprom info verify-at-start
+atmega1284p  8192 B block at 0x1E000   2950 B used, 5242 B spare: family-check page-service load-thread image-crc quick-restart uart-reset merge-segments signature eeprom info verify-at-start
 atmega2560   1024 B block: the smallest loader (2278 B) does not fit
 atmega2560   2048 B block: the smallest loader (2278 B) does not fit
-atmega2560   4096 B block at 0x3F000   2938 B used, 1158 B spare: family-check page-service load-thread image-crc merge-segments quick-restart signature eeprom info verify-at-start
-atmega2560   8192 B block at 0x3E000   2938 B used, 5254 B spare: family-check page-service load-thread image-crc merge-segments quick-restart signature eeprom info verify-at-start
+atmega2560   4096 B block at 0x3F000   2950 B used, 1146 B spare: family-check page-service load-thread image-crc quick-restart uart-reset merge-segments signature eeprom info verify-at-start
+atmega2560   8192 B block at 0x3E000   2950 B used, 5242 B spare: family-check page-service load-thread image-crc quick-restart uart-reset merge-segments signature eeprom info verify-at-start

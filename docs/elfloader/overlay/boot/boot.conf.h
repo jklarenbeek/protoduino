@@ -70,14 +70,15 @@
 // starts the image, as a mask of MCUSR flags: 1 power-on, 2 reset pin,
 // 4 brown-out, 8 watchdog. After any other reset a complete image starts
 // at once.
+//    7   not after a watchdog reset: an image that hung is back at once,
+//        and no probe goes out on its serial line
 //   15   wait after every reset
-//    7   not after a watchdog reset: a hung image is back at once
 //    2   only after the reset pin was pulled, which is what an upload tool
 //        does; the rule Optiboot uses
 // An image that jumps to the bootloader is always waited for: it wants to
 // be replaced. Needs BOOT_CONF_WATCHDOG.
 #ifndef BOOT_CONF_WINDOW_AFTER
-#define BOOT_CONF_WINDOW_AFTER 15
+#define BOOT_CONF_WINDOW_AFTER 7
 #endif
 
 // the watchdog control register under its two names
@@ -85,6 +86,14 @@
 #define BOOT_WDT WDTCSR
 #else
 #define BOOT_WDT WDTCR
+#endif
+
+// flag to put the UART registers back to their reset values before the
+// image starts. Without it the double-speed bit and the divisor keep the
+// values of the bootloader, and an image that relies on the reset values
+// runs at the wrong rate.
+#ifndef BOOT_CONF_UART_RESET
+#define BOOT_CONF_UART_RESET 1
 #endif
 
 // flag to store a CRC-16 of the image in the image record.
@@ -138,8 +147,18 @@
 #define BOOT_CONF_LANDING_PAD 1
 #endif
 
-/* what the bootloader asks of the protothreads, of the load thread and of
- * the flash driver */
+/* what the bootloader asks of the stream, of the protothreads, of the load
+ * thread and of the flash driver */
+
+// Segments of a file are remembered one by one. Merging adjacent ones costs
+// 62 bytes of flash to save six bytes of RAM per segment, and RAM is what a
+// bootloader has: four entries hold code, initial data and two more.
+#ifndef ELF_CONF_COALESCE
+#define ELF_CONF_COALESCE 0
+#endif
+#ifndef ELF_CONF_MAX_SEGMENTS
+#define ELF_CONF_MAX_SEGMENTS 4
+#endif
 
 // continuation points numbered 1, 2, 3 ... instead of by source line: a
 // number below 256 is stored and compared in one byte.

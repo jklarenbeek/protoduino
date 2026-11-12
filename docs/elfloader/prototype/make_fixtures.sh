@@ -20,6 +20,10 @@ avr-gcc $SVC2560 -o $F/svc_app2560.elf svc_app.c ../overlay/src/cpu/avr/flash.c
 avr-gcc $SVC2560 -DSVC_PAGE=0x20000UL -o $F/svc_app2560-far.elf svc_app.c ../overlay/src/cpu/avr/flash.c
 for M in atmega328p atmega2560; do avr-gcc -Os -mmcu=$M -DF_CPU=16000000UL -o $F/wdt_app-$M.elf wdt_app.c; done
 avr-gcc -Os -mmcu=atmega328p -DF_CPU=16000000UL -DBOOT_START=0x7800UL -o $F/jump_app.elf jump_app.c
+# firmware with four and with five flash segments
+SEG="-Os -mmcu=atmega328p -DF_CPU=16000000UL -Wl,--section-start=.block1=0x5000 -Wl,--section-start=.block2=0x5800"
+avr-gcc $SEG -o $F/seg4.elf seg_app.c
+avr-gcc $SEG -DFIVE -Wl,--section-start=.block3=0x6000 -o $F/seg5.elf seg_app.c
 head -c 4000 /dev/urandom > $F/junk.bin
 # protoduino example 12, unmodified, with a three-line stand-in for the Arduino core
 C="-Os -g -mmcu=atmega328p -DF_CPU=16000000UL -I$PD/src -I$PD/src/sys"

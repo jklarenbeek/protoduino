@@ -18,15 +18,16 @@ FEATURES=(
   "page-service:-DBOOT_CONF_PAGE_SERVICE=1"
   "load-thread:-DBOOT_CONF_LOAD_SERVICE=1 -DBOOT_CONF_PAGE_SERVICE=1"
   "image-crc:-DBOOT_CONF_IMAGE_CRC=1"
-  "merge-segments:-DELF_CONF_COALESCE=1 -DELF_CONF_MAX_SEGMENTS=3"
   "quick-restart:-DBOOT_CONF_WINDOW_AFTER=7"
+  "uart-reset:-DBOOT_CONF_UART_RESET=1"
+  "merge-segments:-DELF_CONF_COALESCE=1"
   "signature:-DELF_CONF_SIGNATURE=1"
   "eeprom:-DELF_CONF_EEPROM=1"
   "info:-DBOOT_CONF_INFO=1 -DBOOT_CONF_INFO_TEXT=MCUNAME"
   "verify-at-start:-DBOOT_CONF_VERIFY=1"
 )
 # every switch starts off; later -D of the same macro wins
-BASE="-DELF_CONF_ARCH_CHECK=0 -DBOOT_CONF_IMAGE_CRC=0 -DELF_CONF_COALESCE=0 -DELF_CONF_MAX_SEGMENTS=2"
+BASE="-DELF_CONF_ARCH_CHECK=0 -DBOOT_CONF_IMAGE_CRC=0 -DBOOT_CONF_WINDOW_AFTER=15 -DBOOT_CONF_UART_RESET=0"
 
 size_of() {   # prints the loader size, or nothing if it does not build or link
   local out

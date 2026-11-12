@@ -1,34 +1,35 @@
 == bootloader, bytes of flash (text) and RAM (bss) ==
-smallest                           atmega328p  text= 1872 data=0 bss= 365
-default                            atmega328p  text= 1960 data=0 bss= 371
-default + page service             atmega328p  text= 1972 data=0 bss= 371
-default + load thread              atmega328p  text= 2048 data=0 bss= 373
-everything                         atmega328p  text= 2324 data=0 bss= 376
-smallest                           atmega1284p text= 2278 data=0 bss= 507
-default                            atmega1284p text= 2460 data=0 bss= 516
-default + page service             atmega1284p text= 2472 data=0 bss= 516
-default + load thread              atmega1284p text= 2570 data=0 bss= 519
-everything                         atmega1284p text= 2938 data=0 bss= 522
-smallest                           atmega2560  text= 2278 data=0 bss= 507
-default                            atmega2560  text= 2460 data=0 bss= 516
-default + page service             atmega2560  text= 2472 data=0 bss= 516
-default + load thread              atmega2560  text= 2570 data=0 bss= 519
-everything                         atmega2560  text= 2938 data=0 bss= 522
-default, virtual reset, soft uart  attiny85    text= 1998 data=0 bss= 307
+smallest                           atmega328p  text= 1872 data=0 bss= 377
+default                            atmega328p  text= 1932 data=0 bss= 377
+default + page service             atmega328p  text= 1944 data=0 bss= 377
+default + load thread              atmega328p  text= 2022 data=0 bss= 379
+everything                         atmega328p  text= 2336 data=0 bss= 383
+smallest                           atmega1284p text= 2278 data=0 bss= 525
+default                            atmega1284p text= 2338 data=0 bss= 525
+default + page service             atmega1284p text= 2350 data=0 bss= 525
+default + load thread              atmega1284p text= 2460 data=0 bss= 528
+everything                         atmega1284p text= 2950 data=0 bss= 532
+smallest                           atmega2560  text= 2278 data=0 bss= 525
+default                            atmega2560  text= 2338 data=0 bss= 525
+default + page service             atmega2560  text= 2350 data=0 bss= 525
+default + load thread              atmega2560  text= 2460 data=0 bss= 528
+everything                         atmega2560  text= 2950 data=0 bss= 532
+default, virtual reset, soft uart  attiny85    text= 1958 data=0 bss= 313
 
 == one option at a time, ATmega328P, relative to the default ==
-without family-check                   -12  (1948)
-without merge-segments                 -62  (1898)
-without image-crc                      -14  (1946)
-without watchdog care (unsafe)         -22  (1938)
-quick-restart (not after watchdog)     +22  (1982)
-window after the reset pin only        +20  (1980)
-page-service                           +12  (1972)
-load-thread (with page-service)        +88  (2048)
-signature                              +60  (2020)
-eeprom                                 +78  (2038)
-info                                   +94  (2054)
-verify-at-start                        +48  (2008)
+without family-check                   -12  (1920)
+without image-crc                      -14  (1918)
+without watchdog care (unsafe)         -44  (1888)
+wait after every reset                 -22  (1910)
+wait after the reset pin only           -2  (1930)
+without uart-reset                     -12  (1920)
+merge-segments                         +62  (1994)
+page-service                           +12  (1944)
+load-thread (with page-service)        +90  (2022)
+signature                              +50  (1982)
+eeprom                                 +68  (2000)
+info                                   +94  (2026)
+verify-at-start                        +48  (1980)
 
 == test kernel on the real scheduler, ATmega328P (kernel/kernel.c) ==
 none           text= 3924 data= 10 bss= 394
