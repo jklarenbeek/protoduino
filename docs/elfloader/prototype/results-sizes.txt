@@ -1,0 +1,45 @@
+############ sizes: avr-gcc 7.3.0, -Os -mrelax -mstrict-X, text bytes ############
+328P base                    atmega328p  text= 1676 data=0 bss= 349
+328P minimal                 atmega328p  text= 1576 data=0 bss= 343
+328P -arch-check             atmega328p  text= 1664 data=0 bss= 349
+328P -coalesce               atmega328p  text= 1614 data=0 bss= 349
+328P -image-crc              atmega328p  text= 1650 data=0 bss= 349
+328P +verify-on-boot         atmega328p  text= 1722 data=0 bss= 349
+328P +eeprom                 atmega328p  text= 1756 data=0 bss= 352
+328P +signature              atmega328p  text= 1750 data=0 bss= 352
+328P +info                   atmega328p  text= 1744 data=0 bss= 349
+328P +service                atmega328p  text= 1704 data=0 bss= 349
+328P +all                    atmega328p  text= 1944 data=0 bss= 359
+1284P base                   atmega1284p text= 2164 data=0 bss= 491
+2560 base                    atmega2560  text= 2168 data=0 bss= 491
+2560 +all                    atmega2560  text= 2488 data=0 bss= 504
+tiny85 base                  attiny85    text= 1736 data=0 bss= 285
+--- per-function sizes, 328P base ---
+  506 boot_main
+  348 elfld_write
+  242 add_phdr
+  120 check_ehdr
+  100 page_program.constprop.2
+   84 page_commit
+   52 _crc_xmodem_update
+   46 crc_flash
+   36 elfld_begin
+   36 getch
+   34 ehdr_rules
+   24 start_image
+   16 __do_clear_bss
+   14 putch
+   12 boot_init
+    4 boot_vec
+    2 boot_go
+sum of named functions/tables: 1676
+--- RAM (bss), 328P base ---
+1 dirty
+1 pg_live
+1 timed_out
+2 app_entry
+2 img_end
+2 pg_base
+84 ld
+128 blk
+128 pg

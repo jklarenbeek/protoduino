@@ -1,0 +1,349 @@
+<h2><span class="n">5</span>Functional specification</h2>
+
+<h3><span class="n">5.1</span>Use cases</h3>
+
+<table>
+  <thead><tr><th style="width:6%">ID</th><th style="width:30%">Use case</th><th>How it goes</th><th style="width:12%">Status</th></tr></thead>
+  <tbody>
+    <tr><td>UC1</td><td>Flash firmware over a serial line</td><td>Reset the board. The loader asks for a file by sending <code>C</code>. Send the <code>.elf</code> with XMODEM from any terminal program. The loader writes it, stores the record and starts it.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>UC2</td><td>Recover a board whose application is broken or half-written</td><td>The record is missing or damaged, so after reset the loader keeps asking for a file. No programmer is needed on parts with a boot section.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>UC3</td><td>The application asks for an update</td><td>It calls <code>elfboot_request()</code>, which sets a flag that survives reset and resets through the watchdog. The loader sees the flag and waits for a file.</td><td><span class="tag p">proposed</span></td></tr>
+    <tr><td>UC4</td><td>Check what is installed</td><td>Send the same file in verify mode. Bytes are compared with flash instead of written.</td><td><span class="tag p">proposed</span></td></tr>
+    <tr><td>UC5</td><td>Ask the device what it is</td><td>Send <code>?</code> before a transfer. The loader answers with part, page size, window and feature bits.</td><td><span class="tag b">built</span></td></tr>
+    <tr><td>UC6</td><td>Install a module while the system runs</td><td>The kernel's loader process receives the module file, writes it into a free slot through the service, records it and starts it as a process.</td><td><span class="tag p">proposed</span></td></tr>
+    <tr><td>UC7</td><td>List, stop and remove modules</td><td>Shell commands on the kernel's loader process. Installed modules start again after a reset.</td><td><span class="tag p">proposed</span></td></tr>
+  </tbody>
+</table>
+
+<h3><span class="n">5.2</span>Requirements</h3>
+
+<table>
+  <thead><tr><th style="width:7%">ID</th><th>The loader &hellip;</th><th style="width:25%">Evidence</th></tr></thead>
+  <tbody>
+    <tr><td>FR-1</td><td>accepts ELF32, little-endian, executable files for the AVR machine type whose program headers start at offset 52, fed in file order. This is what avr-gcc emits.</td><td><span class="tag m">measured</span> T1, T3, T11, host</td></tr>
+    <tr><td>FR-2</td><td>needs nothing after the last loadable byte. Whatever follows, including XMODEM padding, is ignored.</td><td><span class="tag m">measured</span> T3, T4</td></tr>
+    <tr><td>FR-3</td><td>refuses a file built for another core family from the ELF header alone.</td><td><span class="tag m">measured</span> T5, T7</td></tr>
+    <tr><td>FR-4</td><td>refuses any flash segment outside the permitted window. The loader's own pages and the image record lie outside the window.</td><td><span class="tag m">measured</span> host</td></tr>
+    <tr><td>FR-5</td><td>changes nothing in flash until every program header has been accepted.</td><td><span class="tag m">measured</span> T7</td></tr>
+    <tr><td>FR-6</td><td>invalidates the installed image before changing its first byte, and makes an image valid only after its last byte is written.</td><td><span class="tag m">measured</span> T1; power cut not simulated</td></tr>
+    <tr><td>FR-7</td><td>has a damaged block sent again, and acknowledges a repeated block without applying it twice.</td><td><span class="tag m">measured</span> T2</td></tr>
+    <tr><td>FR-8</td><td>optionally writes the EEPROM image contained in the file.</td><td><span class="tag m">measured</span> T8</td></tr>
+    <tr><td>FR-9</td><td>optionally compares the file's device signature with the chip's. A mismatch prevents the commit. The signature follows the flash data in the file, so by then flash and EEPROM have changed and the device stays in the loader. The host tool makes the same check before sending.</td><td><span class="tag m">measured</span> T9</td></tr>
+    <tr><td>FR-10</td><td>after a refusal sends a one-byte reason and is ready for a new transfer. If nothing was written, the old image still starts.</td><td><span class="tag m">measured</span> T5, T6, T7</td></tr>
+    <tr><td>FR-11</td><td>starts an image only if its record is intact, and optionally only if the image's CRC still matches.</td><td>record <span class="tag m">measured</span>; CRC at start <span class="tag b">built</span></td></tr>
+    <tr><td>FR-12</td><td>exports a page-write entry to the application. The entry uses the caller's memory only.</td><td><span class="tag m">measured</span> T10</td></tr>
+    <tr><td>FR-13</td><td>installs a module only into a free slot and only if the module names this firmware build; starts it as a process; starts it again after reset; removes it on request.</td><td>link recipe and window <span class="tag m">measured</span> on host; rest <span class="tag p">proposed</span></td></tr>
+    <tr><td>FR-14</td><td>never has to accept a module with static RAM: the module linker script rejects it.</td><td><span class="tag m">measured</span></td></tr>
+  </tbody>
+</table>
+
+<h3><span class="n">5.3</span>Start-up behaviour</h3>
+<p>After reset the loader probes for a sender: it transmits <code>C</code>, waits about a second, and repeats. A transfer may begin at any probe. If none begins within the configured number of probes and the image record is intact, the image is started. If the record is not intact, the loader probes for ever. In the prototype the window is always applied and comes to about five seconds with three probes <span class="tag m">measured</span>. That is too long for a product, so the entry condition is a configuration choice: always wait; wait only after an external reset; or wait only when the application asked or no valid image exists. <span class="tag p">proposed</span></p>
+
+<h3><span class="n">5.4</span>Reasons for refusal</h3>
+<p>When the loader refuses a file it cancels the transfer and sends one more byte with the reason.</p>
+<table class="tight">
+  <thead><tr><th style="width:9%">Code</th><th style="width:15%">Name</th><th>Meaning</th><th style="width:22%">Flash changed?</th></tr></thead>
+  <tbody>
+    <tr><td><code>0x80</code></td><td>FORMAT</td><td>Not a little-endian ELF32 executable for AVR with program headers at offset 52</td><td>no</td></tr>
+    <tr><td><code>0x81</code></td><td>ARCH</td><td>Built for another AVR core family</td><td>no</td></tr>
+    <tr><td><code>0x82</code></td><td>LAYOUT</td><td>No program headers, or an entry address that does not fit</td><td>no</td></tr>
+    <tr><td><code>0x83</code></td><td>RANGE</td><td>A segment falls outside the permitted window, or an offset or size does not fit the build's address width</td><td>no</td></tr>
+    <tr><td><code>0x84</code></td><td>ORDER</td><td>Segment data is not in ascending file order, or a block arrived out of sequence</td><td>no for the file; possibly for a block</td></tr>
+    <tr><td><code>0x85</code></td><td>SEGMENTS</td><td>More separate segments than the build remembers</td><td>no</td></tr>
+    <tr><td><code>0x86</code></td><td>EMPTY</td><td>Nothing to load</td><td>no</td></tr>
+    <tr><td><code>0x87</code></td><td>SINK</td><td>A sink refused a byte: today, a device signature that does not match</td><td>yes; not committed</td></tr>
+    <tr><td><code>0x88</code> &ndash; <code>0x8A</code></td><td>ABI, SLOT, RAM</td><td>Module built for another firmware; no free slot; module declares static RAM <span class="tag p">proposed</span></td><td>no</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="n">5.5</span>Limits</h3>
+<ul>
+  <li>At most 255 program headers; at most <code>ELFLD_CONF_MAX_SEGMENTS</code> separate loadable segments after adjacent ones are merged. Plain firmware needs one.</li>
+  <li>File offsets and sizes must fit the build's address width: 64 KB on small parts, 16 MB on large ones.</li>
+  <li>Flash segments must arrive in ascending address order, because the page cache only moves forward. avr-gcc output does. A read-modify-write option would lift this. <span class="tag p">proposed</span></li>
+  <li>The serial path needs 128 bytes of RAM for an XMODEM block and one flash page more.</li>
+</ul>
+
+<h2 class="newpage"><span class="n">6</span>Technical design</h2>
+
+<h3><span class="n">6.1</span>Where the pieces live</h3>
+<pre><code>src/sys/elf/elfld.h  elfld.c  elfld.conf.h     <span class="c">core; also builds on the host</span>
+src/sys/elf/module.h  elfmod.c                 <span class="c">module descriptor and the kernel's loader process (cut C)</span>
+src/cpu/avr/flash.h   flash_spm.c              <span class="c">flash back-end and the client side of the service</span>
+boot/elfboot.c  xmodem.h  elfboot.conf.h       <span class="c">the bootloader, with its own build</span>
+ld/pd-module.ld                                <span class="c">linker script for modules</span>
+tools/pd/                                      <span class="c">Node 22 ESM command-line tool: send, verify, info, abi</span></code></pre>
+<p>The Arduino build compiles every source file under <code>src/</code>. The bootloader has its own entry code and no C runtime, so it must stay outside that tree.</p>
+
+<h3><span class="n">6.2</span>The core</h3>
+<pre><code><span class="c">/* Start a load. Flash bytes outside [lo, hi) are refused before anything is written. */</span>
+void    elfld_begin(elfld_t *c, elfld_addr_t lo, elfld_addr_t hi);
+
+<span class="c">/* Push the next n bytes of the file. Returns ELFLD_MORE, ELFLD_DONE or an ELFLD_E_* code;
+   after DONE or an error the rest of the file is ignored. */</span>
+uint8_t elfld_write(elfld_t *c, const uint8_t *p, uint8_t n);
+
+<span class="c">/* Supplied by the port: store one byte. Return 0 to continue. */</span>
+uint8_t elfld_sink(uint8_t space, elfld_addr_t addr, uint8_t byte);</code></pre>
+
+<figure>
+<svg viewBox="0 0 700 132" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif" font-size="9.5">
+  <defs><marker id="ar3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6672"/></marker>
+  <marker id="ar4" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8a4b06"/></marker></defs>
+  <rect x="0" y="4" width="150" height="56" rx="4" fill="#e3f0f5" stroke="#0b5c7a"/>
+  <text x="75" y="21" text-anchor="middle" font-weight="700" fill="#0b5c7a">HEADER</text>
+  <text x="75" y="35" text-anchor="middle" fill="#10323f">collect 52 bytes</text>
+  <text x="75" y="48" text-anchor="middle" fill="#10323f">17 fixed-value rules, family</text>
+  <rect x="183" y="4" width="160" height="56" rx="4" fill="#e3f0f5" stroke="#0b5c7a"/>
+  <text x="263" y="21" text-anchor="middle" font-weight="700" fill="#0b5c7a">PROGRAM HEADERS</text>
+  <text x="263" y="35" text-anchor="middle" fill="#10323f">collect 32 bytes, once per header</text>
+  <text x="263" y="48" text-anchor="middle" fill="#10323f">check window, remember, merge</text>
+  <rect x="376" y="4" width="160" height="56" rx="4" fill="#e3f0f5" stroke="#0b5c7a"/>
+  <text x="456" y="21" text-anchor="middle" font-weight="700" fill="#0b5c7a">BODY</text>
+  <text x="456" y="35" text-anchor="middle" fill="#10323f">skip the gap before a segment,</text>
+  <text x="456" y="48" text-anchor="middle" fill="#10323f">then hand each byte to the sink</text>
+  <rect x="569" y="4" width="131" height="56" rx="4" fill="#e2f3ea" stroke="#17694a"/>
+  <text x="634" y="27" text-anchor="middle" font-weight="700" fill="#17694a">DONE</text>
+  <text x="634" y="42" text-anchor="middle" fill="#17694a">last segment delivered</text>
+  <line x1="150" y1="32" x2="180" y2="32" stroke="#5b6672" marker-end="url(#ar3)"/>
+  <line x1="343" y1="32" x2="373" y2="32" stroke="#5b6672" marker-end="url(#ar3)"/>
+  <line x1="536" y1="32" x2="566" y2="32" stroke="#5b6672" marker-end="url(#ar3)"/>
+  <rect x="183" y="92" width="353" height="34" rx="4" fill="#fbefdc" stroke="#d9a25a"/>
+  <text x="359" y="107" text-anchor="middle" font-weight="700" fill="#8a4b06">REFUSED</text>
+  <text x="359" y="120" text-anchor="middle" fill="#8a4b06">a reason code is kept; later bytes are ignored</text>
+  <line x1="75" y1="60" x2="75" y2="109" stroke="#8a4b06"/><line x1="75" y1="109" x2="180" y2="109" stroke="#8a4b06" marker-end="url(#ar4)"/>
+  <line x1="263" y1="60" x2="263" y2="89" stroke="#8a4b06" marker-end="url(#ar4)"/>
+  <line x1="456" y1="60" x2="456" y2="89" stroke="#8a4b06" marker-end="url(#ar4)"/>
+  <text x="81" y="80" fill="#8a4b06">0x80 to 0x82</text>
+  <text x="269" y="80" fill="#8a4b06">0x83 to 0x86</text>
+  <text x="462" y="80" fill="#8a4b06">0x87</text>
+</svg>
+<figcaption><strong>Figure 4.</strong> The core's states. Nothing reaches a sink before BODY, which is why a refusal in the first two states changes nothing.</figcaption>
+</figure>
+
+<p><strong>Header rules.</strong> Seventeen bytes of the ELF header must each have one exact value: the magic, the class, the byte order, the file type, the machine, the position and size of the program headers. They are checked by a loop over a 34-byte table of offset and value pairs, which is smaller than seventeen comparisons and easy to extend.</p>
+<p><strong>What is remembered.</strong> The data of a segment arrives after all the headers, so each loadable segment is remembered as three numbers: the count of file bytes to skip before it, the address of its next byte, and the bytes still to deliver. Storing the gap and not the absolute offset removes the need to count file position at all. A segment that continues the previous one, both in the file and in memory, is merged into it. <code>.text</code> and <code>.data</code> always do, so plain firmware is one remembered segment.</p>
+<p><strong>Context layout.</strong> The scratch area for header bytes is the first member of the context, so that header bytes and the hot control fields are all within the 63-byte reach of one pointer. On AVR that matters more than it looks: see 6.10.</p>
+
+<div class="box">
+<h4>What building the prototype taught</h4>
+<ul>
+  <li><strong>A refused file must not cost the installed image.</strong> The first version erased the record when the first block arrived. A wrong file then left a working board without a valid image. Invalidation now happens with the first page write, after the headers are accepted. Test T7 guards it.</li>
+  <li><strong>Above 64 KB, tables in flash need the far read.</strong> In the ATmega2560's boot section the rule table sits beyond the reach of <code>LPM</code>. The loader refused every file until the table was read through <code>ELPM</code>.</li>
+  <li><strong>Service code owns no RAM.</strong> When the application calls into the boot section, the loader's variables are the application's memory. The first service copied into the loader's page buffer and would have corrupted the caller. It now works on the caller's buffer alone.</li>
+  <li><strong>Do not pin registers.</strong> An attempt to force the context pointer into the Y register with a local register variable compiled, did nothing on one part and miscompiled on the other. The supported way is the compiler option in 6.10.</li>
+</ul>
+</div>
+
+<h3><span class="n">6.3</span>Flash back-end</h3>
+<p>The sink for flash is a cache of one page. A byte for a different page first commits the cached one: erase, fill the chip's page buffer, write, re-enable the read-while-write section. The cache starts as all <code>0xFF</code>, so a partly covered page is padded. The back-end is the only part that differs between chip families:</p>
+<table class="tight">
+  <thead><tr><th style="width:27%">Back-end</th><th>Parts</th><th>Notes</th><th style="width:12%">Status</th></tr></thead>
+  <tbody>
+    <tr><td>SPM from a boot section</td><td>megaAVR</td><td>Read-while-write must be re-enabled before the application section is read again</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>SPM from anywhere</td><td>classic tinyAVR</td><td>The CPU halts during a write; needs the SELFPRGEN fuse; reset vector handling in 6.6</td><td><span class="tag b">built</span></td></tr>
+    <tr><td>NVMCTRL</td><td>tinyAVR 0/1/2, AVR Dx</td><td>Different mechanism; not designed here</td><td>&ndash;</td></tr>
+  </tbody>
+</table>
+<p>The lock bits must leave SPM writes to the application section enabled, or no bootloader of any kind can work.</p>
+
+<h3><span class="n">6.4</span>Transport: XMODEM-CRC</h3>
+<p>The bootloader speaks XMODEM with 16-bit CRC. It is decades old and exactly right for this job.</p>
+<table class="tight">
+  <thead><tr><th style="width:30%">Property</th><th>Why it matters here</th></tr></thead>
+  <tbody>
+    <tr><td>Built into terminal programs on every platform</td><td>The unmodified <code>.elf</code> can be sent with no tool of ours installed.</td></tr>
+    <tr><td>The receiver sets the pace: one block, one acknowledgement</td><td>The loader programs pages while handling a block and acknowledges afterwards. No flow-control lines and no receive buffer are needed with a polled serial port.</td></tr>
+    <tr><td>Blocks are numbered</td><td>A block repeated after a lost acknowledgement is recognised and not applied twice.</td></tr>
+    <tr><td>CRC-16 per block</td><td>The same CRC routine also protects the image record and the image, so there is one checksum routine in the loader.</td></tr>
+  </tbody>
+</table>
+<p>A block is <code>SOH</code>, the block number, its complement, 128 data bytes and two CRC bytes. The loader holds a block in RAM until its CRC has passed, and only then feeds it to the core, so damaged bytes never reach flash. One extension is used: after cancelling with two <code>CAN</code> bytes the loader sends the reason code. Terminal programs ignore it; the <code>pd</code> tool prints it.</p>
+<p>The limits are the 128 bytes of RAM a block needs, and that XMODEM cannot tell the sender to stop early. Sending a stripped file, or using the <code>pd</code> tool, which stops after the last loadable byte, removes the wasted time. In simulation at 115200 baud a block took 13.3 ms of line time: 0.22 s for example 12 stripped, 3.06 s with its debug information. <span class="tag m">measured</span></p>
+<p>The runtime loader (cut C) uses the same framing over a protoduino pipe from the serial process. Stop-and-wait is not optional there: programming a page keeps interrupts off for several milliseconds, and a sender that kept transmitting would overrun the receiver.</p>
+
+<h3><span class="n">6.5</span>Image record and memory map</h3>
+
+<figure>
+<svg viewBox="0 0 700 96" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif" font-size="9.5">
+  <rect x="0" y="22" width="372" height="36" fill="#9cc7d6"/>
+  <rect x="372" y="22" width="120" height="36" fill="#cfe3ea" stroke="#3d87a3" stroke-dasharray="4 3"/>
+  <rect x="492" y="22" width="52" height="36" fill="#fbefdc" stroke="#d9a25a"/>
+  <rect x="544" y="22" width="128" height="36" fill="#0b5c7a"/>
+  <rect x="672" y="22" width="28" height="36" fill="#17694a"/>
+  <text x="186" y="38" text-anchor="middle" font-weight="600" fill="#10323f">application image</text>
+  <text x="186" y="51" text-anchor="middle" fill="#10323f">the window the loader may write</text>
+  <text x="432" y="38" text-anchor="middle" font-weight="600" fill="#10323f">module slots</text>
+  <text x="432" y="51" text-anchor="middle" fill="#10323f">proposed</text>
+  <text x="518" y="38" text-anchor="middle" font-weight="600" fill="#8a4b06">record</text>
+  <text x="518" y="51" text-anchor="middle" fill="#8a4b06">1 page</text>
+  <text x="608" y="38" text-anchor="middle" font-weight="600" fill="#fff">loader</text>
+  <text x="608" y="51" text-anchor="middle" fill="#fff">boot section, 2 KB</text>
+  <text x="686" y="44" text-anchor="middle" font-weight="600" fill="#fff">svc</text>
+  <text x="0" y="14" fill="#5b6672">0x0000</text>
+  <text x="492" y="14" text-anchor="middle" fill="#5b6672">0x7780</text>
+  <text x="544" y="14" text-anchor="middle" fill="#5b6672">0x7800</text>
+  <text x="700" y="14" text-anchor="end" fill="#5b6672">0x7FFC to 0x7FFF</text>
+  <text x="0" y="76" fill="#5b6672">ATmega328P with the 2 KB boot section, not to scale. Window 30,592 bytes; loader 1,676 to 1,944 bytes used;</text>
+  <text x="0" y="89" fill="#5b6672">service stub and magic in the last four bytes.</text>
+</svg>
+<figcaption><strong>Figure 5.</strong> Flash layout. The record page sits directly below the loader and outside the window.</figcaption>
+</figure>
+
+<table class="tight">
+  <thead><tr><th style="width:12%">Bytes</th><th style="width:22%">Field</th><th>Content</th></tr></thead>
+  <tbody>
+    <tr><td>0 &ndash; 1</td><td>Magic</td><td><code>'p' 'D'</code></td></tr>
+    <tr><td>2 &ndash; 3</td><td>Entry</td><td>Word address at which the image is started</td></tr>
+    <tr><td>4 &ndash; 6</td><td>Image end</td><td>End of the written image, rounded up to a page</td></tr>
+    <tr><td>7 &ndash; 8</td><td>Image CRC</td><td>CRC-16 (XMODEM polynomial) of flash from 0 to the image end</td></tr>
+    <tr><td>9 &ndash; 10</td><td>Record CRC</td><td>Stored so that the CRC over all eleven bytes is zero</td></tr>
+  </tbody>
+</table>
+<p>An erased page fails both the magic and the CRC, so &ldquo;no record&rdquo; needs no flag. The record after test T1 read <code>70 44 00 00 80 01 00 13 80 c1 aa</code>: entry 0, image end <code>0x000180</code>, image CRC <code>0x8013</code>. That 16-bit value doubles as the identity of the firmware build for modules (6.8). The rest of the record page is reserved for module records.</p>
+
+<h3><span class="n">6.6</span>Parts without a boot section <span class="tag p">proposed</span></h3>
+<p>On a classic ATtiny, reset always goes to address 0, and nothing protects the loader's pages. The loader sits at the top of flash and makes four provisions.</p>
+<ol>
+  <li><strong>The reset vector is redirected.</strong> When page 0 of an image passes through the page cache, the loader keeps the image's own start address for the record and replaces the first instruction with a jump to itself. The other vectors stay the image's; the loader uses no interrupts.</li>
+  <li><strong>Erase runs from the top down, page 0 last.</strong> Before the first page is written, all application pages are erased starting just below the loader. While page 0 still holds the old redirected vector, a reset reaches the loader through it. Once page 0 is erased, everything below the loader is erased, and erased flash executes as a harmless skip instruction until the program counter runs into the loader. This closes the window urboot's documentation warns about.</li>
+  <li><strong>A landing pad.</strong> Because that skip instruction may skip one word, the loader starts with a one-word no-op.</li>
+  <li><strong>Its own serial port.</strong> The ATtiny85 has no USART; the build uses a bit-banged port.</li>
+</ol>
+<p>The loader's own pages remain unprotected against a runaway application. On these parts the design is an updater, not a guaranteed recovery path, and an ISP programmer remains the last resort. This path compiles and has not executed. The simulator cannot settle point 2: simavr treats <code>0xFFFF</code> as an invalid opcode.</p>
+
+<h3><span class="n">6.7</span>The service entry</h3>
+<pre><code><span class="c">/* last four bytes of flash:  rjmp bootsvc_write_page ; 'p' ; 'D' */</span>
+typedef void (*pd_write_page_fn)(uint32_t addr, const uint8_t *page);
+
+if (pgm_read_byte(FLASHEND - 1) == 'p' &amp;&amp; pgm_read_byte(FLASHEND) == 'D')
+  ((pd_write_page_fn)((FLASHEND - 3) / 2))(0x6000UL, page);     <span class="c">/* returns when the page is programmed */</span></code></pre>
+<p>The entry disables interrupts while it works, because the caller's interrupt handlers live in the section being programmed, and restores the caller's interrupt state on return. It costs 28 bytes in the loader. In simulation an application installed through the loader called it and read its page back correctly <span class="tag m">measured</span>. Two limits apply to that result: simavr does not enforce the rule that SPM must run from the boot section, so the test shows the calling convention and not the hardware permission; and on parts above 128 KB the entry lies beyond a 16-bit function pointer and needs a small far-call trampoline, which is not built.</p>
+<p>The planned form is a short table, not a single entry: write a page, begin a load, feed a load, report information. With the core exported this way, the kernel's module loader carries no second copy of it. <span class="tag p">proposed</span></p>
+
+<h3><span class="n">6.8</span>Modules <span class="tag p">proposed</span></h3>
+<p>A module is an executable linked into a flash slot. Its first bytes are a descriptor, and the ELF entry point is the descriptor's address, so the standard header field tells the loader what was installed.</p>
+<pre><code>#include &lt;protoduino.h&gt;
+#include &lt;sys/process.h&gt;
+#include &lt;sys/elf/module.h&gt;
+
+PROCESS_DEFINE(blink, "blink", 2,
+  uint8_t  pin;                  <span class="c">/* all state lives in the process struct */</span>
+  uint16_t ticks;
+);
+PD_MODULE(blink);                <span class="c">/* descriptor: magic, ABI, firmware id, &amp;process_type_blink */</span>
+
+PROCESS_THREAD(blink, ev, data)
+{
+  blink_t *self = PROCESS_SELF(blink);
+  PROCESS_BEGIN();
+  <span class="c">/* ... ordinary protoduino process code, calling kernel functions directly ... */</span>
+  PROCESS_END();
+}</code></pre>
+<pre><code><span class="c"># the kernel's functions, as addresses the module may link against</span>
+avr-nm firmware.elf | pd abi &gt; kernel-abi.ld          <span class="c"># PROVIDE(process_post = 0x00001a2c); ...</span>
+
+avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
+        -Wl,-T,pd-module.ld -Wl,-T,kernel-abi.ld \
+        -Wl,-e,pd_module -Wl,--defsym=__pd_kernel_id=0x8013 \
+        -o blink.elf blink.c</code></pre>
+<p>A reduced form of this recipe was linked and loaded on the host <span class="tag m">measured</span>. The result is an 848-byte file with one flash segment at the slot address, its entry point on the descriptor, and calls into the kernel as plain absolute <code>call</code> instructions. The core accepted it when the window was the slot it was linked for, and refused it with <code>RANGE</code> for a different slot; the firmware image offered to a module slot was refused the same way. The module linker script turns static variables into a link error: <em>module has static variables: keep state in the process struct</em>.</p>
+
+<h4>Binding to the kernel</h4>
+<table>
+  <thead><tr><th style="width:14%">Scheme</th><th>How a module finds kernel functions</th><th style="width:24%">Cost on the device</th><th style="width:26%">Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Exact</strong><br><span class="small">first version</span></td><td>Linked against the addresses of one firmware build. The descriptor carries that build's identity: the image CRC from the record. The loader compares the two and refuses on a mismatch.</td><td>None. No symbol table, no names, no table of entries.</td><td>Modules must be re-linked after any firmware change. A stale module is inert, not a crash.</td></tr>
+    <tr><td><strong>Table</strong><br><span class="small">option</span></td><td>The kernel exposes an append-only table of jumps at a fixed address; modules link against the table slots.</td><td>Four bytes per exported function, and one extra jump per call.</td><td>Modules survive firmware updates while the table only grows.</td></tr>
+  </tbody>
+</table>
+
+<h4>Slots, records and life cycle</h4>
+<ul>
+  <li><strong>Slots.</strong> Pages between the end of the firmware image and the record page. The information reply names the next free slot, so the host can link for it. With 4.7, any slot.</li>
+  <li><strong>Records.</strong> A few bytes per module in the record page: state, first page, page count, descriptor address, CRC.</li>
+  <li><strong>Install.</strong> The descriptor is the first thing in the first segment, so the loader can check its magic and firmware id while the first page is still in RAM, before any write. Pages go through the service. The record is written last. Then <code>process_new()</code> with memory from a module pool, and <code>process_start()</code>.</li>
+  <li><strong>Start-up.</strong> For every intact record whose firmware id matches, start the process again.</li>
+  <li><strong>Remove.</strong> <code>process_destroy()</code>, which delivers the exit event, then clear the record.</li>
+</ul>
+
+<h4>Rules and hazards</h4>
+<ul>
+  <li>No static variables. No interrupt handlers: the vector table belongs to the kernel.</li>
+  <li>A process struct is at most 255 bytes, because <code>process_type_t.size</code> is one byte.</li>
+  <li>A callback a module registers with the kernel, such as a UART receive handler, points into the module. It must be removed in the module's exit handler. The kernel cannot check this.</li>
+  <li>While a page is programmed, interrupts are off for milliseconds. Installing a module disturbs time-critical processes.</li>
+  <li>A signature over the module, checked before the record is written, would fit in the descriptor. It is reserved, not designed.</li>
+</ul>
+
+<h3><span class="n">6.9</span>Compile-time configuration</h3>
+<p>Configuration follows the pattern protoduino already uses in its <code>*.conf.h</code> files: every setting has a default and can be overridden. Three rules apply. Derive from the part wherever possible: address width from <code>FLASHEND</code>, expected core family from <code>__AVR_ARCH__</code>, page size from <code>SPM_PAGESIZE</code>. A feature that is off costs nothing. And fail the build, not the device: a missing setting is an <code>#error</code>, and a loader that outgrows its boot section must fail at link time.</p>
+
+<table class="tight">
+  <thead><tr><th style="width:31%">Setting</th><th style="width:13%">Default</th><th>Effect</th><th class="num" style="width:15%">Flash, 328P</th></tr></thead>
+  <tbody>
+    <tr><td><code>ELFLD_CONF_ADDR_BITS</code></td><td>from the part</td><td>16 or 24 bits for offsets and addresses</td><td class="num">see 6.10</td></tr>
+    <tr><td><code>ELFLD_CONF_MAX_SEGMENTS</code></td><td>3</td><td>Separate segments remembered; 6 or 9 bytes of RAM each</td><td class="num">&ndash;</td></tr>
+    <tr><td><code>ELFLD_FEAT_ARCH_CHECK</code></td><td>on</td><td>Refuse files for another core family</td><td class="num">12 B</td></tr>
+    <tr><td><code>ELFLD_FEAT_COALESCE</code></td><td>on</td><td>Merge adjacent segments</td><td class="num">62 B</td></tr>
+    <tr><td><code>ELFLD_FEAT_EEPROM</code></td><td>off</td><td>Write the EEPROM image</td><td class="num">+80 B</td></tr>
+    <tr><td><code>ELFLD_FEAT_SIGNATURE</code></td><td>off</td><td>Compare the device signature</td><td class="num">+74 B</td></tr>
+    <tr><td><code>ELFLD_FEAT_RAM_EXTENT</code></td><td>off</td><td>Record the RAM the file claims; for modules</td><td class="num">host only</td></tr>
+    <tr><td><code>ELFLD_FEAT_WINDOW_LO</code></td><td>off</td><td>A lower bound on the window; for module slots</td><td class="num">host only</td></tr>
+    <tr><td><code>ELFBOOT_FEAT_IMAGE_CRC</code></td><td>on</td><td>Store the image CRC in the record</td><td class="num">26 B</td></tr>
+    <tr><td><code>ELFBOOT_FEAT_VERIFY_BOOT</code></td><td>off</td><td>Re-check the image CRC at every start</td><td class="num">+46 B</td></tr>
+    <tr><td><code>ELFBOOT_FEAT_INFO</code></td><td>off</td><td>Answer <code>?</code> with a description line</td><td class="num">+68 B</td></tr>
+    <tr><td><code>ELFBOOT_FEAT_SERVICE</code></td><td>off</td><td>Export the page-write entry</td><td class="num">+28 B</td></tr>
+    <tr><td><code>ELFBOOT_VIRTUAL_RESET</code></td><td>off</td><td>Part has no boot section (6.6)</td><td class="num">tiny only</td></tr>
+    <tr><td><code>ELFBOOT_SOFT_UART</code></td><td>off</td><td>Bit-banged serial for parts without a USART</td><td class="num">tiny only</td></tr>
+    <tr><td><code>ELFBOOT_CONF_WINDOW</code>, <code>BAUD</code></td><td>3, 115200</td><td>Probes before starting the image; line speed</td><td class="num">&ndash;</td></tr>
+  </tbody>
+</table>
+<p>Each figure is the difference from the default build of 1,676 bytes when that one setting is flipped <span class="tag m">measured</span>. With every optional feature off the loader is 1,576 bytes; with everything on, 1,944. Named profiles on top of these settings, for a minimal bootloader, a standard one, a full one and the kernel-side loader, would give users one line to choose. <span class="tag p">proposed</span></p>
+
+<h3><span class="n">6.10</span>Measured budgets</h3>
+
+<div class="cols2">
+<div>
+<table class="tight">
+  <thead><tr><th>Build</th><th class="num">Flash</th><th class="num">RAM</th></tr></thead>
+  <tbody>
+    <tr><td>ATmega328P, optional features off</td><td class="num">1,576 B</td><td class="num">343 B</td></tr>
+    <tr><td>ATmega328P, default</td><td class="num">1,676 B</td><td class="num">349 B</td></tr>
+    <tr><td>ATmega328P, everything on</td><td class="num">1,944 B</td><td class="num">359 B</td></tr>
+    <tr><td>ATmega1284P, default</td><td class="num">2,164 B</td><td class="num">491 B</td></tr>
+    <tr><td>ATmega2560, default</td><td class="num">2,168 B</td><td class="num">491 B</td></tr>
+    <tr><td>ATmega2560, everything on</td><td class="num">2,488 B</td><td class="num">504 B</td></tr>
+    <tr><td>ATtiny85, bit-banged serial <span class="tag b">built</span></td><td class="num">1,736 B</td><td class="num">285 B</td></tr>
+  </tbody>
+</table>
+</div>
+<div>
+<table class="tight">
+  <thead><tr><th>Where the 1,676 bytes go</th><th class="num">Flash</th></tr></thead>
+  <tbody>
+    <tr><td>XMODEM receiver, session, record write</td><td class="num">506 B</td></tr>
+    <tr><td>Core: delivery loop and flash sink</td><td class="num">348 B</td></tr>
+    <tr><td>Core: program headers</td><td class="num">242 B</td></tr>
+    <tr><td>Core: header check, rule table, begin</td><td class="num">190 B</td></tr>
+    <tr><td>Page programming and commit</td><td class="num">184 B</td></tr>
+    <tr><td>CRC-16, for blocks and for flash</td><td class="num">98 B</td></tr>
+    <tr><td>Serial get and put; start-up; image start</td><td class="num">108 B</td></tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+<p><strong>What fits where.</strong> The ATmega328P offers boot sections of 0.5, 1, 2 and 4 KB. Every 328P build fits the 2 KB section, with 104 bytes to spare when everything is on. None fits 1 KB: the default is about 650 bytes over. The ATmega2560 offers 1, 2, 4 and 8 KB; the default build is 120 bytes over the 2 KB section and so needs 4 KB today. RAM on the 328P is the XMODEM block (128), the page buffer (128), the core context (84) and nine bytes of flags.</p>
+
+<p><strong>Why it is this big, and what would shrink it.</strong> The code is ordinary C and the cost is spread evenly: ten to thirty bytes per source line, mostly 16-bit arithmetic on fields reached through a pointer. Nothing has been tried from this list, in order of expected yield:</p>
+<ol>
+  <li>Write the per-byte path and the SPM sequences in assembly, as Optiboot and urboot do.</li>
+  <li>Replace the 128-byte block with a smaller frame, which also removes the buffer-then-apply loop and suits the small ATtinys.</li>
+  <li>Build with a newer avr-gcc. The repository's <code>platformio.ini</code> already points at one; only 7.3.0 was available here.</li>
+  <li>Take the minimum cut: without merging, the family check and the image CRC the loader is 100 bytes smaller.</li>
+</ol>
+<p>One compiler option already mattered. By default avr-gcc kept the context pointer in the X register, which has no displacement addressing, and spent three instructions on each field access. With <code>-mstrict-X</code> the header check alone fell from 154 to 120 bytes. <span class="tag m">measured</span></p>
+
+<p><strong>Time.</strong> Line time dominates: 13.3 ms per block at 115200 baud in simulation, about 9.6 KB per second. Real hardware adds the time to erase and program each page, a few milliseconds each, which simavr does not model.</p>

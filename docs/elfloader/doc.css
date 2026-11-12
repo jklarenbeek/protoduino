@@ -1,0 +1,112 @@
+/* Print stylesheet for the ELF loader design document (A4, rendered with Chromium). */
+@page { size: A4; margin: 19mm 17mm 21mm 17mm; }
+
+:root {
+  --ink: #1a1f26;
+  --muted: #5b6672;
+  --rule: #cfd6dd;
+  --soft: #f3f5f7;
+  --accent: #0b5c7a;
+  --accent-soft: #e3f0f5;
+  --ok: #17694a;
+  --ok-soft: #e2f3ea;
+  --warn: #8a4b06;
+  --warn-soft: #fbefdc;
+  --read: #3b4f9a;
+  --read-soft: #e8ecf9;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  font-family: "Inter", "Liberation Sans", sans-serif;
+  font-size: 9.4pt;
+  line-height: 1.48;
+  color: var(--ink);
+  margin: 0;
+  /* Inter's contextual alternates use glyphs with no Unicode mapping, which breaks copy and search in the PDF. */
+  font-feature-settings: "calt" 0, "case" 0;
+}
+
+p { margin: 0 0 6.5pt; orphans: 3; widows: 3; }
+ul, ol { margin: 0 0 7pt; padding-left: 15pt; }
+li { margin-bottom: 2.5pt; }
+/* Chromium gives list markers tabular figures, which Inter maps to glyphs without Unicode values. */
+li::marker { font-variant-numeric: normal; font-feature-settings: "tnum" 0, "calt" 0; }
+strong { font-weight: 600; }
+a { color: var(--accent); text-decoration: none; }
+
+h1 { font-size: 27pt; line-height: 1.12; font-weight: 700; letter-spacing: -0.4pt; margin: 0 0 6pt; }
+h2 {
+  font-size: 15pt; line-height: 1.2; font-weight: 700; letter-spacing: -0.15pt;
+  margin: 20pt 0 8pt; padding-bottom: 4pt; border-bottom: 1.2pt solid var(--ink);
+  break-after: avoid;
+}
+h2 .n { color: var(--accent); margin-right: 5pt; }
+h3 { font-size: 11pt; font-weight: 650; margin: 13pt 0 4.5pt; break-after: avoid; }
+h3 .n { color: var(--muted); font-weight: 500; margin-right: 4pt; }
+h4 { font-size: 9.4pt; font-weight: 650; margin: 9pt 0 3pt; break-after: avoid; }
+.newpage { break-before: page; }
+
+code, pre, .mono { font-family: "DejaVu Sans Mono", "Liberation Mono", monospace; }
+code { font-size: 8.2pt; background: var(--soft); padding: 0.4pt 2.4pt; border-radius: 2pt; white-space: nowrap; }
+pre {
+  font-size: 7.7pt; line-height: 1.42; background: var(--soft); border-left: 2.2pt solid var(--accent);
+  padding: 6.5pt 8.5pt; margin: 5pt 0 9pt; white-space: pre; overflow: hidden; break-inside: avoid;
+}
+pre code { background: none; padding: 0; font-size: inherit; white-space: pre; }
+pre .c { color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; margin: 5pt 0 10pt; font-size: 8.5pt; line-height: 1.4; }
+thead { display: table-header-group; }
+th {
+  text-align: left; font-weight: 650; font-size: 7.9pt; letter-spacing: 0.15pt;
+  border-bottom: 1.1pt solid var(--ink); padding: 3.5pt 6pt 3.5pt 0; vertical-align: bottom;
+}
+td { border-bottom: 0.5pt solid var(--rule); padding: 3.6pt 6pt 3.6pt 0; vertical-align: top; }
+tr { break-inside: avoid; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+td.nw { white-space: nowrap; }
+td code { white-space: normal; }
+table.keep { break-inside: avoid; }
+table.tight td, table.tight th { padding-top: 2.6pt; padding-bottom: 2.6pt; }
+
+.tag {
+  display: inline-block; font-size: 6.9pt; font-weight: 650; letter-spacing: 0.25pt; text-transform: uppercase;
+  padding: 0.6pt 4pt; border-radius: 2.5pt; white-space: nowrap; vertical-align: 0.6pt;
+}
+.tag.m { background: var(--ok-soft); color: var(--ok); }
+.tag.r { background: var(--read-soft); color: var(--read); }
+.tag.p { background: var(--warn-soft); color: var(--warn); }
+.tag.b { background: #eceff2; color: #46505a; }
+
+.box { border: 0.8pt solid var(--rule); background: #fff; padding: 8pt 10pt 4pt; margin: 7pt 0 11pt; break-inside: avoid; border-radius: 3pt; }
+.box.accent { border-color: var(--accent); background: var(--accent-soft); }
+.box.warn { border-color: #d9a25a; background: var(--warn-soft); }
+.box h4 { margin-top: 0; }
+
+figure { margin: 8pt 0 11pt; break-inside: avoid; }
+figure svg { width: 100%; height: auto; display: block; }
+figcaption { font-size: 8pt; color: var(--muted); margin-top: 4pt; }
+figcaption strong { color: var(--ink); }
+
+.cover { break-after: page; }
+.cover .kicker { font-size: 9pt; font-weight: 650; letter-spacing: 1.2pt; text-transform: uppercase; color: var(--accent); margin-bottom: 14pt; }
+.cover .sub { font-size: 13pt; line-height: 1.35; color: var(--muted); max-width: 135mm; margin-bottom: 20pt; }
+.cover .meta { font-size: 8.6pt; color: var(--muted); margin: 0 0 16pt; display: flex; justify-content: space-between; }
+.cover .top { margin-top: 9mm; }
+.keyfacts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1.2pt solid var(--ink); border-bottom: 0.5pt solid var(--rule); margin: 4pt 0 16pt; }
+.keyfacts div { padding: 8pt 8pt 8pt 0; }
+.keyfacts .v { font-size: 17pt; font-weight: 700; letter-spacing: -0.3pt; line-height: 1.1; }
+.keyfacts .l { font-size: 7.8pt; color: var(--muted); line-height: 1.3; margin-top: 3pt; }
+
+.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14pt; }
+.small { font-size: 8.3pt; color: var(--muted); }
+.toc { columns: 2; column-gap: 18pt; font-size: 8.8pt; margin: 4pt 0 0; padding: 0; list-style: none; }
+.toc li { margin-bottom: 2.2pt; break-inside: avoid; }
+.toc .n { display: inline-block; width: 16pt; color: var(--accent); font-weight: 650; }
+.legend { font-size: 8.3pt; margin: 4pt 0 0; }
+.legend span.tag { margin-right: 3pt; }
+.legend div { margin-bottom: 3pt; }
+.src { font-size: 8pt; line-height: 1.4; }
+.src li { margin-bottom: 1.8pt; }

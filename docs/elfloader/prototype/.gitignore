@@ -1,0 +1,7 @@
+out/
+host_test
+sim_harness
+*.elf
+*.bin
+*.o
+kernel-abi.ld

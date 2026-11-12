@@ -1,0 +1,220 @@
+<h2 class="newpage"><span class="n">7</span>Fixes for current protoduino caveats</h2>
+
+<p>These came out of reviewing the UART and serial layers as a base for the loader. Each was checked by running protoduino's real sources under protosim, except where marked as read. None has been applied. Four are defects; the rest are small.</p>
+
+<table>
+  <thead><tr><th style="width:4%">#</th><th style="width:24%">Where</th><th>What happens</th><th style="width:27%">Evidence</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><code>src/cpu/avr/ uart_private_impl.h:69</code></td><td><code>uartN_baudrate()</code> reports twice the real rate whenever the double-speed bit is off. The line rate itself is correct.</td><td><span class="tag m">measured</span> request 57600: registers give 58,823, function returns 117,647. Request 300: real 300, reported 600.</td></tr>
+    <tr><td>2</td><td><code>uart_private_impl.h:81&ndash;87</code></td><td><code>uartN_close()</code> ends with an unconditional <code>sei()</code>. Called with interrupts disabled, it switches them on under the caller.</td><td><span class="tag m">measured</span> interrupt flag 0 before the call, 1 after.</td></tr>
+    <tr><td>3</td><td><code>src/sys/serial/ serial_private_impl.h:293</code></td><td><code>serialN_flush()</code> tests the interrupt flag the wrong way round compared with its own documentation. With interrupts off it enables the transmit interrupt, which cannot fire, and sends nothing.</td><td><span class="tag m">measured</span> ten bytes queued with interrupts off: after 60,000 calls nine are still unsent. With interrupts on all ten go out.</td></tr>
+    <tr><td>4</td><td><code>docs/loader.md</code></td><td>Describes a loader that cannot work on AVR (module code in RAM, <code>-fpic</code>) and an API that is not in <code>src/</code>. The README links to it as experimental.</td><td><span class="tag r">read</span> avr-gcc prints &ldquo;-fpic is not supported&rdquo;. No loader source exists in the tree.</td></tr>
+    <tr><td>5</td><td><code>uart_private_impl.h:105&ndash;109</code></td><td>The frame-error branch in <code>uartN_rx_error()</code> can never run: the flag is masked out three lines earlier. Skipping frame errors is a documented choice; the dead branch is the only defect.</td><td><span class="tag r">read</span></td></tr>
+    <tr><td>6</td><td>UART header documentation</td><td>Nothing says that the polled receive calls and the receive interrupt must not be used together. With both active the stream splits between them.</td><td><span class="tag m">measured</span> input <code>hello</code>: the callback received <code>hlo</code>, the poller <code>el</code>.</td></tr>
+    <tr><td>7</td><td><code>uart_private_impl.h</code></td><td>The interrupt handlers and callback pointers are always compiled in. A bootloader that wants the same register mapping without vectors cannot have it.</td><td><span class="tag r">read</span> The polled calls themselves work with interrupts off <span class="tag m">measured</span>: input <code>hello</code> echoed in full.</td></tr>
+    <tr><td>8</td><td><code>platformio.ini</code></td><td><code>lib_deps</code> is an absolute path on one Windows machine, so the project builds nowhere else as checked in.</td><td><span class="tag r">read</span></td></tr>
+    <tr><td>9</td><td><code>uart_private_impl.h:44, :162</code></td><td>A baud rate of 0 divides by zero in <code>openex()</code>. A <code>#pragma message</code> prints on every build of every UART instance.</td><td><span class="tag r">read</span></td></tr>
+  </tbody>
+</table>
+
+<h4>Proposed changes</h4>
+<pre><code><span class="c">/* 1. uart_private_impl.h, openex(): remember which divisor is in force */</span>
+  uint8_t  samples = 8;                                   <span class="c">/* double speed: clock / 8 */</span>
+  uint16_t baud_setting = (F_CPU / 4 / baud - 1) / 2;
+  __UCSRA__ = 1 &lt;&lt; __U2X__;
+  if (((F_CPU == 16000000UL) &amp;&amp; (baud == 57600)) || (baud_setting &gt; 4095)) {
+    baud_setting = (F_CPU / 8 / baud - 1) / 2;
+    __UCSRA__ = 0;
+    samples = 16;                                         <span class="c">/* normal speed: clock / 16 */</span>
+  }
+  ...
+  CC_TMPL_VAR(baudrate) = F_CPU / ((uint32_t)samples * (baud_setting + 1));
+
+<span class="c">/* 2. uart_private_impl.h, close(): leave the caller's interrupt state alone */</span>
+void CC_TMPL_FN(close)(void)
+{
+  CC_ATOMIC_RESTORE()
+  {
+    CC_TMPL_VAR(baudrate) = 0;
+    __UCSRB__ &amp;= ~(_BV(__RXEN__) | _BV(__TXEN__) | _BV(__RXCIE__) | _BV(__UDRIE__));
+  }
+}
+
+<span class="c">/* 3. serial_private_impl.h, flush(): poll the port when interrupts are OFF */</span>
+  if (bit_is_clear(SREG, SREG_I))
+  {
+    if (!CC_TMPL2_FN(tx_is_ready)())
+      return cnt;
+    CC_TMPL2_FN(tx_write8)(ringb8_get(&amp;VAR_TX));
+    return cnt - 1;
+  }
+  CC_TMPL2_FN(tx_enable_int)();
+  return cnt;</code></pre>
+
+<ul>
+  <li><strong>4.</strong> Replace <code>docs/loader.md</code> with a short page that points here, and mark the README entry as a design, not a feature.</li>
+  <li><strong>5.</strong> Delete the dead branch. If frame errors are wanted later, report them from the receive interrupt, where the flags are read before the data register and are valid; put it behind <code>UART_CONF_REPORT_FRAME_ERRORS</code>, default off, so behaviour stays as it is.</li>
+  <li><strong>6.</strong> One paragraph in <code>uart_private_header.h</code>: use the callbacks with interrupts on, or the polled calls with interrupts off, never both.</li>
+  <li><strong>7.</strong> Add <code>UART_CONF_ISR</code>, default 1. With 0, the handlers, the callback setters and the receive-interrupt enable in <code>openex()</code> are left out, and the bootloader can use the same template.</li>
+  <li><strong>8.</strong> A relative library reference in <code>platformio.ini</code>.</li>
+  <li><strong>9.</strong> Return <code>ERR_SERIAL_BAUD</code> for a zero rate; put the message behind a verbose-build switch.</li>
+</ul>
+
+<div class="box">
+<h4>Findings from my first review that testing withdrew</h4>
+<p>They are listed so the record is straight. The polled receive calls do work after <code>open()</code> when interrupts are off. <code>rx_clear_errors()</code> does clear an overrun under simavr; on a real chip those flags are read-only and clear when the data register is read, so the call is harmless there. The transmit path through the data-register-empty interrupt is sound: 18 bytes went out in 19 handler calls. The 57600 special case is the deliberate Arduino-compatible behaviour. The read-modify-write on the control register can at worst cause one extra interrupt that switches itself off.</p>
+</div>
+
+<h2><span class="n">8</span>What protosim needs</h2>
+
+<p>protosim already loads a bootloader beside an application and can drive one over the simulated UART. Testing this loader with it, not with a separate harness, needs the following. All are proposals.</p>
+
+<table>
+  <thead><tr><th style="width:4%">#</th><th style="width:27%">Change</th><th>Why</th><th style="width:26%">Evidence</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>Binary input for the UART: <code>--uart0-in-file</code>, or an XMODEM sender beside the STK500 one</td><td><code>--uart0-in</code> takes a C string. An ELF file contains zero bytes and cannot be passed.</td><td><span class="tag r">read</span></td></tr>
+    <tr><td>P2</td><td>Pace injected bytes from the UART's configured rate</td><td>Bytes are injected every millisecond whatever the baud rate. At 9600 a byte takes 1.04 ms, so bytes queue inside simavr and the receive flag stays set with no interrupt pending.</td><td><span class="tag m">measured</span> the flag stayed visible for 568 consecutive polls at 9600; never at 19200.</td></tr>
+    <tr><td>P3</td><td>Set simavr's <code>reset_pc</code> when <code>--bootloader</code> is given</td><td>Only the initial program counter is set today. A watchdog or software reset would restart at address 0, so the &ldquo;application asks for an update&rdquo; path cannot be tested.</td><td><span class="tag r">read</span> protosim never assigns <code>reset_pc</code>. The harness set it and reset correctly.</td></tr>
+    <tr><td>P4</td><td><code>--expect-flash &lt;file.elf&gt;</code>: compare flash with simavr's own load of a file at exit</td><td>This is the oracle test of section 9, as a one-line check for CI.</td><td><span class="tag m">measured</span> in the harness</td></tr>
+    <tr><td>P5</td><td>Page size from the part in the STK500 uploader</td><td>The uploader assumes 128-byte pages, so the automatic upload suits ATmega328P-class parts only.</td><td><span class="tag r">read</span></td></tr>
+    <tr><td>P6</td><td>Work around simavr's ELF reader at the end of flash</td><td>It refuses a chunk that ends on the last flash byte (&ldquo;would overflow buffer&rdquo;), so a service stub in the last four bytes is silently not loaded.</td><td><span class="tag m">measured</span> the service test had to place its stub four bytes lower.</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="n">9</span>Verification</h2>
+
+<h3><span class="n">9.1</span>End to end in simulation</h3>
+<p>The loader ran inside simavr. A harness sent each file with XMODEM as a terminal program would, at 115200 baud, and afterwards compared the simulated flash below the record page with what simavr's own ELF reader produces for the same file.</p>
+
+<table class="tight">
+  <thead><tr><th style="width:5%">Test</th><th style="width:42%">Scenario</th><th>Outcome</th></tr></thead>
+  <tbody>
+    <tr><td>T1</td><td>328P: unmodified avr-gcc ELF, 12,860 bytes, clean line</td><td>Flash identical to the reference; record written; application reached</td></tr>
+    <tr><td>T2</td><td>328P: block 3 damaged in transit, acknowledgement of block 5 lost</td><td>One block sent again after a negative acknowledgement, one duplicate dropped; flash identical</td></tr>
+    <tr><td>T3</td><td>328P: protoduino example 12, 29,404 bytes with debug information</td><td>Flash identical; 3.06 s of line time</td></tr>
+    <tr><td>T4</td><td>328P: the same example stripped, 2,048 bytes</td><td>Flash identical; 0.22 s</td></tr>
+    <tr><td>T5</td><td>328P, empty chip: an ATmega2560 file</td><td>Refused <code>0x81</code>; flash untouched</td></tr>
+    <tr><td>T6</td><td>328P, empty chip: random bytes</td><td>Refused <code>0x80</code>; flash untouched</td></tr>
+    <tr><td>T7</td><td>328P: install, reset, then offer an ATmega2560 file</td><td>Refused <code>0x81</code>; the installed application intact and started again after the window</td></tr>
+    <tr><td>T8</td><td>328P, all options: file with EEPROM data and a matching signature</td><td>Flash identical; EEPROM holds <code>01 02 03 04 05</code></td></tr>
+    <tr><td>T9</td><td>328P, all options: an ATmega168P file, same core family, other device</td><td>Refused <code>0x87</code> at the signature; no record written; the loader keeps control</td></tr>
+    <tr><td>T10</td><td>328P: an installed application programs a page through the service entry</td><td>Page reads back as written; the caller's interrupt state restored</td></tr>
+    <tr><td>T11</td><td>2560: small image</td><td>Flash identical; record written; application reached</td></tr>
+    <tr><td>T12</td><td>2560: 106,830-byte image reaching far flash, 839 blocks</td><td>Flash identical; 11.9 s of line time</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="n">9.2</span>On the host</h3>
+<p>The same core, compiled natively, was fed real files in chunks of random size and its output compared with <code>avr-objcopy</code>.</p>
+<ul>
+  <li>Flash and EEPROM images identical for the test program built for ATmega328P, ATmega2560 and ATtiny85; identical for example 12, for its stripped form, for one-byte-at-a-time feeding, and for the 106 KB image.</li>
+  <li>The signature bytes extracted from the three files were those of the three parts.</li>
+  <li>Refused as designed: a file for another family (<code>0x81</code>), an image larger than the window (<code>0x83</code>), a non-ELF file, a relocatable <code>.o</code> and an x86-64 object (all <code>0x80</code>). A truncated file leaves the core waiting for more.</li>
+  <li>A module was accepted in its own slot and refused in another; the firmware was refused in a module slot.</li>
+</ul>
+
+<h3><span class="n">9.3</span>Not verified</h3>
+<ul>
+  <li>Anything on hardware, including fuse and lock-bit settings and real programming times.</li>
+  <li>Loss of power during an update. The transaction argument in 4.4 is by construction.</li>
+  <li>The ATtiny path: it has never executed.</li>
+  <li>The image CRC check at start-up, the information reply, and the service entry on the ATmega2560.</li>
+  <li>The module layer beyond linking and the window check.</li>
+</ul>
+
+<h3><span class="n">9.4</span>Test plan from here</h3>
+<ul>
+  <li><strong>Host unit tests in CI</strong> for the core, with the files above as fixtures, and a fuzzer on <code>elfld_write()</code>. The core is small, pure C and takes untrusted input, which is the ideal fuzzing target.</li>
+  <li><strong>protosim end to end</strong> per supported part, once P1 to P4 exist, with the oracle comparison as the pass criterion.</li>
+  <li><strong>Hardware</strong>: an Uno and a Mega 2560, with an ISP programmer at hand for fuses. A relay on the supply to cut power at random points of an update, hundreds of times, checking that the board always answers afterwards.</li>
+</ul>
+
+<h2><span class="n">10</span>Roadmap, risks and open questions</h2>
+
+<table>
+  <thead><tr><th style="width:6%">Step</th><th style="width:37%">Deliverable</th><th>Done when</th></tr></thead>
+  <tbody>
+    <tr><td>M0</td><td>The fixes of section 7</td><td>The probes in <code>prototype/probes</code> give the corrected results</td></tr>
+    <tr><td>M1</td><td>Core in <code>src/sys/elf</code>, host tests, fuzzing</td><td>Fixtures pass in CI on the host and for two AVR parts</td></tr>
+    <tr><td>M2</td><td>Bootloader for ATmega328P and ATmega2560; protosim P1 to P4</td><td>T1 to T12 run in protosim; first boards flashed with a terminal program</td></tr>
+    <tr><td>M3</td><td>Service table, <code>elfboot_request()</code>, information reply; the <code>pd</code> tool; PlatformIO upload through it</td><td><code>pio run -t upload</code> sends the <code>.elf</code>; the power-cut rig passes</td></tr>
+    <tr><td>M4</td><td>Modules, exact binding; the kernel's loader process</td><td>A module is installed over serial, runs as a process, survives reset and can be removed</td></tr>
+    <tr><td>M5</td><td>ATtiny path on hardware; relocation by fix-up stream; signed modules; a size pass in assembly</td><td>Each on its own evidence</td></tr>
+  </tbody>
+</table>
+
+<div class="cols2">
+<div>
+<h4>Risks</h4>
+<ul>
+  <li><strong>Size.</strong> The 1 KB boot section may stay out of reach. The design does not depend on it; a 2 KB section costs the application 1 KB.</li>
+  <li><strong>ATtiny recovery.</strong> Without hardware protection for the loader's pages, a faulty application can destroy it. The claim for these parts is deliberately weaker.</li>
+  <li><strong>Exact binding.</strong> Convenient while developing, awkward for distributing modules. The table scheme is the answer and costs flash.</li>
+  <li><strong>Interrupt blackout.</strong> Flash writes at run time stall the system for milliseconds at a time.</li>
+  <li><strong>Old compiler.</strong> All sizes are from avr-gcc 7.3.0. A newer one may be better or worse.</li>
+</ul>
+</div>
+<div>
+<h4>Open questions</h4>
+<ul>
+  <li>Which small part is meant by &ldquo;ATtiny8&rdquo;? The answer decides whether the small-frame transport is needed early.</li>
+  <li>Should updates be authenticated, and if so with what? A keyed hash costs several hundred bytes.</li>
+  <li>Which binding scheme is the default for modules: exact or table?</li>
+  <li>Should the loader wait after every reset, or only on request? It changes start-up time by seconds.</li>
+  <li>Where should the bootloader's build live, given that it cannot be under <code>src/</code>?</li>
+</ul>
+</div>
+</div>
+
+<h2><span class="n">A</span>ELF fields the loader reads</h2>
+
+<table class="tight">
+  <thead><tr><th style="width:11%">Where</th><th style="width:10%">Offset</th><th style="width:14%">Field</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td>ELF header</td><td>0 &ndash; 3</td><td>magic</td><td>Must be <code>7F 45 4C 46</code></td></tr>
+    <tr><td></td><td>4, 5</td><td>class, data</td><td>Must be 1 and 1: 32-bit, little-endian</td></tr>
+    <tr><td></td><td>16</td><td><code>e_type</code></td><td>Must be 2, an executable. A relocatable <code>.o</code> is refused here.</td></tr>
+    <tr><td></td><td>18</td><td><code>e_machine</code></td><td>Must be 83, AVR</td></tr>
+    <tr><td></td><td>24</td><td><code>e_entry</code></td><td>Start address; for a module, the address of its descriptor</td></tr>
+    <tr><td></td><td>28</td><td><code>e_phoff</code></td><td>Must be 52: program headers directly after the ELF header</td></tr>
+    <tr><td></td><td>36</td><td><code>e_flags</code></td><td>Low 7 bits name the core family; compared with <code>__AVR_ARCH__</code></td></tr>
+    <tr><td></td><td>42, 44</td><td><code>e_phentsize</code>, <code>e_phnum</code></td><td>Must be 32; count of program headers, below 256</td></tr>
+    <tr><td>Program header</td><td>0</td><td><code>p_type</code></td><td>Only 1, a loadable segment, is considered</td></tr>
+    <tr><td></td><td>4</td><td><code>p_offset</code></td><td>Where the segment's bytes are in the file; must not go backwards</td></tr>
+    <tr><td></td><td>8, 20</td><td><code>p_vaddr</code>, <code>p_memsz</code></td><td>Run address and size in memory; used only to record a RAM extent</td></tr>
+    <tr><td></td><td>12</td><td><code>p_paddr</code></td><td>Load address. Its top byte selects the memory; the rest is the address there.</td></tr>
+    <tr><td></td><td>16</td><td><code>p_filesz</code></td><td>Bytes to deliver; a segment with none is skipped</td></tr>
+  </tbody>
+</table>
+<p class="small">For the ATmega328P test program avr-gcc wrote six loadable segments: code at load address 0; initial <code>.data</code> at run address <code>0x800100</code> but load address <code>0x136</code>, directly after the code; <code>.bss</code> with no file bytes; EEPROM at <code>0x810000</code>; fuses at <code>0x820000</code>; signature at <code>0x840000</code>. <span class="tag m">measured</span></p>
+
+<h2><span class="n">B</span>Reproducing the measurements</h2>
+<p>Everything is in <code>docs/elfloader/prototype/</code>. It needs <code>gcc-avr</code>, <code>avr-libc</code>, <code>libelf-dev</code> and protosim built with its simavr submodule.</p>
+<pre><code><span class="c"># core on the host, against a file built with avr-gcc</span>
+gcc -std=c99 -O2 -DELFLD_FEAT_EEPROM=1 -DELFLD_FEAT_SIGNATURE=1 -o host_test host_test.c elfld.c
+./host_test app.elf 5 out.bin
+avr-objcopy -O binary -j .text -j .data app.elf ref.bin &amp;&amp; cmp out.bin ref.bin
+
+<span class="c"># the bootloader, and its size</span>
+./build.sh m328 atmega328p 0x7800
+./build.sh m2560 atmega2560 0x3F000 -DELFBOOT_FEAT_SERVICE=1
+
+<span class="c"># end to end in simavr</span>
+S=../../../../protosim/libraries/simavr/simavr
+gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
+    $S/obj-x86_64-linux-gnu/libsimavr.a -lelf -lm -lpthread
+./sim_harness atmega328p out/m328.elf app.elf --corrupt 3 --drop-ack 5</code></pre>
+<p class="small">Recorded outputs are in <code>results-sizes.txt</code> and <code>results-tests.txt</code>. The UART and serial findings of section 7 come from <code>probes/uart_probe.c</code> and <code>probes/serial_flush_probe.c</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>.</p>
+
+<h3>Sources</h3>
+<ul class="src">
+  <li>Contiki, <code>core/loader/elfloader.c</code>, <code>symtab.c</code>, <code>cle.c</code>: github.com/contiki-os/contiki. Removal: github.com/contiki-ng/contiki-ng, commit 6220aea14.</li>
+  <li>simple-avr-bootloader: github.com/m3y54m/simple-avr-bootloader</li>
+  <li>Optiboot: github.com/Optiboot/optiboot; version 8 notes with <code>do_spm()</code>: forum.arduino.cc/t/optiboot-now-at-version-8-0/547763</li>
+  <li>urboot, on erased flash and the first-page hazard: github.com/stefanrueger/urboot. Optiboot on ATtiny: github.com/SpenceKonde/ATTinyCore, <code>avr/extras/Ref_Optiboot.md</code></li>
+  <li>micronucleus and its reset-vector patch: github.com/micronucleus/micronucleus</li>
+  <li>Zephyr LLEXT and symbol link identifiers: docs.zephyrproject.org/3.7.0/services/llext/api.html</li>
+  <li>Microchip, ATmega48A/88A/168A/328P family, &ldquo;Self-Programming the Flash&rdquo; and &ldquo;USART Control and Status Register 0 A&rdquo;: onlinedocs.microchip.com</li>
+  <li>avr-libc memory sections: the avr-libc user manual, &ldquo;Memory Sections&rdquo;</li>
+  <li>protoduino and protosim sources at the branch named on the cover; simavr at commit a6fc4cc.</li>
+</ul>
