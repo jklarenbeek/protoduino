@@ -680,7 +680,27 @@ CC_EXTERN int process_resume(struct process *p);
 CC_EXTERN int process_connect(struct process *writer, struct process *reader);
 CC_EXTERN void process_disconnect(struct process *writer);
 CC_EXTERN struct process *process_reader(const ipc_pipe_t *pipe);
+
+/**
+ * process_connect_pipe(writer, pipe)
+ *
+ * Make the output of writer go into one particular pipe. For a reader that
+ * owns more than one input, such as a process that watches two signals:
+ * process_connect() only knows the one a process has published.
+ * Returns 1 on success, 0 when either is missing.
+ */
+CC_EXTERN int process_connect_pipe(struct process *writer, ipc_pipe_t *pipe);
 #endif
+
+/**
+ * process_is_idle()
+ *
+ * True when no poll is pending and the event queue is empty: process_run()
+ * would do nothing. This is the moment to put the processor to sleep; call
+ * it with interrupts disabled, so that nothing arrives between the answer
+ * and the sleep (see sys/idle.h).
+ */
+CC_EXTERN int process_is_idle(void);
 
 /**
  * process_log_entry(age)

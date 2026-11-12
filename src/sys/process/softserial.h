@@ -33,12 +33,23 @@
 #define SOFTSERIAL_CONF_BAUD 9600UL
 #endif
 
+// bytes the device holds in each direction. A part with 256 bytes of RAM
+// or less gets short ones: whoever writes more waits, and a sender that
+// paces its bytes loses none.
 #ifndef SOFTSERIAL_CONF_RX_SIZE
+#if RAMEND < 0x200
+#define SOFTSERIAL_CONF_RX_SIZE 4
+#else
 #define SOFTSERIAL_CONF_RX_SIZE 8
+#endif
 #endif
 
 #ifndef SOFTSERIAL_CONF_TX_SIZE
+#if RAMEND < 0x200
+#define SOFTSERIAL_CONF_TX_SIZE 4
+#else
 #define SOFTSERIAL_CONF_TX_SIZE 16
+#endif
 #endif
 
 #define SOFTSERIAL_RX PB0

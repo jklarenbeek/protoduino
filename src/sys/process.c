@@ -675,7 +675,20 @@ struct process *process_reader(const ipc_pipe_t *pipe)
   }
   return NULL;
 }
+int process_connect_pipe(struct process *writer, ipc_pipe_t *pipe)
+{
+  if (!writer || !pipe || writer->type == PROCESS_TYPE_DEVICE)
+    return 0;
+  writer->pipeout     = pipe;
+  writer->has_pipeout = 1;
+  return 1;
+}
 #endif /* PROCESS_CONF_PIPELINES > 0 */
+
+int process_is_idle(void)
+{
+  return !poll_requested && event_head == event_tail;
+}
 
 const struct error_info *process_log_entry(uint8_t age)
 {

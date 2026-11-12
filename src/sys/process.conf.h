@@ -9,12 +9,32 @@
 #define PROCESS_CONF_MAX_ARGS 4
 #endif
 
+// A part with little RAM gets a shorter log and a shorter event queue by
+// default: with 256 bytes or less, every byte the kernel keeps is one a
+// process cannot have.
+#if defined(__AVR__)
+#include <avr/io.h>
+#endif
+#if defined(RAMEND) && (RAMEND < 0x200)
+#define PROCESS_CONF_SMALL 1
+#else
+#define PROCESS_CONF_SMALL 0
+#endif
+
 #ifndef PROCESS_CONF_ERROR_POOL_SIZE
+#if PROCESS_CONF_SMALL
+#define PROCESS_CONF_ERROR_POOL_SIZE 1
+#else
 #define PROCESS_CONF_ERROR_POOL_SIZE 4
+#endif
 #endif
 
 #ifndef PROCESS_CONF_EVENT_QUEUE_SIZE
+#if PROCESS_CONF_SMALL
+#define PROCESS_CONF_EVENT_QUEUE_SIZE 3
+#else
 #define PROCESS_CONF_EVENT_QUEUE_SIZE 4
+#endif
 #endif
 
 #ifndef PROCESS_CONF_EVENT_INBOX

@@ -11,22 +11,32 @@
  *
  * - A source never waits for its reader: with no output connected, or with
  *   a full pipe, the digit is dropped.
- * - Needs the tick (sys/tick.h) to notice that its timer has expired.
+ * - Needs the tick (sys/tick.h) to notice that its timer has expired. With
+ *   TICKER_CONF_TICKS it counts ticks and needs no timer and no clock: a
+ *   digit every that many ticks. That is the form for the small parts.
  * - No static variables: the state is in the process struct, so the same
  *   file builds as a loadable module.
  */
 
 #include <sys/process.h>
 #include <sys/tick.h>
+#include <sys/timer.h>
 
 #ifndef TICKER_CONF_MILLIS
 #define TICKER_CONF_MILLIS 500
 #endif
 
+#ifdef TICKER_CONF_TICKS
+PROCESS_DEFINE(ticker, "ticker", 3,
+  uint8_t      ticks;   /* ticks until the next digit */
+  uint8_t      digit;   /* the digit written last     */
+);
+#else
 PROCESS_DEFINE(ticker, "ticker", 3,
   struct timer period;  /* time between two digits */
   uint8_t      digit;   /* the digit written last  */
 );
+#endif
 
 PROCESS_THREAD(ticker, ev, data)
 {
@@ -36,12 +46,18 @@ PROCESS_THREAD(ticker, ev, data)
 
   PROCESS_BEGIN();
 
+#ifndef TICKER_CONF_TICKS
   timer_set(&self->period, clock_from_millis(TICKER_CONF_MILLIS));
+#endif
 
   while (1)
   {
+#ifdef TICKER_CONF_TICKS
+    PROCESS_WAIT_TICKS(self->ticks, TICKER_CONF_TICKS);
+#else
     PROCESS_WAIT_EVENT_UNTIL(timer_expired(&self->period));
     timer_reset(&self->period);
+#endif
 
     if (++self->digit > '9' - '0')
       self->digit = 0;

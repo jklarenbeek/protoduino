@@ -22,6 +22,7 @@
 
 #include <sys/process.h>
 #include <sys/tick.h>
+#include <sys/timer.h>
 #include <avr/io.h>
 
 #ifndef VCC_CONF_MILLIS
