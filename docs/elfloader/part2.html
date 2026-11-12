@@ -51,7 +51,7 @@
 <h3><span class="n">5.3</span>Start-up behaviour</h3>
 <p>After a reset the bootloader probes for a sender: it waits for about a second of silence, transmits <code>C</code>, and repeats. A transfer may begin at any probe. If none begins within the configured number of probes and the image record is intact, the image is started. If the record is not intact, the bootloader probes for ever. After a refusal the window opens again. In simulation the probes came 0.950 s apart, and with three probes the image started 3.8 s after reset. <span class="tag m">measured</span></p>
 
-<p><strong>Which resets open the window</strong> is a setting, <code>BOOT_CONF_WINDOW_AFTER</code>: a mask of reset causes. By default every reset does except one by the watchdog: an image that the watchdog stopped is running again at once, and no probe goes out on a serial line that belongs to the application. With only the reset pin left in the mask, which is the rule Optiboot uses, a board also starts at once when power comes on, and waits when an upload tool pulls the reset line. With all four causes in it the bootloader waits after every reset. An image that jumps to the bootloader is always waited for: that is how a running system asks to be replaced. The three settings and the jump were run (T23 to T27). <span class="tag m">measured</span></p>
+<p><strong>Which resets open the window</strong> is a setting, <code>BOOT_CONF_WINDOW_AFTER</code>: a mask of reset causes. By default only a reset through the pin does, which is what an upload tool and a reset button make, and the rule Optiboot uses. After power-on, a brown-out or a watchdog reset a complete image starts at once: a board is up without the 3.8 s, an image that the watchdog stopped is running again, and no probe goes out on a serial line that belongs to the application. A board without a reset line can add power-on and brown-out to the mask and is then updated by cycling its power; with all four causes the bootloader waits after every reset. An image that jumps to the bootloader is always waited for: that is how a running system asks to be replaced. The three settings and the jump were run in the harness (T23 to T27), and the default inside protosim (P1 to P5). <span class="tag m">measured</span></p>
 
 <p><strong>The watchdog.</strong> An image that the watchdog resets, because it hung or because that is how it restarts itself, leaves the watchdog running at its shortest period, 16 ms, until software clears the cause and switches it off. A bootloader that ignores this is reset again long before its first probe, over and over, and the board stays dead until power is cycled. The previous draft of this bootloader did ignore it, and in simulation the image never came back (T22). It now deals with the watchdog before anything else and hands the reset cause to the image (6.5); the same image then restarts at once after every watchdog reset (T23). <span class="tag m">measured</span></p>
 
@@ -328,7 +328,7 @@ while (elf_load_read_available(&amp;load))
   <text x="492" y="14" text-anchor="middle" fill="#5b6672">0x7780</text>
   <text x="544" y="14" text-anchor="middle" fill="#5b6672">0x7800</text>
   <text x="700" y="14" text-anchor="end" fill="#5b6672">0x7FF4 to 0x7FFF</text>
-  <text x="0" y="76" fill="#5b6672">ATmega328P with the 2 KB boot section, not to scale. Window 30,592 bytes; bootloader 1,932 to 2,022 bytes used;</text>
+  <text x="0" y="76" fill="#5b6672">ATmega328P with the 2 KB boot section, not to scale. Window 30,592 bytes; bootloader 1,930 to 2,020 bytes used;</text>
   <text x="0" y="89" fill="#5b6672">service table in the last twelve bytes. The tests put two 2 KB module slots at 0x6000 and the module table at 0x7000.</text>
 </svg>
 <figcaption><strong>Figure 6.</strong> Flash layout. The record page sits directly below the loader and outside the window.</figcaption>
@@ -359,7 +359,7 @@ BOOT_WDT = _BV(WDP3) | _BV(WDP0);   <span class="c">/* ... off; where a fuse kee
   <li><strong>To decide whether to run at all.</strong> Only a reset through the pin makes it wait. After power-on, a brown-out or a watchdog reset the application starts at once.</li>
   <li><strong>Because it has to.</strong> The cause must be cleared and the watchdog switched off, or the part is reset every 16 ms.</li>
 </ol>
-<p>This bootloader takes the last two. The fourth is not a choice: it is the 22 bytes above, on in every build. The third is <code>BOOT_CONF_WINDOW_AFTER</code>, 22 bytes; by default the bootloader waits after every reset but a watchdog reset. The first does not fit the protocol. XMODEM is driven by the receiver: after a silence the receiver has to send its probe or its negative acknowledgement again, so it needs a clock that ticks without resetting the part, and a reset in the middle of a transfer would throw away a session that a negative acknowledgement recovers today. That clock is the idle count of the scheduling loop. The second is reached another way. What a reset would restore and the bootloader has changed is four UART registers, so it writes their reset values back before it jumps, 12 bytes (<code>BOOT_CONF_UART_RESET</code>). The image then finds the part as a reset leaves it, with three stated differences: the watchdog is off, <code>MCUSR</code> is zero, and <code>GPIOR0</code> holds the cause.</p>
+<p>This bootloader takes the last two. The fourth is not a choice: it is the 22 bytes above, on in every build. The third is <code>BOOT_CONF_WINDOW_AFTER</code>, 20 bytes, with Optiboot's rule as the default: wait only after a reset through the pin. The first does not fit the protocol. XMODEM is driven by the receiver: after a silence the receiver has to send its probe or its negative acknowledgement again, so it needs a clock that ticks without resetting the part, and a reset in the middle of a transfer would throw away a session that a negative acknowledgement recovers today. That clock is the idle count of the scheduling loop. The second is reached another way. What a reset would restore and the bootloader has changed is four UART registers, so it writes their reset values back before it jumps, 12 bytes (<code>BOOT_CONF_UART_RESET</code>). The image then finds the part as a reset leaves it, with three stated differences: the watchdog is off, <code>MCUSR</code> is zero, and <code>GPIOR0</code> holds the cause.</p>
 
 <h3><span class="n">6.6</span>Parts without a boot section <span class="tag p">proposed</span></h3>
 <p>On a classic ATtiny, reset always goes to address 0, and nothing protects the loader's pages. The loader sits at the top of flash and makes four provisions.</p>
@@ -633,7 +633,7 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
     <tr><td><code>ELF_CONF_COALESCE</code></td><td>on; bootloader off</td><td>Merge adjacent segments into one entry (6.2)</td><td class="num">+62 B</td></tr>
     <tr><td><code>BOOT_CONF_IMAGE_CRC</code></td><td>on</td><td>Store the image CRC in the record</td><td class="num">14 B</td></tr>
     <tr><td><code>BOOT_CONF_WATCHDOG</code></td><td>on</td><td>Clear the reset cause, switch the watchdog off, hand the cause to the image in <code>BOOT_RESET_CAUSE</code> (<code>GPIOR0</code>)</td><td class="num">22 B</td></tr>
-    <tr><td><code>BOOT_CONF_WINDOW_AFTER</code></td><td>7: not after a watchdog reset</td><td>Reset causes after which the bootloader waits for a sender: 15 every reset, 2 only the reset pin (5.3)</td><td class="num">22 B</td></tr>
+    <tr><td><code>BOOT_CONF_WINDOW_AFTER</code></td><td>2: the reset pin only</td><td>Reset causes after which the bootloader waits for a sender: 7 also power-on and brown-out, 15 every reset (5.3)</td><td class="num">20 B</td></tr>
     <tr><td><code>BOOT_CONF_UART_RESET</code></td><td>on</td><td>Put the UART registers back to their reset values before the image starts</td><td class="num">12 B</td></tr>
     <tr><td><code>BOOT_CONF_PAGE_SERVICE</code></td><td>off</td><td>Offer <code>flash_page_write()</code> to the running system</td><td class="num">+12 B</td></tr>
     <tr><td><code>BOOT_CONF_LOAD_SERVICE</code></td><td>off</td><td>Offer the load thread too; implies the page service, <code>ELF_CONF_WINDOW_LO</code> and <code>ELF_LOAD_CONF_KEY</code></td><td class="num">+90 B</td></tr>
@@ -653,24 +653,24 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
     <tr><td><code>LOADER_CONF_PATIENCE</code></td><td>30</td><td>Kernel: seconds to wait for a sender</td><td class="num">&ndash;</td></tr>
   </tbody>
 </table>
-<p>Each figure is the difference from the default bootloader of 1,932 bytes when that one setting is flipped. <span class="tag m">measured</span></p>
+<p>Each figure is the difference from the default bootloader of 1,930 bytes when that one setting is flipped. <span class="tag m">measured</span></p>
 
 <h4>Filling the boot section</h4>
-<p>The fuses reserve a boot section of one of four sizes, and whatever is not used is wasted. A build step therefore starts from the smallest bootloader and adds options in order of priority for as long as the result still fits the chosen block. The order is itself a setting. The default puts the checks that prevent damage first and the services for the kernel next: family check, page service, load thread, image CRC, no wait after a watchdog reset, UART reset, segment merging, signature, EEPROM, description line, CRC check at start.</p>
+<p>The fuses reserve a boot section of one of four sizes, and whatever is not used is wasted. A build step therefore starts from the smallest bootloader and adds options in order of priority for as long as the result still fits the chosen block. The order is itself a setting. The default puts the checks that prevent damage first and the services for the kernel next: family check, page service, load thread, image CRC, wait after the reset pin only, UART reset, segment merging, signature, EEPROM, description line, CRC check at start.</p>
 
 <table class="tight">
   <thead><tr><th style="width:14%">Part</th><th class="num" style="width:9%">Block</th><th class="num" style="width:10%">Used</th><th class="num" style="width:13%">Spare</th><th>What the block then holds</th></tr></thead>
   <tbody>
     <tr><td>ATmega328P</td><td class="num">0.5, 1 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 1,872 bytes</td></tr>
-    <tr><td></td><td class="num">2 KB</td><td class="num">2,022 B</td><td class="num">26 B</td><td>Family check, page service, <strong>load thread</strong>, image CRC, no wait after a watchdog reset, UART reset. The standard section for this part.</td></tr>
-    <tr><td></td><td class="num">4 KB</td><td class="num">2,336 B</td><td class="num">1,760 B</td><td>All eleven options</td></tr>
+    <tr><td></td><td class="num">2 KB</td><td class="num">2,020 B</td><td class="num">28 B</td><td>Family check, page service, <strong>load thread</strong>, image CRC, wait after the reset pin only, UART reset. The standard section for this part.</td></tr>
+    <tr><td></td><td class="num">4 KB</td><td class="num">2,334 B</td><td class="num">1,762 B</td><td>All eleven options</td></tr>
     <tr><td>ATmega1284P</td><td class="num">1, 2 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 2,278 bytes</td></tr>
     <tr><td></td><td class="num">4, 8 KB</td><td class="num">2,950 B</td><td class="num">1,146 B, 5,242 B</td><td>All eleven options. 4 KB is the standard section for this part.</td></tr>
     <tr><td>ATmega2560</td><td class="num">1, 2 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 2,278 bytes</td></tr>
     <tr><td></td><td class="num">4, 8 KB</td><td class="num">2,950 B</td><td class="num">1,146 B, 5,242 B</td><td>All eleven options. 4 KB is the standard section for this part.</td></tr>
   </tbody>
 </table>
-<p>These are the results of the step as built (<code>fit.sh</code>). <span class="tag m">measured</span> Three things follow. On the ATmega328P the 2 KB block holds the default bootloader and lends its load thread to the kernel, with 26 bytes to spare. What it leaves out is segment merging, which the fourth table entry makes up for (6.2). On the parts above 64 KB the bootloader does not fit the 2 KB block, so their standard section is 4 KB: that is the default of <code>BOOT_CONF_SECTION</code> there and the block <code>fit.sh</code> fills when it is given none, and it holds every option. The decision costs 2 KB of a 128 or 256 KB part and buys the device-signature check, the EEPROM image, the description line and the CRC check at every start, all of which were run in that configuration (T15 to T19, T25, M10). And the space that is left, 1,146 bytes, is where the next features belong: a verify mode, signed images, and the fix-up stream of 4.8. On parts without a boot section the bootloader simply ends on a page boundary, so there is no block to fill.</p>
+<p>These are the results of the step as built (<code>fit.sh</code>). <span class="tag m">measured</span> Three things follow. On the ATmega328P the 2 KB block holds the default bootloader and lends its load thread to the kernel, with 28 bytes to spare. What it leaves out is segment merging, which the fourth table entry makes up for (6.2). On the parts above 64 KB the bootloader does not fit the 2 KB block, so their standard section is 4 KB: that is the default of <code>BOOT_CONF_SECTION</code> there and the block <code>fit.sh</code> fills when it is given none, and it holds every option. The decision costs 2 KB of a 128 or 256 KB part and buys the device-signature check, the EEPROM image, the description line and the CRC check at every start, all of which were run in that configuration (T15 to T19, T25, M10). And the space that is left, 1,146 bytes, is where the next features belong: a verify mode, signed images, and the fix-up stream of 4.8. On parts without a boot section the bootloader simply ends on a page boundary, so there is no block to fill.</p>
 
 <h3><span class="n">6.10</span>Measured budgets</h3>
 
@@ -680,9 +680,9 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
   <thead><tr><th>Build</th><th class="num">Flash</th><th class="num">RAM</th></tr></thead>
   <tbody>
     <tr><td>ATmega328P, smallest</td><td class="num">1,872 B</td><td class="num">377 B</td></tr>
-    <tr><td>ATmega328P, default</td><td class="num">1,932 B</td><td class="num">377 B</td></tr>
-    <tr><td>ATmega328P, with the load thread offered</td><td class="num">2,022 B</td><td class="num">379 B</td></tr>
-    <tr><td>ATmega328P, everything on</td><td class="num">2,336 B</td><td class="num">383 B</td></tr>
+    <tr><td>ATmega328P, default</td><td class="num">1,930 B</td><td class="num">377 B</td></tr>
+    <tr><td>ATmega328P, with the load thread offered</td><td class="num">2,020 B</td><td class="num">379 B</td></tr>
+    <tr><td>ATmega328P, everything on</td><td class="num">2,334 B</td><td class="num">383 B</td></tr>
     <tr><td>ATmega1284P, default</td><td class="num">2,338 B</td><td class="num">525 B</td></tr>
     <tr><td>ATmega2560, smallest</td><td class="num">2,278 B</td><td class="num">525 B</td></tr>
     <tr><td>ATmega2560, default</td><td class="num">2,338 B</td><td class="num">525 B</td></tr>
@@ -693,7 +693,7 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 </div>
 <div>
 <table class="tight">
-  <thead><tr><th>Where the 1,932 bytes go</th><th class="num">Flash</th></tr></thead>
+  <thead><tr><th>Where the 1,930 bytes go</th><th class="num">Flash</th></tr></thead>
   <tbody>
     <tr><td>Load thread: frames, XMODEM, replies</td><td class="num">438 B</td></tr>
     <tr><td>Stream: delivery loop and flash sink</td><td class="num">358 B</td></tr>
@@ -710,11 +710,11 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 
 <p><strong>RAM.</strong> The bootloader's RAM is the workspace of the thread, and nothing else: on the ATmega328P the XMODEM block (133), the page buffer (128), the stream with its four segment entries (90) and 26 bytes of mailbox, window and bookkeeping. It is not cleared at reset; every field is set before it is read, so the bootloader has no <code>.bss</code> and no code to clear one.</p>
 
-<p><strong>What the protothread costs.</strong> The blocking bootloader of the previous draft was 1,640 bytes; the protothread one was 2,014, and after the assembly and the numbered continuation points described below it was 1,938. Since then it gained 56 bytes that neither draft had, for the watchdog, the start decision by reset cause and the UART reset (6.5), and lost the 62 of segment merging (6.2): 1,932. The 374 bytes are the price of a thread whose state lives in memory and not in registers: every wait stores a continuation and returns, every resume goes through a <code>switch</code>, and every variable is a load and a store. Offering the load to the kernel costs 2,022 bytes against 2,036, and the new one also checks the kernel identity and takes care of the watchdog: the thread is compiled once, where the blocking session had to exist twice. The comparison at the level that matters:</p>
+<p><strong>What the protothread costs.</strong> The blocking bootloader of the previous draft was 1,640 bytes; the protothread one was 2,014, and after the assembly and the numbered continuation points described below it was 1,938. Since then it gained 56 bytes that neither draft had, for the watchdog, the start decision by reset cause and the UART reset (6.5), and lost the 62 of segment merging (6.2): 1,930. The 374 bytes are the price of a thread whose state lives in memory and not in registers: every wait stores a continuation and returns, every resume goes through a <code>switch</code>, and every variable is a load and a store. Offering the load to the kernel costs 2,020 bytes against 2,036, and the new one also checks the kernel identity and takes care of the watchdog: the thread is compiled once, where the blocking session had to exist twice. The comparison at the level that matters:</p>
 <table class="tight">
   <thead><tr><th style="width:44%">ATmega328P, 2 KB boot section</th><th>Previous draft, blocking</th><th>This draft, protothread</th></tr></thead>
   <tbody>
-    <tr><td>Bootloader that also loads modules for the kernel</td><td>2,036 B with merging; 12 B spare</td><td>2,022 B with watchdog care and immediate restart, four entries for merging; 26 B spare</td></tr>
+    <tr><td>Bootloader that also loads modules for the kernel</td><td>2,036 B with merging; 12 B spare</td><td>2,020 B with watchdog care and start by reset cause, four entries for merging; 28 B spare</td></tr>
     <tr><td>The system during a load</td><td>stands still for the whole transfer</td><td>runs: 17,741 heartbeat turns in 350 ms</td></tr>
     <tr><td>A module for another kernel build</td><td>overwrites the slot, then is refused</td><td>refused before the first page</td></tr>
     <tr><td>Kernel code for run-time loading</td><td>a call, in a stand-in kernel</td><td>1,658 B on the real scheduler</td></tr>

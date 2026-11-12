@@ -136,7 +136,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 
 <h2><span class="n">8</span>Simulator findings: simavr and protosim</h2>
 
-<p>Running the prototype and the probes turned up behaviour in both simulators that matters to anyone testing firmware with them. This section lists all of it: where simavr differs from a real chip, defects in protosim, and what protosim would need to test this loader without a separate harness. The versions are protosim <code>6fadc6f</code> and simavr <code>a6fc4cc</code>, the commit protosim pins. Nothing was changed in either project. Recorded probe output is in <code>prototype/results-simulators.txt</code>.</p>
+<p>Running the prototype and the probes turned up behaviour in both simulators that matters to anyone testing firmware with them. This section lists all of it: where simavr differs from a real chip, defects in protosim, and what protosim would need to test this loader without a separate harness. The versions are protosim <code>6fadc6f</code> and simavr <code>a6fc4cc</code>, the commit protosim pins. The tables describe those versions. Since then protosim <code>f4d382e</code> records reset causes and fixes B2, B6, B9 and B13; simavr is unchanged. Recorded probe output is in <code>prototype/results-simulators.txt</code>.</p>
 
 <h3><span class="n">8.1</span>simavr: where the simulation differs from the hardware</h3>
 
@@ -153,7 +153,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
     <tr><td>S8</td><td><code>avr_uart.c</code>, status read</td><td>The frame-error flag is recomputed only while a received byte is waiting, and writes cannot clear it, so it stays set after the last byte has been read.</td><td>The flag belongs to the byte that is next to be read.</td><td><span class="tag r">read</span> It matches the note in protoduino's driver that the flag cannot be cleared.</td></tr>
     <tr><td>S9</td><td><code>avr_uart.c</code>, input queue</td><td>The receiver queues 63 bytes before it reports an overrun.</td><td>Two bytes and the shift register.</td><td><span class="tag m">measured</span> 63 bytes drained after 100 were sent with nobody reading</td></tr>
     <tr><td>S10</td><td><code>avr_uart.c</code>, receive timer</td><td>With more than one byte queued, the receive flag stays set while the interrupt is raised again only one byte time later. Code that polls with interrupts on sees the flag and can take the byte ahead of the handler.</td><td>The interrupt is taken as soon as the flag is set.</td><td><span class="tag m">measured</span> 568 consecutive polls saw the flag at 9600 baud; none at 19200</td></tr>
-    <tr><td>S11</td><td><code>sim_avr.c</code>, <code>avr_reset()</code></td><td>A reset discards every pending cycle timer and restarts the cycle counter at zero. An external reset is not recorded in <code>MCUSR</code>.</td><td>Reset causes are all recorded.</td><td><span class="tag m">measured</span> <code>MCUSR</code> = <code>01</code> at power-on and <code>08</code> after a watchdog reset, both correct. Timers and external reset <span class="tag r">read</span>; effects in B6 and B7.</td></tr>
+    <tr><td>S11</td><td><code>sim_avr.c</code>, <code>avr_reset()</code></td><td>A reset discards every pending cycle timer and restarts the cycle counter at zero. An external reset is not recorded in <code>MCUSR</code>, and the register is cleared at every reset, where a chip keeps the flags firmware has not cleared. protosim <code>f4d382e</code> records the cause itself and keeps the flags, also across a watchdog reset.</td><td>Reset causes are all recorded.</td><td><span class="tag m">measured</span> <code>MCUSR</code> = <code>01</code> at power-on and <code>08</code> after a watchdog reset, both correct. Timers and external reset <span class="tag r">read</span>; effects in B6 and B7.</td></tr>
     <tr><td>S12</td><td><code>cores/sim_mega2560.h</code></td><td>The ATmega2560 core has no signature row. The header reads <code>avr_flash.h</code> before the device header, so the bit that selects the row is unknown when the core is declared. Reading the signature from software returns flash contents.</td><td>Returns <code>1E 98 01</code>.</td><td><span class="tag m">measured</span> the read returned <code>0C 72 0C</code>, bytes 0, 2 and 4 of the program. The ATmega328P and ATmega1284P cores return their signatures.</td></tr>
     <tr><td>S13</td><td><code>avr_flash.c:77</code></td><td>The signature and fuse rows are selected by Z with <code>RAMPZ</code> added. With <code>RAMPZ</code> not zero the read falls through to flash contents.</td><td>The rows are read with LPM, which takes its address from Z alone.</td><td><span class="tag m">measured</span> ATmega1284P: <code>1E 97 05</code> with <code>RAMPZ</code> = 0, <code>0C 46 0C</code> with <code>RAMPZ</code> = 1</td></tr>
     <tr><td>S14</td><td><code>avr_watchdog.c</code>, reset</td><td>After a watchdog reset the watchdog is enabled again with the prescaler at zero, but it does not fire after 16 ms: in a probe the next reset came after 0.28 s and later each time, and under the bootloader after about 2 s.</td><td>The next reset comes 16 ms later unless software clears the cause and switches the watchdog off.</td><td><span class="tag m">measured</span> 28, 29, 31, 32, 34, 36 ticks of 10 ms between resets</td></tr>
@@ -171,17 +171,18 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
   <thead><tr><th style="width:4%">#</th><th style="width:19%">Where</th><th>What happens</th><th style="width:25%">Evidence</th><th style="width:19%">Suggested fix</th></tr></thead>
   <tbody>
     <tr><td>B1</td><td><code>src/protosim.c:470</code></td><td>The exit status is always 0: the last line is <code>return force_exit_success ? 0 : 0;</code>. A CPU crash before <code>--exit-on-uart</code> matches is reported as success. Only running out of <code>--max-steps</code> fails.</td><td><span class="tag m">measured</span> &ldquo;CPU CRASHED&rdquo;, exit status 0</td><td>Non-zero on a crash, and whenever an expected string was not seen.</td></tr>
-    <tr><td>B2</td><td><code>src/protosim.c:304</code></td><td>For a bootloader given as ELF, the entry point is read from the temporary instance's program counter, which simavr never sets when it loads a file. The loader is &ldquo;started&rdquo; at address 0.</td><td><span class="tag m">measured</span> <code>entry=0x0000</code> for the ELF, <code>0x7800</code> for the same loader as HEX</td><td>Use the firmware's base address or the ELF entry point.</td></tr>
+    <tr><td>B2</td><td><code>src/protosim.c:304</code></td><td>For a bootloader given as ELF, the entry point is read from the temporary instance's program counter, which simavr never sets when it loads a file. The loader is &ldquo;started&rdquo; at address 0.</td><td><span class="tag m">measured</span> <code>entry=0x0000</code> for the ELF, <code>0x7800</code> for the same loader as HEX</td><td>Fixed in <code>f4d382e</code>. Use the firmware's base address or the ELF entry point.</td></tr>
     <tr><td>B3</td><td><code>src/protosim.c:305</code></td><td>The ELF path copies the temporary instance's whole flash over the simulated flash, which wipes the application loaded just before. The HEX path overlays only the bootloader. With B2 the result looks right by accident: address 0 is now erased, and erased flash runs through to the loader.</td><td><span class="tag m">measured</span> only the loader's banner appears; the application's never does</td><td>Copy only the bootloader's own range.</td></tr>
     <tr><td>B4</td><td><code>src/protosim.c:195</code></td><td>A main firmware given as Intel HEX is read with simavr's single-chunk reader. Of a file with two regions, only the first is loaded.</td><td><span class="tag m">measured</span> application and loader in one file: &ldquo;Loaded HEX: 180 bytes&rdquo;, the loader absent</td><td>Use simavr's multi-chunk reader, or protosim's own.</td></tr>
     <tr><td>B5</td><td><code>src/protosim.c:84, :349</code></td><td><code>--uart0-in</code> injects one byte per millisecond, starting 1 ms after start, whatever the baud rate and whether or not the receiver is on. Bytes sent before the receiver is enabled are lost. At 9600 baud bytes arrive faster than a byte time and queue (S10).</td><td><span class="tag m">measured</span> receiver enabled at 5 ms: the first 5 of 16 bytes were lost</td><td>Start when the receiver is enabled, as the TCP path does, and pace from the configured rate.</td></tr>
-    <tr><td>B6</td><td><code>src/protosim.c:349</code></td><td>Injection stops for good after any reset, because simavr's reset discards the timer that drives it (S11).</td><td><span class="tag m">measured</span> after a watchdog reset none of the remaining bytes arrived</td><td>Register the timer again after a reset.</td></tr>
+    <tr><td>B6</td><td><code>src/protosim.c:349</code></td><td>Injection stops for good after any reset, because simavr's reset discards the timer that drives it (S11).</td><td><span class="tag m">measured</span> after a watchdog reset none of the remaining bytes arrived</td><td>Fixed in <code>f4d382e</code>: registered again after every reset.</td></tr>
     <tr><td>B7</td><td>Profiling reports</td><td>After a reset the cycle counter restarts at zero, so the report's totals no longer match the per-function sums.</td><td><span class="tag m">measured</span> &ldquo;hottest single edge: 200.0% of total runtime&rdquo;; 99.4% without a reset</td><td>Keep a running total of its own.</td></tr>
     <tr><td>B8</td><td><code>src/protosim.c:384</code></td><td><code>--bootloader</code> always starts the STK500 uploader thread. No switch turns it off or selects another protocol. In headless mode, where no terminal device exists, the thread printed nothing after its start message.</td><td><span class="tag m">measured</span> and <span class="tag r">read</span></td><td>A switch; see 8.3.</td></tr>
-    <tr><td>B9</td><td>No assignment anywhere</td><td>simavr's <code>reset_pc</code> is never set, so a reset during a <code>--bootloader</code> run restarts at address 0 and not in the loader.</td><td><span class="tag r">read</span> The harness set it and reset correctly.</td><td>Set it when a bootloader is given.</td></tr>
+    <tr><td>B9</td><td>No assignment anywhere</td><td>simavr's <code>reset_pc</code> is never set, so a reset during a <code>--bootloader</code> run restarts at address 0 and not in the loader.</td><td><span class="tag r">read</span> The harness set it and reset correctly.</td><td>Fixed in <code>f4d382e</code>: set for <code>--bootloader</code>, and by <code>--reset-vector</code>.</td></tr>
     <tr><td>B10</td><td><code>include/ stk500_uploader.h:36</code></td><td>The uploader's page size is fixed at 128 bytes, so the automatic upload suits ATmega328P-class parts only.</td><td><span class="tag r">read</span></td><td>Take it from the part.</td></tr>
     <tr><td>B11</td><td><code>src/ihex_loader.c:65</code></td><td>The bootloader HEX reader fills gaps between regions with <code>00</code>, where erased flash is <code>FF</code>.</td><td><span class="tag r">read</span></td><td>Fill with <code>FF</code>.</td></tr>
     <tr><td>B12</td><td><code>--uart0-in</code></td><td>The input is a C string. A file that contains zero bytes, such as an ELF, cannot be passed.</td><td><span class="tag r">read</span></td><td>See 8.3.</td></tr>
+    <tr><td>B13</td><td><code>src/uart_pty.c:159</code></td><td>On Linux the bridge wrote to the PTY inside a trace macro that is compiled out. Nothing the firmware sent reached the PTY; input worked.</td><td><span class="tag m">measured</span> no probe arrived in 25 s while the simulation ran at full speed</td><td>Fixed in <code>f4d382e</code>.</td></tr>
   </tbody>
 </table>
 
@@ -189,7 +190,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 <ul>
   <li><strong>Binary input.</strong> <code>--uart0-in-file</code>, or better an XMODEM sender beside the STK500 one, with a switch for which of the two runs with <code>--bootloader</code>, and one for neither.</li>
   <li><strong>Flash comparison.</strong> <code>--expect-flash &lt;file.elf&gt;</code>: at exit, compare flash with simavr's own load of that file. This is the oracle test of section 9 as a one-line check for CI, and it needs B1 fixed to be of use.</li>
-  <li><strong>Reset into the loader.</strong> B9, so that an application's request for an update can be tested.</li>
+  <li><strong>Reset into the loader, with a cause.</strong> Done in <code>f4d382e</code>: <code>--reset-vector</code>, <code>--reset-cause</code>, <code>--reset-at &lt;ms&gt;[:cause]</code>, and on Linux and macOS <code>SIGUSR1</code> for the reset pin and <code>SIGUSR2</code> for a power cycle of a running simulation. P1 to P5 in 9.1 use it.</li>
   <li><strong>A strict flash mode.</strong> An option that reports SPM outside the boot section, a page write with no erase before it, and reads of the application section while it is busy. That would turn S2 to S4 from blind spots into test failures. It could live in simavr or as a check in protosim.</li>
 </ul>
 
@@ -226,12 +227,26 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
     <tr><td>T23</td><td>328P: the same image, default bootloader</td><td>116 resets in 30 s, the image running again at once after each. It read the cause <code>01</code> at its first start and <code>08</code> after each watchdog reset</td></tr>
     <tr><td>T24</td><td>328P: the same image; bootloader set to wait after every reset</td><td>The image started again after each of 8 resets, 3.8 s and three probes later every time</td></tr>
     <tr><td>T25</td><td>2560, every option in the 4 KB section: the same image</td><td>115 resets in 30 s, the image running again at once after each</td></tr>
-    <tr><td>T26</td><td>328P: a reset with each cause and nobody sending, for the settings 7, 15 and 2 of <code>BOOT_CONF_WINDOW_AFTER</code></td><td>The image started after 3.8 s and three probes exactly where the setting says, and at once with no probe otherwise. A jump to the bootloader was waited for under every setting</td></tr>
-    <tr><td>T27</td><td>328P, reset pin only: a running image with interrupts on, a timer interrupt and the UART at 300 baud jumps to the bootloader</td><td>The bootloader probed, took the file again and started it</td></tr>
+    <tr><td>T26</td><td>328P: a reset with each cause and nobody sending, for the settings 2, 7 and 15 of <code>BOOT_CONF_WINDOW_AFTER</code></td><td>The image started after 3.8 s and three probes exactly where the setting says, and at once with no probe otherwise. A jump to the bootloader was waited for under every setting</td></tr>
+    <tr><td>T27</td><td>328P: a running image with interrupts on, a timer interrupt and the UART at 300 baud jumps to the bootloader</td><td>The bootloader probed, took the file again and started it</td></tr>
     <tr><td>T28</td><td>328P: firmware with four flash segments: code, initial data and two blocks at fixed addresses</td><td>Flash identical, up to <code>0x5850</code></td></tr>
     <tr><td>T29</td><td>328P: the same with a fifth segment</td><td>Refused <code>0xE0</code> at the fifth header; nothing written</td></tr>
   </tbody>
 </table>
+
+<h4>Inside protosim</h4>
+<p>The scenarios above run in a harness on simavr. These five run the default bootloader in protosim itself, on an empty ATmega328P with its serial port on protosim's PTY. A script sends files with XMODEM as a terminal program would, and resets the part through protosim: <code>SIGUSR1</code> pulls the reset pin, <code>SIGUSR2</code> cycles the power (<code>run_protosim.sh</code>).</p>
+<table class="tight">
+  <thead><tr><th style="width:5%">Test</th><th style="width:42%">Scenario</th><th>Outcome</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>Empty part, power-on; a file is sent</td><td>The bootloader probed; 7 blocks acknowledged; the image started and read the cause <code>01</code></td></tr>
+    <tr><td>P2</td><td>Power cycle</td><td>The image started at once, with no probe before it</td></tr>
+    <tr><td>P3</td><td>Reset through the pin; a second file is sent</td><td>The bootloader probed and took the file; the new image started and read the cause <code>02</code></td></tr>
+    <tr><td>P4</td><td>Reset through the pin; nobody sends</td><td>Three probes, then the image again</td></tr>
+    <tr><td>P5</td><td>Power cycle</td><td>The new image started at once</td></tr>
+  </tbody>
+</table>
+<p>Getting there took the reset causes in protosim and one repair: on Linux its PTY bridge did not pass on anything the firmware sent (B13).</p>
 
 <h3><span class="n">9.2</span>Run-time module loading in simulation</h3>
 <p>Here the bootloader only sits in flash. The test kernel of 6.8 runs on the ATmega328P (M1 to M9) and on the ATmega2560 (M10 to M12): protoduino's scheduler with the serial device process, a kernel process, a heartbeat process and the loader process. The harness sends it a module with XMODEM while it runs. Afterwards the slots are compared with simavr's own load of the module file, the kernel image is checked for changes, and the part is reset to see what starts from flash. The kernel prints how many turns the heartbeat took during the load and the longest time it waited for one.</p>
@@ -275,7 +290,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
   <li>Flash discipline. simavr accepts a missing erase, a missing read-while-write re-enable and SPM from the application section (8.1), so the simulated results cannot show that the loader gets these right.</li>
   <li>The device-signature check on the ATmega2560: simavr's core for that part has no signature row (S12). The check ran on the ATmega328P and the ATmega1284P (T8, T9, T15, T16).</li>
   <li>The Optiboot flash driver above 128 KB of flash. The build stops with an error there.</li>
-  <li>The watchdog on a chip: the 16 ms between resets that simavr stretches (S14), and a part whose fuses keep the watchdog on, which simavr does not model. Reset through the pin and brown-out are not recorded by simavr (S11); the tests put the cause into <code>MCUSR</code> by hand.</li>
+  <li>The watchdog on a chip: the 16 ms between resets that simavr stretches (S14), and a part whose fuses keep the watchdog on, which simavr does not model. Reset through the pin and brown-out are not recorded by simavr (S11): the harness writes the cause into <code>MCUSR</code> at each reset it makes, as protosim does.</li>
   <li>How long a real page write holds the system up during a load, and what that does to <code>micros()</code>.</li>
   <li>Module loading on the ATmega1284P, on the ATmega2560 with the library unchanged (7, finding 17), and with the Arduino core in place of the stand-in for it.</li>
   <li>Optiboot on a real board, and Optiboot versions other than the 8.3 image that was used.</li>
@@ -306,7 +321,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 <div>
 <h4>Risks</h4>
 <ul>
-  <li><strong>Size.</strong> The protothread form costs 374 bytes, of which assembly and numbered continuation points recovered 76. On the ATmega328P the 2 KB section has 26 bytes left. The parts above 64 KB use the 4 KB section, where 1,146 bytes are free.</li>
+  <li><strong>Size.</strong> The protothread form costs 374 bytes, of which assembly and numbered continuation points recovered 76. On the ATmega328P the 2 KB section has 28 bytes left. The parts above 64 KB use the 4 KB section, where 1,146 bytes are free.</li>
   <li><strong>The far call.</strong> Four instructions that rely on which registers avr-gcc passes arguments in. A compiler that changes that breaks the call without a message; T20, T21, M10 and M11 would show it.</li>
   <li><strong>Page writes still stop the system.</strong> Cooperative means between pages. Each page holds everything for 7 to 9 ms on a chip, and no AVR design can avoid that.</li>
   <li><strong>The scheduler under load.</strong> Until finding 14 is fixed, a process that waits for an event waits out every block of a transfer.</li>
@@ -319,13 +334,12 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 </div>
 <div>
 <h4>Open questions</h4>
-<p class="small"><strong>Settled on 12 November 2026:</strong> the ATmega2560 and ATmega1284P take a 4 KB boot section, and the bootloader is built with every option there; no blocking build is kept for 2 KB. On the ATmega328P the 2 KB section keeps the exported load thread and gains the immediate restart after a watchdog reset; segment merging made room for it, and a fourth segment entry does its work.</p>
+<p class="small"><strong>Settled on 12 November 2026:</strong> the ATmega2560 and ATmega1284P take a 4 KB boot section, and the bootloader is built with every option there; no blocking build is kept for 2 KB. On the ATmega328P the 2 KB section keeps the exported load thread and gains the immediate restart after a watchdog reset; segment merging made room for it, and a fourth segment entry does its work. The bootloader waits for a sender only after a reset through the pin; protosim was given reset causes so that this can be run in simulation.</p>
 <ul>
   <li>Which small part is meant by &ldquo;ATtiny8&rdquo;? The answer decides whether the small-frame transport is needed early.</li>
   <li>Should updates be authenticated, and if so with what? A keyed hash costs several hundred bytes.</li>
   <li>Which binding scheme is the default for modules: exact or table?</li>
   <li>Should module slots be allowed above 64 KB on the large parts? Today that is a build error; lifting it needs far reads in the scheduler.</li>
-  <li>Should the default go one step further and wait only after a reset through the pin? A board would then also start at once when power comes on, where it waits 3.8 s today. It costs no flash. Against it: a board without a reset line could only be updated on request of its application, and simavr and protosim record no reset through the pin (S11), so the window could not be opened in simulation.</li>
   <li>Where should the bootloader's build live, given that it cannot be under <code>src/</code>?</li>
 </ul>
 </div>
@@ -369,11 +383,12 @@ gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
 
 ./run_tests.sh                           <span class="c"># T1 to T29</span>
 ./run_modules.sh                         <span class="c"># M1 to M12</span>
+./run_protosim.sh                        <span class="c"># P1 to P5, in protosim itself</span>
 ./fit.sh atmega2560                      <span class="c"># fill the standard boot section of a part</span>
 ./sizes.sh                               <span class="c"># the tables of 6.8 to 6.10</span>
 probes/run_probes.sh                     <span class="c"># findings 10 to 22 of section 7</span>
 ./build.sh m2560 atmega2560 default -DBOOT_CONF_LOAD_SERVICE=1</code></pre>
-<p class="small">Recorded outputs are in <code>results-sizes.txt</code>, <code>results-fit.txt</code>, <code>results-tests.txt</code>, <code>results-modules.txt</code>, <code>results-library.txt</code> and <code>results-simulators.txt</code>. Findings 1 to 9 of section 7 come from the other programs in <code>probes/</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>; the simulator findings of section 8 from <code>simprobes/</code> and <code>sim_harness --fallthrough</code>.</p>
+<p class="small">Recorded outputs are in <code>results-sizes.txt</code>, <code>results-fit.txt</code>, <code>results-tests.txt</code>, <code>results-modules.txt</code>, <code>results-protosim.txt</code>, <code>results-library.txt</code> and <code>results-simulators.txt</code>. Findings 1 to 9 of section 7 come from the other programs in <code>probes/</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>; the simulator findings of section 8 from <code>simprobes/</code> and <code>sim_harness --fallthrough</code>.</p>
 
 <h3>Sources</h3>
 <ul class="src">
