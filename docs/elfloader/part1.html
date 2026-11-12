@@ -8,9 +8,9 @@
 
   <div class="keyfacts">
     <div><div class="v">84 B</div><div class="l">of loader state on an ATmega328P; no heap, no seeking</div></div>
-    <div><div class="v">1,676 B</div><div class="l">serial ELF bootloader for the ATmega328P, as measured</div></div>
-    <div><div class="v">5.6 %</div><div class="l">of example 12's ELF file is all the loader has to receive</div></div>
-    <div><div class="v">13 of 13</div><div class="l">simulated scenarios on ATmega328P and ATmega2560 behaved as designed</div></div>
+    <div><div class="v">1,640 B</div><div class="l">serial ELF bootloader for the ATmega328P, as measured</div></div>
+    <div><div class="v">2,036 B</div><div class="l">with the run-time module loader: it fills the 2 KB boot section</div></div>
+    <div><div class="v">21 of 21</div><div class="l">simulated scenarios behaved as designed, including module loading on Optiboot</div></div>
   </div>
 
   <div class="box accent">
@@ -18,7 +18,7 @@
     <ul>
       <li>A prototype of the loader core and of a serial bootloader built on it was written and run for this document. Every figure marked <span class="tag m">measured</span> comes from it: avr-gcc 7.3.0, and simavr at the commit that protosim pins.</li>
       <li>Nothing has run on hardware. Power loss during an update was not simulated, and simavr's flash model is more forgiving than a chip (8.1).</li>
-      <li>The module layer (6.8), relocation (4.7) and the ATtiny path (6.6) are designs. The ATtiny build compiles; it has not executed anywhere.</li>
+      <li>Run-time module loading was exercised with a stand-in kernel, not with protoduino's scheduler (6.8). Relocation (4.7) and the ATtiny path (6.6) are designs. The ATtiny build compiles; it has not executed anywhere.</li>
       <li>No protoduino, protosim or simavr source file was changed. The fixes in section 7 and section 8 are proposals. The prototype sits beside this document in <code>docs/elfloader/prototype/</code>, outside <code>src/</code>.</li>
     </ul>
   </div>
@@ -49,30 +49,33 @@
 
 <p>The loader takes the file the linker writes, the <code>.elf</code>, and treats it as a stream. The first 52 bytes say what the file is. The next 32 bytes per program header say which bytes belong where. Everything after that is delivered to flash in the order it arrives. The loader never seeks backwards and never allocates, and all of its state fits in one 84-byte structure. When the last loadable byte has been delivered it is done; the symbol tables and debug information that make up most of the file never have to be sent.</p>
 
-<p>That one core is meant to be built three ways, chosen at compile time:</p>
+<p>That one core is used in parts, chosen at compile time:</p>
 <ul>
   <li><strong>As a bootloader.</strong> Core, a polled serial port and XMODEM-CRC in the boot section. Any terminal program can send the unmodified <code>.elf</code>. An image record written last decides whether the application may start.</li>
-  <li><strong>As a flash service.</strong> The same boot section exports a page-write entry, so the application can program flash although the SPM instruction only works from the boot section.</li>
-  <li><strong>As a runtime loader.</strong> Inside the kernel, the core installs modules into flash slots while the system runs. A module is a protoduino process type that lives in flash; starting it is <code>process_new()</code> plus <code>process_start()</code>.</li>
+  <li><strong>As a boot ROM for the running system.</strong> The same boot section exports a small table: an entry that programs one page and, when it fits the section, the whole load session. A kernel can then have a module loaded while it runs for under a kilobyte of its own code.</li>
+  <li><strong>Inside the kernel.</strong> Where the bootloader is Optiboot, or a protoduino loader built without the module loader, the kernel links the same session code itself and writes pages through whatever the bootloader offers.</li>
 </ul>
 
-<p>The third use is what makes this fit protoduino in particular. Protothread processes keep their state in a struct the kernel hands them, so a module needs no static RAM, and the hardest part of dynamic loading on an AVR, relocating data addresses, does not arise.</p>
+<p>Module support has three levels, also chosen at compile time: none; start the modules that are already in flash; or load modules at run time as well. The build fills the boot section that the fuses reserve with as many features as fit, in a set order of priority (6.9).</p>
+
+<p>Modules fit protoduino in particular. Protothread processes keep their state in a struct the kernel hands them, so a module needs no static RAM, and the hardest part of dynamic loading on an AVR, relocating data addresses, does not arise.</p>
 
 <table>
-  <thead><tr><th style="width:44%">Result</th><th>Value</th><th style="width:16%">Status</th></tr></thead>
+  <thead><tr><th style="width:36%">Result</th><th>Value</th><th style="width:14%">Status</th></tr></thead>
   <tbody>
     <tr><td>Loader state, ATmega328P build</td><td>84 bytes, of which 52 are header scratch</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>Serial ELF bootloader, ATmega328P</td><td>1,676 B flash, 349 B RAM; 1,944 B with every option on. Fits the 2 KB boot section, not the 1 KB one.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>Serial ELF bootloader, ATmega2560</td><td>2,168 B flash, 491 B RAM; 2,488 B with every option. Needs the 4 KB boot section today.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>ATtiny85 build with bit-banged serial</td><td>1,736 B flash, 285 B RAM</td><td><span class="tag b">built</span></td></tr>
+    <tr><td>Serial ELF bootloader, ATmega328P</td><td>1,640 B flash, 350 B RAM. With the run-time module loader 2,036 B, which fills the 2 KB boot section to within 12 bytes. With every option 2,286 B, which needs the 4 KB section.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>Serial ELF bootloader, ATmega2560</td><td>2,182 B. The 2 KB section holds a 2,024 B build with the page-write service; the module loader (2,524 B) and every option (2,832 B) need the 4 KB section.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>ATtiny85 build with bit-banged serial</td><td>1,700 B flash, 286 B RAM</td><td><span class="tag b">built</span></td></tr>
     <tr><td>Flash written by the loader against simavr's own ELF reader</td><td>Identical on both parts, including a 106 KB image that reaches far flash</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A file for the wrong core family, offered to a device with a working application</td><td>Refused with a reason code; nothing erased; the application starts again</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>Application programs a flash page through the loader</td><td>Works in simulation; the simulator does not enforce the boot-section rule</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>A module sent to a running kernel, loaded by the boot section on the kernel's behalf</td><td>Written into its slot, run, recorded, and started again after a reset</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>The same with a stock Optiboot 8.3 as the bootloader</td><td>Works: the kernel carries the loader and writes through Optiboot's <code>do_spm</code></td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A module that declares static RAM</td><td>Fails at link time with a clear message</td><td><span class="tag m">measured</span></td></tr>
   </tbody>
 </table>
 
-<p>The size is the weak point, and it should be stated plainly. Optiboot fits in under 512 bytes; this prototype is three times that, in plain C with an old compiler, and it does not fit a 1 KB boot section. Section 6.10 shows where the bytes go and what could shrink them. Reaching 1 KB is a goal, not a result.</p>
+<p>The size is the weak point, and it should be stated plainly. Optiboot fits in under 512 bytes; this loader is 1,640 bytes, in plain C with an old compiler, and it does not fit a 1 KB boot section. Section 6.10 shows where the bytes go and what could shrink them. Reaching 1 KB is a goal, not a result.</p>
 
 <h2><span class="n">2</span>Goals, non-goals and target parts</h2>
 
@@ -81,10 +84,12 @@
 <h4>Goals</h4>
 <ul>
   <li><strong>Accept the linker's own output.</strong> No hex file, no binary image and no packaging step for firmware.</li>
-  <li><strong>One core, cut at compile time.</strong> From a bootloader that fits a boot section to a loader inside the kernel, with features that cost nothing when switched off.</li>
+  <li><strong>One core, used in parts.</strong> From a bootloader to a loader inside the kernel, with features that cost nothing when switched off.</li>
+  <li><strong>Fill the boot section.</strong> Whatever block the fuses reserve is used for as many features as fit.</li>
   <li><strong>Refuse before erasing.</strong> The wrong file must be rejected while the installed image is still intact.</li>
   <li><strong>Always recoverable.</strong> On parts with a hardware boot section, no failed update may leave a device that cannot be reached over the same serial line.</li>
-  <li><strong>Modules are processes.</strong> A loaded module is an ordinary protoduino process.</li>
+  <li><strong>Modules are processes, loadable at run time.</strong> Wherever the part can carry it and unless it is configured out. Three levels: none, modules already in flash, run-time loading.</li>
+  <li><strong>Not tied to our bootloader.</strong> A protoduino kernel can load modules on top of Optiboot as well.</li>
 </ul>
 </div>
 <div>
@@ -100,14 +105,14 @@
 </div>
 
 <table>
-  <thead><tr><th>Part</th><th class="num">Flash</th><th class="num">RAM</th><th class="num">Page</th><th>Boot section</th><th>Role in this design</th><th>Status</th></tr></thead>
+  <thead><tr><th>Part</th><th class="num">Flash</th><th class="num">RAM</th><th class="num">Page</th><th>Boot section</th><th>Bootloader</th><th style="width:31%">Run-time modules</th></tr></thead>
   <tbody>
-    <tr><td class="nw">ATmega328P</td><td class="num">32 KB</td><td class="num">2 KB</td><td class="num">128 B</td><td>yes, 0.5 to 4 KB</td><td>Recovery bootloader, service, modules</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td class="nw">ATmega2560</td><td class="num">256 KB</td><td class="num">8 KB</td><td class="num">256 B</td><td>yes, 1 to 8 KB</td><td>The same, with 24-bit addresses</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td class="nw">ATmega1284P</td><td class="num">128 KB</td><td class="num">16 KB</td><td class="num">256 B</td><td>yes</td><td>The same</td><td><span class="tag b">built</span></td></tr>
-    <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>no</td><td>Updater behind a patched reset vector</td><td><span class="tag b">built</span></td></tr>
-    <tr><td class="nw">ATtiny25 / 45</td><td class="num">2 / 4 KB</td><td class="num">128 / 256 B</td><td class="num">32 / 64 B</td><td>no</td><td>Too little RAM for a 128-byte XMODEM block; needs a small-frame transport</td><td><span class="tag p">proposed</span></td></tr>
-    <tr><td class="nw">ATtiny4/5/9/10</td><td class="num">&le; 1 KB</td><td class="num">32 B</td><td class="num">&ndash;</td><td>no</td><td>Out of scope</td><td>&ndash;</td></tr>
+    <tr><td class="nw">ATmega328P</td><td class="num">32 KB</td><td class="num">2 KB</td><td class="num">128 B</td><td>0.5 to 4 KB</td><td><span class="tag m">measured</span></td><td>Yes. The module loader fits the 2 KB section. <span class="tag m">measured</span></td></tr>
+    <tr><td class="nw">ATmega2560</td><td class="num">256 KB</td><td class="num">8 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td><span class="tag m">measured</span></td><td>Yes. The module loader needs the 4 KB section. <span class="tag b">built</span></td></tr>
+    <tr><td class="nw">ATmega1284P</td><td class="num">128 KB</td><td class="num">16 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td><span class="tag b">built</span></td><td>As the ATmega2560. <span class="tag b">built</span></td></tr>
+    <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>none</td><td><span class="tag b">built</span></td><td>Off by default: the load workspace alone is 286 of its 512 bytes of RAM.</td></tr>
+    <tr><td class="nw">ATtiny25 / 45</td><td class="num">2 / 4 KB</td><td class="num">128 / 256 B</td><td class="num">32 / 64 B</td><td>none</td><td>Needs a small-frame transport <span class="tag p">proposed</span></td><td>No. Excluded at compile time.</td></tr>
+    <tr><td class="nw">ATtiny4/5/9/10</td><td class="num">&le; 1 KB</td><td class="num">32 B</td><td class="num">&ndash;</td><td>none</td><td>Out of scope</td><td>&ndash;</td></tr>
   </tbody>
 </table>
 <p class="small">Flash end, RAM range, page size and core family were read from the avr-libc device headers. Boot-section sizes are from the datasheets and were not re-checked here. The request named an &ldquo;ATtiny8&rdquo;; no such part exists, so this document takes the ATtiny25/45/85 family as the small target, with the ATtiny85 as reference.</p>
@@ -127,7 +132,7 @@
     <tr>
       <td><strong>Optiboot</strong> with avrdude</td>
       <td>Under 512 bytes, which is the bar for size. But the device receives anonymous pages: it has no idea what the image is, keeps no record of whether it is complete, and starts whatever is there after a timeout. The host has to turn the ELF into a hex file and speak a programmer protocol. Version 8 added <code>do_spm()</code> so an application can write flash.</td>
-      <td>The device reads the ELF header itself and keeps an image record. The <code>do_spm()</code> idea is kept and widened into a service entry (6.7).</td>
+      <td>The device reads the ELF header itself and keeps an image record. The <code>do_spm()</code> idea is kept and widened into a service table (6.7). Optiboot also stays a supported choice: a protoduino kernel loads modules on top of it (6.8).</td>
     </tr>
     <tr>
       <td><strong>urboot, micronucleus</strong><br><span class="small">parts without a boot section</span></td>
@@ -205,9 +210,9 @@
 
 <p>The consequence for the user is that no tool has to be installed to flash a board. With XMODEM as the transport (6.4), a terminal program that every platform already has can send the file the build produced.</p>
 
-<h3><span class="n">4.2</span>One core, three cuts</h3>
+<h3><span class="n">4.2</span>One core, used in parts</h3>
 
-<p>The core is a state machine with no input or output of its own. Bytes are pushed in from whatever carries them; bytes that belong in a memory are handed to a sink. Transport, sink and policy are separate pieces, and a build takes only the ones it needs.</p>
+<p>The core is a state machine with no input or output of its own. Bytes are pushed in from whatever carries them; bytes that belong in a memory are handed to a sink. Around it sits one session, the code that receives a file and drives the core, written so that all of its state is in a workspace the caller owns. That makes the session usable from three places: the bootloader at reset, the boot section called by the running kernel, and a kernel that links it in.</p>
 
 <figure>
 <svg viewBox="0 0 700 172" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif" font-size="9.5">
@@ -239,12 +244,16 @@
 <figcaption><strong>Figure 2.</strong> The pieces. The top row of each column is what the prototype contains.</figcaption>
 </figure>
 
+<p>Which parts end up where depends on two choices: what sits in the boot section, and how much module support the kernel is built with.</p>
+
 <table class="keep">
-  <thead><tr><th style="width:21%">Cut</th><th style="width:37%">Lives in</th><th>Contains</th></tr></thead>
+  <thead><tr><th style="width:28%">In the boot section</th><th style="width:24%">Kernel built for</th><th>Who loads a module at run time</th><th style="width:9%">Tested</th></tr></thead>
   <tbody>
-    <tr><td><strong>A. Bootloader</strong></td><td>Boot section, or the top of flash on parts without one</td><td>Core, XMODEM receiver, polled serial, flash back-end, image record</td></tr>
-    <tr><td><strong>B. Bootloader with service</strong></td><td>Boot section, plus a 4-byte stub at the end of flash</td><td>Cut A, and a page-write entry the application may call</td></tr>
-    <tr><td><strong>C. Runtime loader</strong></td><td>Application section, as a protoduino process</td><td>Core and module policy; flash writes go through the service of cut B</td></tr>
+    <tr><td>protoduino loader with the module loader</td><td>run-time loading, ROM</td><td>The boot section, called by the kernel</td><td>M1</td></tr>
+    <tr><td>protoduino loader with the page-write service</td><td>run-time loading, own loader</td><td>The kernel; pages go through the service</td><td>M3</td></tr>
+    <tr><td>Optiboot 8 or later</td><td>run-time loading, own loader</td><td>The kernel; pages go through <code>do_spm</code></td><td>M2</td></tr>
+    <tr><td>anything</td><td>modules already in flash</td><td>Nobody. Modules are programmed with the firmware and only started.</td><td>M4</td></tr>
+    <tr><td>anything</td><td>no modules</td><td>&ndash;</td><td>M8</td></tr>
   </tbody>
 </table>
 
@@ -294,11 +303,11 @@
 
 <h3><span class="n">4.5</span>The boot section as a small ROM</h3>
 
-<p>On a megaAVR the SPM instruction works only from the boot section, so an application cannot program flash by itself, and a runtime loader in the application cannot exist without help. The boot section therefore exports a service: an entry at a fixed address at the very end of flash, with two magic bytes beside it, that programs one page from the caller's buffer and returns. The design goes one step past Optiboot's <code>do_spm()</code>: because the core keeps its state in a structure the caller owns, the same entry table can also export the core itself, and the kernel's module loader then costs policy code only (6.7).</p>
+<p>On a megaAVR the SPM instruction works only from the boot section, so an application cannot program flash by itself, and a run-time loader in the application cannot exist without help. The boot section therefore exports a table at a fixed place at the very end of flash. Its first service programs one page from the caller's buffer, as Optiboot's <code>do_spm()</code> does. Its second goes further: it runs the whole load session, the same code that loads firmware at reset, on a workspace the caller brings. The kernel asks for a module to be loaded into a range of flash and gets back a result and the module's entry address. The boot section is paid for anyway; this makes it do the kernel's loading too (6.7). <span class="tag m">measured</span></p>
 
 <h3><span class="n">4.6</span>A module is a process type</h3>
 
-<p>protoduino already has the right descriptor. <code>process_type_t</code> is a small record in flash holding a name, a thread function, an instance size and a priority, and <code>process_new(type, storage)</code> turns it into a running process in memory the caller supplies. A loadable module is exactly that record plus its code, linked into a flash slot. Loading a module means writing its bytes and calling the two functions every built-in process already uses.</p>
+<p>protoduino already has the right descriptor. <code>process_type_t</code> is a small record in flash holding a name, a thread function, an instance size and a priority, and <code>process_new(type, storage)</code> turns it into a running process in memory the caller supplies. A loadable module is exactly that record plus its code, linked into a flash slot. Loading a module means writing its bytes and calling the two functions every built-in process already uses. A stand-in kernel showed the mechanics end to end (6.8); joining them to the real scheduler is the next step.</p>
 
 <p>Protothreads are stackless, and a protoduino process keeps its variables in its instance struct. A module written that way has no <code>.data</code> and no <code>.bss</code>, so there is nothing in RAM to place or relocate: the kernel hands the thread a pointer, and the module works wherever that points. The rule is enforced at link time rather than left to discipline (6.8).</p>
 

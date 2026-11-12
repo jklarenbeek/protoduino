@@ -138,50 +138,70 @@ void CC_TMPL_FN(close)(void)
     <tr><td>T7</td><td>328P: install, reset, then offer an ATmega2560 file</td><td>Refused <code>0x81</code>; the installed application intact and started again after the window</td></tr>
     <tr><td>T8</td><td>328P, all options: file with EEPROM data and a matching signature</td><td>Flash identical; EEPROM holds <code>01 02 03 04 05</code></td></tr>
     <tr><td>T9</td><td>328P, all options: an ATmega168P file, same core family, other device</td><td>Refused <code>0x87</code> at the signature; no record written; the loader keeps control</td></tr>
-    <tr><td>T10</td><td>328P: an installed application programs a page through the service entry</td><td>Page reads back as written; the caller's interrupt state restored</td></tr>
+    <tr><td>T10</td><td>328P: an installed application programs a page through the service table</td><td>Page reads back as written; the caller's interrupt state restored</td></tr>
     <tr><td>T11</td><td>2560: small image</td><td>Flash identical; record written; application reached</td></tr>
-    <tr><td>T12</td><td>2560: 106,830-byte image reaching far flash, 839 blocks</td><td>Flash identical; 11.9 s of line time</td></tr>
+    <tr><td>T12</td><td>2560: 106,830-byte image reaching far flash, 839 blocks</td><td>Flash identical; 12.0 s of line time</td></tr>
     <tr><td>T13</td><td>328P: execution started in erased flash below the loader, at both word alignments, with the skip taken and not taken</td><td>The loader was reached in all four cases. In a control build without the landing pad, one case skipped the loader's first instruction and ran its rule table as code</td></tr>
   </tbody>
 </table>
 
-<h3><span class="n">9.2</span>On the host</h3>
+<h3><span class="n">9.2</span>Run-time module loading in simulation</h3>
+<p>Here the bootloader only sits in flash. A stand-in kernel runs on the ATmega328P, and the harness sends it a module with XMODEM while it runs. Afterwards the module slot is compared with simavr's own load of the module file, the kernel image is checked for changes, and the part is reset to see what starts from flash. What the kernel is, and is not, is set out in 6.8.</p>
+
+<table class="tight">
+  <thead><tr><th style="width:5%">Test</th><th style="width:44%">Scenario</th><th>Outcome</th></tr></thead>
+  <tbody>
+    <tr><td>M1</td><td>protoduino bootloader with the module loader; the kernel calls its session service</td><td>Slot identical to the reference; module ran and kept its state; recorded; started from flash after a reset</td></tr>
+    <tr><td>M2</td><td>Stock Optiboot 8.3 as the bootloader; the kernel carries the loader and writes through <code>do_spm</code></td><td>The same</td></tr>
+    <tr><td>M3</td><td>protoduino bootloader with only the page-write service; the kernel carries the loader</td><td>The same</td></tr>
+    <tr><td>M4</td><td>Kernel built for modules in flash only; module programmed together with the firmware</td><td>Module started; the kernel has no loader</td></tr>
+    <tr><td>M5</td><td>A module linked against another kernel build</td><td>Loaded into the slot, then refused by the kernel; not recorded; nothing started after a reset</td></tr>
+    <tr><td>M6</td><td>A firmware image offered to the module loader</td><td>Refused <code>0x83</code> before any write: it lies outside the slot</td></tr>
+    <tr><td>M7</td><td>Kernel built to load, on a bootloader that offers no service</td><td>The kernel reports that it cannot load and carries on</td></tr>
+    <tr><td>M8</td><td>Kernel built without module support, module present in flash</td><td>Module ignored</td></tr>
+  </tbody>
+</table>
+<p>In every load the kernel image was unchanged afterwards.</p>
+
+<h3><span class="n">9.3</span>On the host</h3>
 <p>The same core, compiled natively, was fed real files in chunks of random size and its output compared with <code>avr-objcopy</code>.</p>
 <ul>
   <li>Flash and EEPROM images identical for the test program built for ATmega328P, ATmega2560 and ATtiny85; identical for example 12, for its stripped form, for one-byte-at-a-time feeding, and for the 106 KB image.</li>
   <li>The signature bytes extracted from the three files were those of the three parts.</li>
   <li>Refused as designed: a file for another family (<code>0x81</code>), an image larger than the window (<code>0x83</code>), a non-ELF file, a relocatable <code>.o</code> and an x86-64 object (all <code>0x80</code>). A truncated file leaves the core waiting for more.</li>
   <li>A module was accepted in its own slot and refused in another; the firmware was refused in a module slot.</li>
+  <li>The step that fills the boot section was run for every block size of three parts (6.9).</li>
 </ul>
 
-<h3><span class="n">9.3</span>Not verified</h3>
+<h3><span class="n">9.4</span>Not verified</h3>
 <ul>
   <li>Anything on hardware, including fuse and lock-bit settings and real programming times.</li>
   <li>Loss of power during an update. The transaction argument in 4.4 is by construction.</li>
   <li>The ATtiny path: it has never executed. Only its run-through mechanism was checked, on the ATmega328P (T13).</li>
   <li>Flash discipline. simavr accepts a missing erase, a missing read-while-write re-enable and SPM from the application section (8.1), so the simulated results cannot show that the loader gets these right.</li>
-  <li>The image CRC check at start-up, the information reply, and the service entry on the ATmega2560.</li>
-  <li>The module layer beyond linking and the window check.</li>
+  <li>The image CRC check at start-up, the information reply, and the service table on parts above 128 KB.</li>
+  <li>Modules as protoduino processes: the tests use a stand-in kernel, one slot and a polled serial port (6.8).</li>
+  <li>Optiboot on a real board, and Optiboot versions other than the 8.3 image that was used.</li>
 </ul>
 
-<h3><span class="n">9.4</span>Test plan from here</h3>
+<h3><span class="n">9.5</span>Test plan from here</h3>
 <ul>
   <li><strong>Host unit tests in CI</strong> for the core, with the files above as fixtures, and a fuzzer on <code>elfld_write()</code>. The core is small, pure C and takes untrusted input, which is the ideal fuzzing target.</li>
-  <li><strong>protosim end to end</strong> per supported part, once the additions of 8.3 exist and B1 is fixed, with the oracle comparison as the pass criterion.</li>
+  <li><strong>protosim end to end</strong> per supported part, once the additions of 8.3 exist and B1 is fixed, with the oracle comparison as the pass criterion. The module scenarios M1 to M8 belong in the same suite.</li>
   <li><strong>Hardware</strong>: an Uno and a Mega 2560, with an ISP programmer at hand for fuses. A relay on the supply to cut power at random points of an update, hundreds of times, checking that the board always answers afterwards.</li>
 </ul>
 
 <h2><span class="n">10</span>Roadmap, risks and open questions</h2>
 
 <table>
-  <thead><tr><th style="width:6%">Step</th><th style="width:37%">Deliverable</th><th>Done when</th></tr></thead>
+  <thead><tr><th style="width:6%">Step</th><th style="width:40%">Deliverable</th><th>Done when</th></tr></thead>
   <tbody>
-    <tr><td>M0</td><td>The fixes of section 7</td><td>The probes in <code>prototype/probes</code> give the corrected results</td></tr>
-    <tr><td>M1</td><td>Core in <code>src/sys/elf</code>, host tests, fuzzing</td><td>Fixtures pass in CI on the host and for two AVR parts</td></tr>
-    <tr><td>M2</td><td>Bootloader for ATmega328P and ATmega2560; protosim fixes B1 to B9 and the additions of 8.3</td><td>T1 to T13 run in protosim; first boards flashed with a terminal program</td></tr>
-    <tr><td>M3</td><td>Service table, <code>elfboot_request()</code>, information reply; the <code>pd</code> tool; PlatformIO upload through it</td><td><code>pio run -t upload</code> sends the <code>.elf</code>; the power-cut rig passes</td></tr>
-    <tr><td>M4</td><td>Modules, exact binding; the kernel's loader process</td><td>A module is installed over serial, runs as a process, survives reset and can be removed</td></tr>
-    <tr><td>M5</td><td>ATtiny path on hardware; relocation by fix-up stream; signed modules; a size pass in assembly</td><td>Each on its own evidence</td></tr>
+    <tr><td>R0</td><td>The fixes of section 7</td><td>The probes in <code>prototype/probes</code> give the corrected results</td></tr>
+    <tr><td>R1</td><td>Core and session in <code>src/sys/elf</code>, host tests, fuzzing</td><td>Fixtures pass in CI on the host and for two AVR parts</td></tr>
+    <tr><td>R2</td><td>Bootloader for ATmega328P and ATmega2560 with the fill step; protosim fixes B1 to B9 and the additions of 8.3</td><td>T1 to T13 run in protosim; first boards flashed with a terminal program</td></tr>
+    <tr><td>R3</td><td>Modules in the real kernel: descriptor macro, records, <code>process_new()</code> and <code>process_start()</code>; all three levels; ROM loader and own loader; Optiboot back-end</td><td>M1 to M8 pass with protoduino's scheduler, and on an Uno with Optiboot</td></tr>
+    <tr><td>R4</td><td>The <code>pd</code> tool; PlatformIO upload through it; <code>elfboot_request()</code>; descriptor check before the first write; several slots and removal</td><td><code>pio run -t upload</code> sends the <code>.elf</code>; the power-cut rig passes</td></tr>
+    <tr><td>R5</td><td>ATtiny path on hardware; relocation by fix-up stream; signed modules; a size pass in assembly</td><td>Each on its own evidence</td></tr>
   </tbody>
 </table>
 
@@ -192,7 +212,8 @@ void CC_TMPL_FN(close)(void)
   <li><strong>Size.</strong> The 1 KB boot section may stay out of reach. The design does not depend on it; a 2 KB section costs the application 1 KB.</li>
   <li><strong>ATtiny recovery.</strong> Without hardware protection for the loader's pages, a faulty application can destroy it. The claim for these parts is deliberately weaker.</li>
   <li><strong>Exact binding.</strong> Convenient while developing, awkward for distributing modules. The table scheme is the answer and costs flash.</li>
-  <li><strong>Interrupt blackout.</strong> Flash writes at run time stall the system for milliseconds at a time.</li>
+  <li><strong>The system stops while loading.</strong> The ROM loader blocks for the whole transfer, and any flash write keeps interrupts off for milliseconds.</li>
+  <li><strong>Optiboot is a moving target.</strong> The kernel relies on where Optiboot puts <code>do_spm</code> and on its size. Both are checked at start-up, but only version 8.3 was tried.</li>
   <li><strong>Old compiler.</strong> All sizes are from avr-gcc 7.3.0. A newer one may be better or worse.</li>
 </ul>
 </div>
@@ -202,6 +223,8 @@ void CC_TMPL_FN(close)(void)
   <li>Which small part is meant by &ldquo;ATtiny8&rdquo;? The answer decides whether the small-frame transport is needed early.</li>
   <li>Should updates be authenticated, and if so with what? A keyed hash costs several hundred bytes.</li>
   <li>Which binding scheme is the default for modules: exact or table?</li>
+  <li>May loading a module stop the system for seconds, as the ROM loader does, or must it be cooperative?</li>
+  <li>Is the default order for filling the boot section the right one?</li>
   <li>Should the loader wait after every reset, or only on request? It changes start-up time by seconds.</li>
   <li>Where should the bootloader's build live, given that it cannot be under <code>src/</code>?</li>
 </ul>
@@ -231,28 +254,29 @@ void CC_TMPL_FN(close)(void)
 <p class="small">For the ATmega328P test program avr-gcc wrote six loadable segments: code at load address 0; initial <code>.data</code> at run address <code>0x800100</code> but load address <code>0x136</code>, directly after the code; <code>.bss</code> with no file bytes; EEPROM at <code>0x810000</code>; fuses at <code>0x820000</code>; signature at <code>0x840000</code>. <span class="tag m">measured</span></p>
 
 <h2><span class="n">B</span>Reproducing the measurements</h2>
-<p>Everything is in <code>docs/elfloader/prototype/</code>. It needs <code>gcc-avr</code>, <code>avr-libc</code>, <code>libelf-dev</code> and protosim built with its simavr submodule.</p>
-<pre><code><span class="c"># core on the host, against a file built with avr-gcc</span>
+<p>Everything is in <code>docs/elfloader/prototype/</code>. It needs <code>gcc-avr</code>, <code>avr-libc</code>, <code>libelf-dev</code> and protosim built with its simavr submodule. The Optiboot image is not included: copy <code>optiboot_atmega328.hex</code> from the Optiboot repository into <code>fixtures/</code> for M2, M4 and M8.</p>
+<pre><code>./make_fixtures.sh                       <span class="c"># test files, and the stand-in kernels with their modules</span>
+
+<span class="c"># core on the host, against a file built with avr-gcc</span>
 gcc -std=c99 -O2 -DELFLD_FEAT_EEPROM=1 -DELFLD_FEAT_SIGNATURE=1 -o host_test host_test.c elfld.c
-./host_test app.elf 5 out.bin
-avr-objcopy -O binary -j .text -j .data app.elf ref.bin &amp;&amp; cmp out.bin ref.bin
+./host_test fixtures/app-atmega328p.elf 5 out.bin
 
-<span class="c"># the bootloader, and its size</span>
-./build.sh m328 atmega328p 0x7800
-./build.sh m2560 atmega2560 0x3F000 -DELFBOOT_FEAT_SERVICE=1
-
-<span class="c"># end to end in simavr</span>
+<span class="c"># the harness that runs the loader inside simavr</span>
 S=../../../../protosim/libraries/simavr/simavr
 gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
     $S/obj-x86_64-linux-gnu/libsimavr.a -lelf -lm -lpthread
-./sim_harness atmega328p out/m328.elf app.elf --corrupt 3 --drop-ack 5</code></pre>
-<p class="small">Recorded outputs are in <code>results-sizes.txt</code>, <code>results-tests.txt</code> and <code>results-simulators.txt</code>. The simulator findings of section 8 come from the programs in <code>simprobes/</code> and from <code>sim_harness --fallthrough</code>. The UART and serial findings of section 7 come from <code>probes/uart_probe.c</code> and <code>probes/serial_flush_probe.c</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>.</p>
+
+./run_tests.sh                           <span class="c"># T1 to T13</span>
+./run_modules.sh                         <span class="c"># M1 to M8</span>
+./fit.sh atmega328p 2048                 <span class="c"># fill one boot section</span>
+./build.sh m2560 atmega2560 0x3F000 -DELFBOOT_FEAT_MODULES=1</code></pre>
+<p class="small">Recorded outputs are in <code>results-sizes.txt</code>, <code>results-fit.txt</code>, <code>results-tests.txt</code>, <code>results-modules.txt</code> and <code>results-simulators.txt</code>. The UART and serial findings of section 7 come from <code>probes/</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>; the simulator findings of section 8 from <code>simprobes/</code> and <code>sim_harness --fallthrough</code>.</p>
 
 <h3>Sources</h3>
 <ul class="src">
   <li>Contiki, <code>core/loader/elfloader.c</code>, <code>symtab.c</code>, <code>cle.c</code>: github.com/contiki-os/contiki. Removal: github.com/contiki-ng/contiki-ng, commit 6220aea14.</li>
   <li>simple-avr-bootloader: github.com/m3y54m/simple-avr-bootloader</li>
-  <li>Optiboot: github.com/Optiboot/optiboot; version 8 notes with <code>do_spm()</code>: forum.arduino.cc/t/optiboot-now-at-version-8-0/547763</li>
+  <li>Optiboot: github.com/Optiboot/optiboot, read at commit e363ecb: <code>optiboot.c</code> (version 8.3, <code>do_spm</code>, <code>pre_main</code>) and <code>examples/demo_dospm/optiboot.h</code>. Version 8 notes: forum.arduino.cc/t/optiboot-now-at-version-8-0/547763</li>
   <li>urboot, on erased flash and the first-page hazard: github.com/stefanrueger/urboot. Optiboot on ATtiny: github.com/SpenceKonde/ATTinyCore, <code>avr/extras/Ref_Optiboot.md</code></li>
   <li>micronucleus and its reset-vector patch: github.com/micronucleus/micronucleus</li>
   <li>Zephyr LLEXT and symbol link identifiers: docs.zephyrproject.org/3.7.0/services/llext/api.html</li>

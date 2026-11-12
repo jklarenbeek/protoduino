@@ -28,7 +28,8 @@ static int corrupt_blk = -1, drop_ack_blk = -1, drop_done, corrupt_done;
 static unsigned naks, resends, cans, c_probes, acks, dup_sent;
 static int finished, refused = -1, eot_acked, after_can;
 static uint64_t t_first_block, t_eot_ack;
-static char devtext[256]; static int devtext_len;
+static char devtext[400]; static int devtext_len;
+static char posttext[400]; static int posttext_len; static int collect_all;
 
 static uint16_t crc16(const uint8_t *p, int n)
 {
@@ -62,13 +63,15 @@ static void from_device(struct avr_irq_t *irq, uint32_t value, void *param)
 {
   (void)irq; (void)param;
   uint8_t v = (uint8_t)value;
+  if (collect_all) { if (v >= 0x20 && v < 0x7f && devtext_len < 399) devtext[devtext_len++] = (char)v; return; }
+  if (finished) { if (v >= 0x20 && v < 0x7f && posttext_len < 399) posttext[posttext_len++] = (char)v; return; }
   if (after_can) {                       /* CAN CAN <reason> */
     if (v == CAN) return;
     refused = v; finished = 1; return;
   }
   if (cur_blk == 0) {
     if (v == 'C') { c_probes++; cur_blk = 1; t_first_block = avr->cycle; queue_block(1, corrupt_blk == 1 && !corrupt_done++); }
-    else if (devtext_len < 255) devtext[devtext_len++] = (char)v;
+    else if (v >= 0x20 && v < 0x7f && devtext_len < 399) devtext[devtext_len++] = (char)v;
     return;
   }
   if (v == 'C') { c_probes++; return; }
@@ -94,7 +97,7 @@ int main(int argc, char **argv)
 {
   if (argc < 4) { fprintf(stderr, "usage\n"); return 2; }
   const char *mcu = argv[1], *boot = argv[2], *app = argv[3], *send = argv[3];
-  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0;
+  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0; const char *kernel_elf = NULL; int preinstall = 0, no_send = 0; unsigned long slot_lo = 0x6000, slot_hi = 0x7000;
   for (int i = 4; i < argc; i++) {
     if (!strcmp(argv[i], "--corrupt")) corrupt_blk = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--drop-ack")) drop_ack_blk = atoi(argv[++i]);
@@ -103,6 +106,10 @@ int main(int argc, char **argv)
     else if (!strcmp(argv[i], "--expect-refusal")) expect_refusal = 1;
     else if (!strcmp(argv[i], "--then-send")) then_send = argv[++i];
     else if (!strcmp(argv[i], "--check-page")) check_page = strtoul(argv[++i], 0, 0);
+    else if (!strcmp(argv[i], "--kernel")) kernel_elf = argv[++i];
+    else if (!strcmp(argv[i], "--preinstall")) preinstall = 1;
+    else if (!strcmp(argv[i], "--no-send")) no_send = 1;
+    else if (!strcmp(argv[i], "--slot")) { slot_lo = strtoul(argv[++i], 0, 0); slot_hi = strtoul(argv[++i], 0, 0); }
     else if (!strcmp(argv[i], "--fallthrough")) { fall_addr = strtol(argv[++i], 0, 0); fall_r31 = strtol(argv[++i], 0, 0); }
   }
 
@@ -111,7 +118,8 @@ int main(int argc, char **argv)
   nblocks = (file_len + 127) / 128;
 
   elf_firmware_t bl = {{0}}, ap = {{0}};
-  if (elf_read_firmware(boot, &bl) || elf_read_firmware(app, &ap)) { fprintf(stderr, "cannot read ELF\n"); return 2; }
+  int boot_is_hex = strstr(boot, ".hex") != NULL;
+  if ((!boot_is_hex && elf_read_firmware(boot, &bl)) || elf_read_firmware(app, &ap)) { fprintf(stderr, "cannot read ELF\n"); return 2; }
 
   /* simavr's own ELF reader gives the reference images */
   avr_t *ob = avr_make_mcu_by_name(mcu), *oa = avr_make_mcu_by_name(mcu);
@@ -119,7 +127,25 @@ int main(int argc, char **argv)
   avr_init(ob); avr_init(oa);
   ob->log = oa->log = LOG_ERROR;
   memset(ob->flash, 0xFF, ob->flashend + 1); memset(oa->flash, 0xFF, oa->flashend + 1);
-  avr_load_firmware(ob, &bl); avr_load_firmware(oa, &ap);
+  if (boot_is_hex) {                 /* plain Intel HEX: data records, optional extended address */
+    FILE *hf = fopen(boot, "r"); if (!hf) { perror(boot); return 2; }
+    char line[600]; unsigned base = 0;
+    while (fgets(line, sizeof line, hf)) {
+      unsigned n, a, t;
+      if (line[0] != ':' || sscanf(line + 1, "%2x%4x%2x", &n, &a, &t) != 3) continue;
+      if (t == 4) { unsigned hi2; sscanf(line + 9, "%4x", &hi2); base = hi2 << 16; }
+      if (t == 2) { unsigned seg; sscanf(line + 9, "%4x", &seg); base = seg << 4; }
+      if (t != 0) continue;
+      for (unsigned k = 0; k < n; k++) {
+        unsigned b; sscanf(line + 9 + 2 * k, "%2x", &b);
+        if (base + a + k <= ob->flashend) ob->flash[base + a + k] = (uint8_t)b;
+      }
+    }
+    fclose(hf);
+  } else {
+    avr_load_firmware(ob, &bl);
+  }
+  avr_load_firmware(oa, &ap);
   uint32_t boot_start = 0, page = 0;
   while (boot_start <= ob->flashend && ob->flash[boot_start] == 0xFF) boot_start++;   /* first loader byte */
   if (boot_start == 0 || boot_start > ob->flashend) { fprintf(stderr, "loader has no base address\n"); return 2; }
@@ -144,6 +170,57 @@ int main(int argc, char **argv)
   rx_irq = avr_io_getirq(avr, AVR_IOCTL_UART_GETIRQ('0'), UART_IRQ_INPUT);
   avr_irq_register_notify(avr_io_getirq(avr, AVR_IOCTL_UART_GETIRQ('0'), UART_IRQ_OUTPUT), from_device, NULL);
   avr_cycle_timer_register(avr, 2000, pump, NULL);
+
+  /* Kernel test: the bootloader is only present in flash; the kernel runs and
+   * loads the offered file (a module) while it is running. */
+  if (kernel_elf) {
+    elf_firmware_t kf = {{0}};
+    if (elf_read_firmware(kernel_elf, &kf)) { fprintf(stderr, "cannot read kernel ELF\n"); return 2; }
+    avr_t *ok = avr_make_mcu_by_name(mcu); avr_init(ok); ok->log = LOG_ERROR;
+    memset(ok->flash, 0xFF, ok->flashend + 1); avr_load_firmware(ok, &kf);
+    for (uint32_t i = 0; i < boot_start; i++) if (ok->flash[i] != 0xFF) avr->flash[i] = ok->flash[i];
+    avr->pc = avr->reset_pc = 0;
+    if (preinstall) {
+      /* the module is already in flash, as if programmed together with the firmware:
+       * its image in the slot and a module record that points at its descriptor */
+      for (unsigned long i = slot_lo; i < slot_hi; i++) avr->flash[i] = oa->flash[i];
+      avr->flash[slot_hi + 0] = 'p'; avr->flash[slot_hi + 1] = 'M';
+      avr->flash[slot_hi + 2] = (uint8_t)slot_lo; avr->flash[slot_hi + 3] = (uint8_t)(slot_lo >> 8);
+    }
+    if (no_send) collect_all = 1;                   /* nobody answers; just record what the kernel prints */
+    static char text[3][400]; int tl[3] = {0, 0, 0};
+    /* phase 0: until the kernel asks for a file; phase 1: transfer; phase 2: after it */
+    int st = cpu_Running; uint64_t quiet_from = 0;
+    while (avr->cycle < max_cycles) {
+      int before = devtext_len;
+      st = avr_run(avr);
+      if (st == cpu_Done || st == cpu_Crashed) break;
+      if (devtext_len != before && tl[cur_blk ? 2 : 0] < 399) { /* text printed outside the transfer */ }
+      if (finished && !quiet_from) quiet_from = avr->cycle;
+      if (quiet_from && avr->cycle > quiet_from + 4000000) break;
+      if (no_send && avr->cycle > 40000000ull) break;
+    }
+    memcpy(text[0], devtext, devtext_len); tl[0] = devtext_len;
+    memcpy(text[2], posttext, posttext_len); tl[2] = posttext_len;
+    if (no_send) { printf("kernel output              : %.*s\n", tl[0], text[0]); return 0; }
+    printf("kernel before the transfer : %.*s\n", tl[0], text[0]);
+    printf("transfer                   : %zu bytes, %zu blocks, acks=%u naks=%u%s\n", file_len, nblocks, acks, naks, refused >= 0 ? " REFUSED" : "");
+    if (refused >= 0) printf("refusal code               : 0x%02x\n", refused);
+    printf("kernel after the transfer  : %.*s\n", tl[2], text[2]);
+    size_t mm = 0, used = 0;
+    for (unsigned long i = slot_lo; i < slot_hi; i++) { if (oa->flash[i] != 0xFF) used++; if (avr->flash[i] != oa->flash[i]) mm++; }
+    printf("module slot 0x%lx..0x%lx  : %zu bytes of module, %zu mismatches against simavr's ELF reader\n", slot_lo, slot_hi, used, mm);
+    size_t kdiff = 0; for (uint32_t i = 0; i < slot_lo; i++) if (avr->flash[i] != ok->flash[i]) kdiff++;
+    printf("kernel image               : %zu bytes changed by the load\n", kdiff);
+    /* now reset: the module must be started from flash without being sent again */
+    cur_blk = 0xFFFF; devtext_len = 0; posttext_len = 0; finished = 0; c_probes = 0; after_can = 0; txq_len = txq_pos = 0;
+    collect_all = 1;
+    avr_reset(avr); avr->pc = 0;
+    uint64_t t0 = avr->cycle;
+    while (avr->cycle < t0 + 24000000ull) { st = avr_run(avr); if (st == cpu_Done || st == cpu_Crashed) break; }
+    printf("after a reset              : %.*s\n", devtext_len, devtext);
+    return (mm == 0 && refused < 0 && kdiff == 0) ? 0 : 1;
+  }
 
   /* Erased-flash test: start executing in erased flash with a chosen r31 and
    * see whether execution arrives in the loader (its first 'C' probe proves it). */

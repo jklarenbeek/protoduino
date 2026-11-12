@@ -1,0 +1,14 @@
+Filling each boot section (avr-gcc 7.3.0): features added in priority order while they fit
+priority: family-check, page-service, module-loader, image-crc, merge-segments, signature, eeprom, info, verify-at-start
+atmega328p    512 B block: the smallest loader (1540 B) does not fit
+atmega328p   1024 B block: the smallest loader (1540 B) does not fit
+atmega328p   2048 B block at 0x7800    2036 B used,   12 B spare: family-check page-service module-loader image-crc merge-segments
+atmega328p   4096 B block at 0x7000    2286 B used, 1810 B spare: family-check page-service module-loader image-crc merge-segments signature eeprom info verify-at-start
+atmega1284p  1024 B block: the smallest loader does not fit
+atmega1284p  2048 B block at 0x1F800   2022 B used,   26 B spare: family-check page-service
+atmega1284p  4096 B block at 0x1F000   2834 B used, 1262 B spare: family-check page-service module-loader image-crc merge-segments signature eeprom info verify-at-start
+atmega1284p  8192 B block at 0x1E000   2834 B used, 5358 B spare: family-check page-service module-loader image-crc merge-segments signature eeprom info verify-at-start
+atmega2560   1024 B block: the smallest loader (1984 B) does not fit
+atmega2560   2048 B block at 0x3F800   2024 B used,   24 B spare: family-check page-service
+atmega2560   4096 B block at 0x3F000   2832 B used, 1264 B spare: family-check page-service module-loader image-crc merge-segments signature eeprom info verify-at-start
+atmega2560   8192 B block at 0x3E000   2832 B used, 5360 B spare: family-check page-service module-loader image-crc merge-segments signature eeprom info verify-at-start

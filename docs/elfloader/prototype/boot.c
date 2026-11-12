@@ -3,6 +3,8 @@
  *   transport : XMODEM-CRC over a polled UART (any terminal program can send)
  *   payload   : the unmodified .elf file produced by avr-gcc
  *   safety    : image record written last; no record -> stay in the loader
+ *   services  : the running system can call back in, to program a page or to
+ *               have a module loaded into a flash slot (table at the end of flash)
  *
  * One translation unit ("unity build") so the sink is inlined into the core.
  * Build-time switches:
@@ -10,7 +12,9 @@
  *   ELFBOOT_FEAT_IMAGE_CRC     store a CRC-16 of the image in the record
  *   ELFBOOT_FEAT_VERIFY_BOOT   re-check that CRC on every start
  *   ELFBOOT_FEAT_INFO          answer '?' with a capability line
- *   ELFBOOT_FEAT_SERVICE       export a page-write service to the application
+ *   ELFBOOT_FEAT_SERVICE       export a page-write entry to the application
+ *   ELFBOOT_FEAT_MODULES       export the whole load session, so the running
+ *                              system can have a module loaded (implies SERVICE)
  *   ELFBOOT_VIRTUAL_RESET      part has no boot section: patch the reset vector
  *   ELFBOOT_SOFT_UART          part has no USART: bit-banged serial
  *   ELFBOOT_FEAT_LANDING_PAD   one-word no-op at the loader's first address (default on)
@@ -34,14 +38,14 @@
 #ifndef ELFBOOT_FEAT_VERIFY_BOOT
 #define ELFBOOT_FEAT_VERIFY_BOOT 0
 #endif
-#ifndef ELFBOOT_FEAT_INFO
-#define ELFBOOT_FEAT_INFO 0
+#ifndef ELFBOOT_FEAT_MODULES
+#define ELFBOOT_FEAT_MODULES 0
 #endif
 #ifndef ELFBOOT_FEAT_SERVICE
-#define ELFBOOT_FEAT_SERVICE 0
+#define ELFBOOT_FEAT_SERVICE ELFBOOT_FEAT_MODULES
 #endif
-#ifndef ELFBOOT_VIRTUAL_RESET
-#define ELFBOOT_VIRTUAL_RESET 0
+#if ELFBOOT_FEAT_MODULES && !ELFBOOT_FEAT_SERVICE
+#error "ELFBOOT_FEAT_MODULES needs ELFBOOT_FEAT_SERVICE"
 #endif
 #ifndef ELFBOOT_SOFT_UART
 #define ELFBOOT_SOFT_UART 0
@@ -55,11 +59,17 @@
 #ifndef ELFBOOT_CONF_WINDOW
 #define ELFBOOT_CONF_WINDOW 3      /* 'C' probes before starting a valid image */
 #endif
+#if ELFBOOT_FEAT_MODULES && !defined(ELFLD_FEAT_WINDOW_LO)
+#define ELFLD_FEAT_WINDOW_LO 1     /* a module slot has a lower bound too */
+#endif
 
-#define ELFLD_SINK(space, addr, b) sink_put((space), (addr), (b))
-#include "elfld.h"
-static uint8_t sink_put(uint8_t space, elfld_addr_t addr, uint8_t b);
-#include "elfld.c"
+#define SESS_FEAT_IMAGE 1
+#if !ELFBOOT_FEAT_MODULES
+#define SESS_STATIC_WS ws               /* only the loader itself ever runs a session */
+#endif
+#define SESS_OTHER_SPACE(space, addr, b) other_space((space), (uint16_t)(addr), (b))
+static uint8_t other_space(uint8_t space, uint16_t addr, uint8_t b);
+#include "elfsess.h"
 
 #define REC_ADDR   ((elfld_addr_t)(BOOT_START - SPM_PAGESIZE))   /* image record page */
 #define REC_MAGIC0 'p'
@@ -71,29 +81,16 @@ static uint8_t sink_put(uint8_t space, elfld_addr_t addr, uint8_t b);
 #define FLASH_RD(a) pgm_read_byte(a)
 #endif
 
-#if SPM_PAGESIZE > 255
-typedef uint16_t pgidx_t;
-#else
-typedef uint8_t pgidx_t;
+#if ELFBOOT_FEAT_MODULES
+static elfsess_t ws;                    /* the loader's own workspace; callers of the service bring theirs */
 #endif
-
-/* ---------------------------------------------------------------- state */
-static uint8_t      pg[SPM_PAGESIZE];   /* the one page being assembled      */
-static elfld_addr_t pg_base;
-static uint8_t      pg_live;
-static uint8_t      dirty;              /* flash has been modified this session */
-static elfld_addr_t img_end;            /* highest flash address written + 1 */
-static uint16_t     app_entry;          /* word address to start the image   */
-static uint8_t      timed_out;
-static elfld_t      ld;
-static uint8_t      blk[128];
 
 /* ---------------------------------------------------------------- serial */
 #if ELFBOOT_SOFT_UART
 /* half-duplex bit-banged 8N1; RX = PB0, TX = PB1 */
 #define SU_BIT ((uint8_t)((F_CPU / BAUD - 8) / 3))
 static void uart_init(void) { PORTB |= _BV(PB1) | _BV(PB0); DDRB |= _BV(PB1); }
-static void putch(uint8_t c)
+static void sess_putch(uint8_t c)
 {
   uint16_t f = ((uint16_t)c << 1) | 0x200;          /* start, 8 data, stop */
   for (uint8_t i = 10; i; i--) {
@@ -102,11 +99,11 @@ static void putch(uint8_t c)
     _delay_loop_1(SU_BIT);
   }
 }
-static uint8_t getch(void)
+static uint8_t sess_getch(elfsess_t *w)
 {
   __uint24 n = ELFBOOT_CONF_TIMEOUT_POLLS;
   uint8_t c = 0;
-  while (PINB & _BV(PB0)) { if (--n == 0) { timed_out = 1; return 0; } }
+  while (PINB & _BV(PB0)) { if (--n == 0) { w->timed_out = 1; return 0; } }
   _delay_loop_1(SU_BIT / 2);
   for (uint8_t i = 8; i; i--) {
     _delay_loop_1(SU_BIT);
@@ -124,15 +121,15 @@ static void uart_init(void)
   UBRR0L = (uint8_t)((F_CPU / 4 / BAUD - 1) / 2);
   UCSR0B = _BV(RXEN0) | _BV(TXEN0);     /* polled: no interrupt enables */
 }
-static void putch(uint8_t c)
+static void sess_putch(uint8_t c)
 {
   while (!(UCSR0A & _BV(UDRE0))) { }
   UDR0 = c;
 }
-static uint8_t getch(void)
+static uint8_t sess_getch(elfsess_t *w)
 {
   __uint24 n = ELFBOOT_CONF_TIMEOUT_POLLS;
-  while (!(UCSR0A & _BV(RXC0))) { if (--n == 0) { timed_out = 1; return 0; } }
+  while (!(UCSR0A & _BV(RXC0))) { if (--n == 0) { w->timed_out = 1; return 0; } }
   return UDR0;
 }
 #endif
@@ -146,8 +143,8 @@ static void page_erase(elfld_addr_t a)
 
 /* Erase and program one page from a buffer. Touches no loader variables, so
  * it is safe to reach from the application through the service entry. */
-static void page_program(elfld_addr_t base, const uint8_t *data) __attribute__((noinline));
-static void page_program(elfld_addr_t base, const uint8_t *data)
+static void sess_page_program(elfld_addr_t base, const uint8_t *data) __attribute__((noinline));
+static void sess_page_program(elfld_addr_t base, const uint8_t *data)
 {
   pgidx_t i = 0;
 
@@ -163,62 +160,27 @@ static void page_program(elfld_addr_t base, const uint8_t *data)
 #endif
 }
 
-static void page_commit(void)
+/* The installed image stops being valid before a single byte of it changes. */
+static void sess_first_write(elfsess_t *w)
 {
-  if (!pg_live) return;
-  pg_live = 0;
-
+  if (w->mode != SESS_IMAGE) return;        /* a module load leaves the image record alone */
 #if ELFBOOT_VIRTUAL_RESET
-  /* No hardware boot section: every reset must still reach the loader.
-   * Keep the image's own start address and aim its reset vector at us. */
-  if (pg_base == 0) {
-#  if FLASHEND > 0x1FFFU
-    app_entry = (uint16_t)pg[2] | ((uint16_t)pg[3] << 8);         /* jmp k  */
-    pg[2] = (uint8_t)((BOOT_START / 2) & 0xFF);
-    pg[3] = (uint8_t)((BOOT_START / 2) >> 8);
-#  else
-    uint16_t w = (uint16_t)pg[0] | ((uint16_t)pg[1] << 8);        /* rjmp k */
-    app_entry = (w + 1) & 0x0FFF;
-    w = 0xC000 | ((BOOT_START / 2 - 1) & 0x0FFF);
-    pg[0] = (uint8_t)w;
-    pg[1] = (uint8_t)(w >> 8);
-#  endif
+  /* Top-down, page 0 last: at every instant a reset reaches the loader,
+   * either through the old vector or by running through erased flash. */
+  {
+    elfld_addr_t a = REC_ADDR;
+    for (;;) { page_erase(a); if (a == 0) break; a -= SPM_PAGESIZE; }
   }
-#endif
-
-  if (!dirty) {
-    /* First change to flash. The headers have been accepted by now, so the
-     * installed image stops being valid before a single byte of it changes. */
-    dirty = 1;
-#if ELFBOOT_VIRTUAL_RESET
-    /* Top-down, page 0 last: at every instant a reset reaches the loader,
-     * either through the old vector or by running through erased flash. */
-    {
-      elfld_addr_t a = REC_ADDR;
-      for (;;) { page_erase(a); if (a == 0) break; a -= SPM_PAGESIZE; }
-    }
 #else
-    page_erase(REC_ADDR);
+  page_erase(REC_ADDR);
 #endif
-  }
-  if (pg_base >= img_end) img_end = pg_base + SPM_PAGESIZE;   /* page granular */
-  page_program(pg_base, pg);
 }
 
-static void page_open(elfld_addr_t base)
-{
-  pgidx_t i = 0;
-  page_commit();
-  do { pg[i] = 0xFF; } while (++i != (pgidx_t)SPM_PAGESIZE);
-  pg_base = base;
-  pg_live = 1;
-}
-
-static uint8_t sink_put(uint8_t space, elfld_addr_t addr, uint8_t b)
+static uint8_t other_space(uint8_t space, uint16_t addr, uint8_t b)
 {
 #if ELFLD_FEAT_EEPROM
   if (space == ELFLD_SPACE_EEPROM) {
-    eeprom_update_byte((uint8_t *)(uint16_t)addr, b);
+    eeprom_update_byte((uint8_t *)addr, b);
     return 0;
   }
 #endif
@@ -227,12 +189,7 @@ static uint8_t sink_put(uint8_t space, elfld_addr_t addr, uint8_t b)
     return boot_signature_byte_get((uint8_t)(4 - 2 * (uint8_t)addr)) != b;
   }
 #endif
-  (void)space;
-  {
-    elfld_addr_t base = addr & ~(elfld_addr_t)(SPM_PAGESIZE - 1);
-    if (!pg_live || base != pg_base) page_open(base);
-    pg[(pgidx_t)addr & (SPM_PAGESIZE - 1)] = b;
-  }
+  (void)space; (void)addr; (void)b;
   return 0;
 }
 
@@ -268,46 +225,61 @@ static uint8_t record_ok(void)
   return 1;
 }
 
-static void record_write(void)
+static void record_write(elfsess_t *w)
 {
-  uint8_t  r[REC_LEN];
+  uint8_t *r = w->pg;                    /* the page buffer is free again by now */
   uint16_t crc = 0;
+  pgidx_t  k = 0;
   uint8_t  i;
 
+  do { r[k] = 0xFF; } while (++k != (pgidx_t)SPM_PAGESIZE);
   r[0] = REC_MAGIC0;  r[1] = REC_MAGIC1;
-  r[2] = (uint8_t)app_entry;  r[3] = (uint8_t)(app_entry >> 8);
-  r[4] = (uint8_t)img_end;    r[5] = (uint8_t)(img_end >> 8);
+  r[2] = (uint8_t)w->app_entry;  r[3] = (uint8_t)(w->app_entry >> 8);
+  r[4] = (uint8_t)w->img_end;    r[5] = (uint8_t)(w->img_end >> 8);
 #if ELFLD_CONF_ADDR_BITS > 16
-  r[6] = (uint8_t)(img_end >> 16);
+  r[6] = (uint8_t)(w->img_end >> 16);
 #else
   r[6] = 0;
 #endif
 #if ELFBOOT_FEAT_IMAGE_CRC
-  crc = crc_flash(0, img_end);
+  crc = crc_flash(0, w->img_end);
 #endif
   r[7] = (uint8_t)crc;  r[8] = (uint8_t)(crc >> 8);
   crc = 0;
   for (i = 0; i < REC_LEN - 2; i++) crc = _crc_xmodem_update(crc, r[i]);
   r[9] = (uint8_t)(crc >> 8);  r[10] = (uint8_t)crc;
-
-  page_open(REC_ADDR);
-  for (i = 0; i < REC_LEN; i++) pg[i] = r[i];
-  page_commit();
+  sess_page_program(REC_ADDR, r);
 }
 
-/* ---------------------------------------------------------------- service */
+/* ---------------------------------------------------------------- services */
+/* The running system calls these through the fixed table at the end of flash.
+ * They use the caller's memory and stack only: while the application runs,
+ * the loader's own variables are the application's RAM. */
 #if ELFBOOT_FEAT_SERVICE
-/* Lets the application program one page although SPM only works from here.
- * Reached through the fixed stub at the very end of flash. Uses the caller's
- * buffer and stack only: the loader's own variables are not valid while the
- * application is running. */
 void bootsvc_write_page(uint32_t addr, const uint8_t *data) __attribute__((used, noinline));
 void bootsvc_write_page(uint32_t addr, const uint8_t *data)
 {
   uint8_t sreg = SREG;
   __asm__ __volatile__("cli");            /* the caller's interrupt handlers live in the section being programmed */
-  page_program((elfld_addr_t)addr & ~(elfld_addr_t)(SPM_PAGESIZE - 1), data);
+  sess_page_program((elfld_addr_t)addr & ~(elfld_addr_t)(SPM_PAGESIZE - 1), data);
   SREG = sreg;
+}
+#endif
+
+#if ELFBOOT_FEAT_MODULES
+/* Receive a file over the serial line and load it into [lo, hi), using the
+ * caller's workspace. The same session code that loads firmware at reset. */
+uint8_t bootsvc_session(void *workspace, uint32_t lo, uint32_t hi, uint32_t *entry, uint8_t tries)
+  __attribute__((used, noinline));
+uint8_t bootsvc_session(void *workspace, uint32_t lo, uint32_t hi, uint32_t *entry, uint8_t tries)
+{
+  elfsess_t *w = (elfsess_t *)workspace;
+  uint8_t sreg = SREG, r;
+  __asm__ __volatile__("cli");
+  r = elfsess_run(w, (elfld_addr_t)lo, (elfld_addr_t)hi, SESS_MODULE, tries);
+  *entry = w->ld.entry;
+  SREG = sreg;
+  return r;
 }
 #endif
 
@@ -331,99 +303,26 @@ static void start_image(void)
   for (;;) { }
 }
 
-/* ---------------------------------------------------------------- XMODEM-CRC */
-#define SOH 0x01
-#define EOT 0x04
-#define ACK 0x06
-#define NAK 0x15
-#define CAN 0x18
-
+/* ---------------------------------------------------------------- main */
 static void boot_main(void) __attribute__((noreturn, used));
 static void boot_main(void)
 {
-  uint8_t expect, result, started, tries;
-
   uart_init();
-
-restart:                                  /* a fresh session; nothing has been touched yet */
-  expect  = 1;
-  result  = ELFLD_MORE;
-  started = 0;
-  tries   = ELFBOOT_CONF_WINDOW;
-  pg_live = 0;
-  dirty   = 0;
-  elfld_begin(&ld, 0, REC_ADDR);
-
   for (;;) {
-    uint8_t c, n, nn, i;
-    uint16_t crc;
-
-    timed_out = 0;
-    c = getch();
-    if (timed_out) {
-      if (!started) {
-        if (tries-- == 0 && record_ok()) start_image();
-        putch('C');                         /* ask the sender for CRC mode */
-      } else {
-        putch(NAK);
-      }
-      continue;
-    }
-#if ELFBOOT_FEAT_INFO
-    if (c == '?' && !started) {
-      static const char info[] PROGMEM = "pD1 " ELFBOOT_INFO_STRING "\r\n";
-      const char *p = info;
-      while ((c = pgm_read_byte(p++)) != 0) putch(c);
-      continue;
-    }
-#endif
-    if (c == EOT) {
-      putch(ACK);
-      break;
-    }
-    if (c != SOH) continue;
-
-    n  = getch();
-    nn = getch();
-    crc = 0;
-    for (i = 0; i < 128; i++) {
-      c = getch();
-      blk[i] = c;
-      crc = _crc_xmodem_update(crc, c);
-    }
-    crc = _crc_xmodem_update(crc, getch());
-    crc = _crc_xmodem_update(crc, getch());     /* data + CRC must sum to 0 */
-    if (timed_out || crc != 0 || (uint8_t)(n + nn) != 0xFF) {
-      putch(NAK);
-      continue;
-    }
-    if (n == expect) {
-      started = 1;
-      if (result == ELFLD_MORE) result = elfld_write(&ld, blk, 128);
-      expect++;
-    } else if (n != (uint8_t)(expect - 1)) {     /* a repeat is acknowledged, not applied */
-      result = ELFLD_E_ORDER;
-    }
-    if (result & 0x80) {                         /* refused: say why, then start over */
-      putch(CAN);
-      putch(CAN);
-      putch(result);
-      if (dirty) for (;;) { }                    /* flash already changed: stay in the loader */
-      goto restart;
-    }
-    putch(ACK);
-  }
-
-  if (result == ELFLD_DONE) {
-    page_commit();
+    uint8_t r = elfsess_run(&ws, 0, REC_ADDR, SESS_IMAGE, ELFBOOT_CONF_WINDOW);
+    if (r == ELFLD_DONE) {
 #if !ELFBOOT_VIRTUAL_RESET
-    app_entry = (uint16_t)(ld.entry >> 1);
+      ws.app_entry = (uint16_t)(ws.ld.entry >> 1);
 #endif
-    record_write();
-    start_image();
+      record_write(&ws);
+      start_image();
+    }
+    if (r == ELFLD_MORE) {                 /* nobody is sending */
+      if (record_ok()) start_image();
+      continue;
+    }
+    if (ws.dirty) for (;;) { }             /* refused after flash changed: no record, so a reset lands here again */
   }
-  if (!dirty) goto restart;
-  for (;;) { }      /* incomplete: no record, so the next reset lands here again */
 }
 
 /* ---------------------------------------------------------------- entry */
@@ -453,11 +352,26 @@ void boot_go(void)
   __asm__ __volatile__("rjmp boot_main");
 }
 
+/* ---------------------------------------------------------------- service table */
+/* Last twelve bytes of flash. Addresses, not jumps, so that neither the reach
+ * of a relative jump nor linker relaxation can change the layout:
+ *   +0  byte address of bootsvc_session   (0 when modules are not built in)
+ *   +4  byte address of bootsvc_write_page
+ *   +8  table version
+ *   +9  workspace size the session needs, in units of 4 bytes
+ *   +10 'p'  +11 'D'                                                       */
 #if ELFBOOT_FEAT_SERVICE
-/* Fixed address: last 4 bytes of flash. The application calls FLASHEND-3. */
-void bootsvc_stub(void) __attribute__((naked, used, section(".bootsvc")));
-void bootsvc_stub(void)
-{
-  __asm__ __volatile__("rjmp bootsvc_write_page\n" ".byte 'p', 'D'\n");
-}
+__asm__(".section .bootsvc,\"a\",@progbits\n"
+        "  .global bootsvc_table\n"
+        "bootsvc_table:\n"
+#if ELFBOOT_FEAT_MODULES
+        "  .long bootsvc_session\n"
+#else
+        "  .long 0\n"
+#endif
+        "  .long bootsvc_write_page\n"
+        "  .text\n");
+const uint8_t bootsvc_info[4] __attribute__((used, section(".bootsvc_info"))) = {
+  1, (uint8_t)((sizeof(elfsess_t) + 3) / 4), 'p', 'D'
+};
 #endif

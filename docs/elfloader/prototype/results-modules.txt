@@ -1,0 +1,58 @@
+
+=== M1 protoduino bootloader with the module loader; the kernel calls it (ROM loader) ===
+kernel before the transfer : kernel up id=deac | no module in flash | waiting for a module
+transfer                   : 840 bytes, 7 blocks, acks=8 naks=0
+kernel after the transfer  : load result 01 | module runs: 41 42 43 | recorded | end
+module slot 0x6000..0x7000  : 34 bytes of module, 0 mismatches against simavr's ELF reader
+kernel image               : 0 bytes changed by the load
+after a reset              : kernel up id=deac | module in flash: 41 42 43 | waiting for a moduleC
+exit=0
+
+=== M2 stock Optiboot 8.3; the kernel carries its own loader and writes through do_spm ===
+kernel before the transfer : kernel up id=d0a0 | no module in flash | waiting for a module
+transfer                   : 840 bytes, 7 blocks, acks=8 naks=0
+kernel after the transfer  : load result 01 | module runs: 41 42 43 | recorded | end
+module slot 0x6000..0x7000  : 34 bytes of module, 0 mismatches against simavr's ELF reader
+kernel image               : 0 bytes changed by the load
+after a reset              : kernel up id=d0a0 | module in flash: 41 42 43 | waiting for a moduleC
+exit=0
+
+=== M3 protoduino bootloader with only the page-write service; the kernel carries its own loader ===
+kernel before the transfer : kernel up id=e661 | no module in flash | waiting for a module
+transfer                   : 840 bytes, 7 blocks, acks=8 naks=0
+kernel after the transfer  : load result 01 | module runs: 41 42 43 | recorded | end
+module slot 0x6000..0x7000  : 34 bytes of module, 0 mismatches against simavr's ELF reader
+kernel image               : 0 bytes changed by the load
+after a reset              : kernel up id=e661 | module in flash: 41 42 43 | waiting for a moduleC
+exit=0
+
+=== M4 kernel built to use only modules already in flash; module programmed with the firmware (Optiboot) ===
+kernel output              : kernel up id=b769 | module in flash: 41 42 43 | end
+exit=0
+
+=== M5 a module linked against another kernel build is offered ===
+kernel before the transfer : kernel up id=deac | no module in flash | waiting for a module
+transfer                   : 840 bytes, 7 blocks, acks=8 naks=0
+kernel after the transfer  : load result 01 | module runs: refused, reason 02 | end
+module slot 0x6000..0x7000  : 34 bytes of module, 0 mismatches against simavr's ELF reader
+kernel image               : 0 bytes changed by the load
+after a reset              : kernel up id=deac | no module in flash | waiting for a moduleC
+exit=0
+
+=== M6 a firmware image is offered to the module loader ===
+kernel before the transfer : kernel up id=deac | no module in flash | waiting for a module
+transfer                   : 12868 bytes, 101 blocks, acks=0 naks=0 REFUSED
+refusal code               : 0x83
+kernel after the transfer  : load result 83 | end
+module slot 0x6000..0x7000  : 0 bytes of module, 0 mismatches against simavr's ELF reader
+kernel image               : 0 bytes changed by the load
+after a reset              : kernel up id=deac | no module in flash | waiting for a moduleC
+exit=1
+
+=== M7 kernel built to load, but the bootloader offers no service ===
+kernel output              : kernel up id=deac | no module in flash | no flash service in the bootloader | end
+exit=0
+
+=== M8 kernel built without module support, module present in flash ===
+kernel output              : kernel up | end
+exit=0
