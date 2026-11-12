@@ -10,21 +10,24 @@
  * - Owns its input pipe, so any process can be connected to it with
  *   process_connect(writer, blink).
  * - The LED is the one on the board: PB5 on an ATmega328P (Uno), PB7 on an
- *   ATmega2560 (Mega), PB1 on an ATtiny85. BLINK_CONF_PORT, _DDR, _PIN and
- *   _BIT choose another.
+ *   ATmega2560 (Mega). On an ATtiny85 it is PB4, because PB0 and PB1 carry
+ *   the serial line. BLINK_CONF_PORT, _DDR, _PIN and _BIT choose another.
  */
 
 #include <sys/process.h>
 #include <avr/io.h>
 
-#ifndef BLINK_CONF_BIT
+#ifndef BLINK_CONF_PORT
 #define BLINK_CONF_PORT PORTB
 #define BLINK_CONF_DDR  DDRB
 #define BLINK_CONF_PIN  PINB
+#endif
+
+#ifndef BLINK_CONF_BIT
 #if defined(__AVR_ATmega2560__) || defined(__AVR_ATmega1280__)
 #define BLINK_CONF_BIT 7
 #elif defined(__AVR_ATtiny85__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny25__)
-#define BLINK_CONF_BIT 1
+#define BLINK_CONF_BIT 4 /* PB0 and PB1 are the serial line there */
 #else
 #define BLINK_CONF_BIT 5
 #endif

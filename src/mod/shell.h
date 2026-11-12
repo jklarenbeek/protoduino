@@ -140,6 +140,15 @@ static uint8_t shell_word(const process_shell_t *s, uint8_t n, const char **word
   return len;
 }
 
+// the first letter of the command
+static uint8_t shell_first(const process_shell_t *s)
+{
+  const char *word;
+
+  shell_word(s, 0, &word);
+  return (uint8_t)word[0];
+}
+
 // the process the n-th word names
 static struct process *shell_process(const process_shell_t *s, uint8_t n)
 {
@@ -163,6 +172,118 @@ static const process_type_t *shell_module(uint8_t i, struct process **instance)
 {
   *instance = (struct process *)pgm_read_ptr(&shell_modules[i].instance);
   return (const process_type_t *)pgm_read_ptr(&shell_modules[i].type);
+}
+
+/* One line of a list each. They are plain functions on purpose: a local
+ * variable does not survive a wait, and in C++ a thread may not even resume
+ * behind the initialisation of one. So the thread below only loops and
+ * waits, and everything that needs locals happens in here. */
+
+static void shell_line_process(process_shell_t *s, const struct process *p)
+{
+  shell_text(s, p->name);
+  while (s->n < 9)
+    shell_put(s, ' ');
+  shell_put(s, (char)pgm_read_byte(&shell_states[p->state]));
+  shell_put(s, ' ');
+  shell_put(s, (char)('0' + p->prio));
+  shell_eol(s);
+}
+
+static void shell_line_module(process_shell_t *s, uint8_t i)
+{
+  struct process *instance;
+  const process_type_t *type = shell_module(i, &instance);
+
+  shell_put(s, (char)('0' + i));
+  shell_put(s, ' ');
+  shell_text(s, (const char *)pgm_read_ptr(&type->name));
+  shell_put(s, ' ');
+  shell_put(s, instance->state != PROCESS_STATE_NONE ? '+' : '-');
+  shell_eol(s);
+}
+
+// "a > b" when somebody reads what p writes; nothing otherwise
+static void shell_line_ipc(process_shell_t *s, const struct process *p)
+{
+  ipc_pipe_t *pipe = shell_pipe(p, 1);
+  struct process *reader = pipe ? process_reader(pipe) : NULL;
+
+  if (reader == NULL || reader == p)
+    return;
+  shell_text(s, p->name);
+  shell_put(s, ' ');
+  shell_put(s, '>');
+  shell_put(s, ' ');
+  shell_text(s, reader->name);
+  shell_eol(s);
+}
+
+static void shell_line_log(process_shell_t *s, const struct error_info *e)
+{
+  shell_text(s, e->source ? e->source->name : NULL);
+  shell_put(s, ' ');
+  shell_put(s, (char)('0' + e->severity));
+  shell_put(s, ' ');
+  shell_hex(s, e->event);
+  shell_put(s, ' ');
+  shell_hex(s, e->error);
+  shell_eol(s);
+}
+
+// the commands that act on one process or module; 1 when it worked
+static uint8_t shell_command(process_shell_t *s, struct process *self, uint8_t cmd)
+{
+  struct process *p = shell_process(s, 1);
+  const char *word;
+  uint8_t len = shell_word(s, 1, &word);
+
+  if (cmd == 'r')
+  {
+    uint8_t number = len ? (uint8_t)(word[0] - '0') : 255;
+    struct process *instance;
+    const process_type_t *type;
+
+    if (number >= shell_module_count)
+      return 0;
+    type = shell_module(number, &instance);
+    // process_new() clears the instance: never on one that runs
+    return instance->state == PROCESS_STATE_NONE && process_new(type, instance) != NULL;
+  }
+
+  if (p == NULL)
+    return 0; // nobody by that name
+
+  if (cmd == 's')
+    return (uint8_t)process_pause(p);
+  if (cmd == 'c')
+    return (uint8_t)process_resume(p);
+  if (cmd == 'j')
+    return (uint8_t)process_connect(p, shell_process(s, 2));
+  if (cmd == 'u')
+  {
+    process_disconnect(p);
+    return 1;
+  }
+  if (cmd == 'k')
+  {
+    if (p == self || p->type == PROCESS_TYPE_DEVICE)
+      return 0;
+    process_resume(p);
+    process_destroy(p);
+    return 1;
+  }
+  if (cmd == 'w')
+  {
+    ipc_pipe_t *pipe = shell_pipe(p, 0);
+
+    len = shell_word(s, 2, &word);
+    if (pipe == NULL || len == 0)
+      return 0;
+    ipc_pipe_write(pipe, (const uint8_t *)word, strlen(word));
+    return 1;
+  }
+  return 0;
 }
 
 #define SHELL_WRITE_OUT() \
@@ -222,24 +343,13 @@ PROCESS_THREAD(shell, ev, data)
 
     /* ---- the command: lists write their own lines, the others end in
      * "ok" or "?". No switch: a protothread cannot wait inside one. ---- */
-    {
-      const char *word;
-      shell_word(self, 0, &word);
-      cmd = (uint8_t)word[0];
-    }
-    self->i = 0;
+    cmd = shell_first(self);
 
     if (cmd == 'p')
     {
       for (self->it = process_next(NULL); self->it != NULL; self->it = process_next(self->it))
       {
-        shell_text(self, self->it->name);
-        while (self->n < 9)
-          shell_put(self, ' ');
-        shell_put(self, (char)pgm_read_byte(&shell_states[self->it->state]));
-        shell_put(self, ' ');
-        shell_put(self, (char)('0' + self->it->prio));
-        shell_eol(self);
+        shell_line_process(self, self->it);
         SHELL_WRITE_OUT();
       }
       continue;
@@ -249,15 +359,7 @@ PROCESS_THREAD(shell, ev, data)
     {
       for (self->i = 0; self->i < shell_module_count; self->i++)
       {
-        struct process *instance;
-        const process_type_t *type = shell_module(self->i, &instance);
-
-        shell_put(self, (char)('0' + self->i));
-        shell_put(self, ' ');
-        shell_text(self, (const char *)pgm_read_ptr(&type->name));
-        shell_put(self, ' ');
-        shell_put(self, instance->state != PROCESS_STATE_NONE ? '+' : '-');
-        shell_eol(self);
+        shell_line_module(self, self->i);
         SHELL_WRITE_OUT();
       }
       continue;
@@ -267,17 +369,7 @@ PROCESS_THREAD(shell, ev, data)
     {
       for (self->it = process_next(NULL); self->it != NULL; self->it = process_next(self->it))
       {
-        ipc_pipe_t *pipe = shell_pipe(self->it, 1);
-        struct process *reader = pipe ? process_reader(pipe) : NULL;
-
-        if (reader == NULL || reader == self->it)
-          continue;
-        shell_text(self, self->it->name);
-        shell_put(self, ' ');
-        shell_put(self, '>');
-        shell_put(self, ' ');
-        shell_text(self, reader->name);
-        shell_eol(self);
+        shell_line_ipc(self, self->it);
         SHELL_WRITE_OUT();
       }
       continue;
@@ -287,16 +379,7 @@ PROCESS_THREAD(shell, ev, data)
     {
       for (self->i = 0; process_log_entry(self->i) != NULL; self->i++)
       {
-        const struct error_info *e = process_log_entry(self->i);
-
-        shell_text(self, e->source ? e->source->name : NULL);
-        shell_put(self, ' ');
-        shell_put(self, (char)('0' + e->severity));
-        shell_put(self, ' ');
-        shell_hex(self, e->event);
-        shell_put(self, ' ');
-        shell_hex(self, e->error);
-        shell_eol(self);
+        shell_line_log(self, process_log_entry(self->i));
         SHELL_WRITE_OUT();
       }
       continue;
@@ -309,66 +392,7 @@ PROCESS_THREAD(shell, ev, data)
       continue;
     }
 
-    /* ---- commands on one process ---- */
-    self->it = shell_process(self, 1);
-
-    if (cmd == 'r')
-    {
-      const char *word;
-      uint8_t number = shell_word(self, 1, &word) ? (uint8_t)(word[0] - '0') : 255;
-
-      if (number < shell_module_count)
-      {
-        struct process *instance;
-        const process_type_t *type = shell_module(number, &instance);
-
-        // process_new() clears the instance: never on one that runs
-        if (instance->state == PROCESS_STATE_NONE)
-          self->i = process_new(type, instance) != NULL;
-      }
-    }
-    else if (self->it == NULL)
-    {
-      /* nobody by that name */
-    }
-    else if (cmd == 's')
-    {
-      self->i = (uint8_t)process_pause(self->it);
-    }
-    else if (cmd == 'c')
-    {
-      self->i = (uint8_t)process_resume(self->it);
-    }
-    else if (cmd == 'k')
-    {
-      if (self->it != pt_process && self->it->type != PROCESS_TYPE_DEVICE)
-      {
-        process_resume(self->it);
-        process_destroy(self->it);
-        self->i = 1;
-      }
-    }
-    else if (cmd == 'j')
-    {
-      self->i = (uint8_t)process_connect(self->it, shell_process(self, 2));
-    }
-    else if (cmd == 'u')
-    {
-      process_disconnect(self->it);
-      self->i = 1;
-    }
-    else if (cmd == 'w')
-    {
-      ipc_pipe_t *pipe = shell_pipe(self->it, 0);
-      const char *word;
-      uint8_t len = shell_word(self, 2, &word);
-
-      if (pipe != NULL && len > 0)
-      {
-        ipc_pipe_write(pipe, (const uint8_t *)word, strlen(word));
-        self->i = 1;
-      }
-    }
+    self->i = shell_command(self, pt_process, cmd);
 
     if (self->i)
     {
