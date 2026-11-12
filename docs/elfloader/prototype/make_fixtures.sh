@@ -11,7 +11,7 @@ mkdir -p fixtures; F=fixtures
 for M in atmega328p atmega1284p atmega2560; do avr-gcc -Os -g -mmcu=$M -DF_CPU=16000000UL -o $F/app-$M.elf probes/elf_layout_app.c; done
 avr-gcc -Os -mmcu=atmega168p -o $F/app168.elf probes/elf_layout_app.c
 avr-gcc -Os -mmcu=atmega1284 -o $F/app1284.elf probes/elf_layout_app.c     # same core family as the 1284P, other device
-# simavr's ATmega2560 core has no signature row (finding S10), so its file goes without the section
+# simavr's ATmega2560 core has no signature row (finding S12 of the document), so its file goes without the section
 avr-objcopy -R .signature $F/app-atmega2560.elf $F/app-atmega2560-nosig.elf
 avr-gcc -Os -mmcu=atmega2560 -o $F/big2560.elf big.c && avr-strip -o $F/big2560-stripped.elf $F/big2560.elf
 avr-gcc -std=gnu11 -Os -mmcu=atmega328p -DF_CPU=16000000UL -DBOOTROM_CONF_TABLE=0x7FF0 -I../overlay/src -I$PD/src -o $F/svc_app.elf svc_app.c ../overlay/src/cpu/avr/flash.c

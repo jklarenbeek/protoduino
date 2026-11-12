@@ -27,9 +27,16 @@
 
 // address of the first slot. The slots are followed by one page that
 // holds the module table. Everything has to lie above the kernel and
-// below the image record of the bootloader.
+// below the image record of the bootloader, and in the first 64 KB of
+// flash: the scheduler reads a process type and its name with a 16-bit
+// address, and calls the thread of a process through a 16-bit pointer.
 #ifndef MODULE_CONF_BASE
 #define MODULE_CONF_BASE 0x6000
+#endif
+
+#if MODULE_CONF_SUPPORT > 0 && \
+    ((MODULE_CONF_BASE) + (MODULE_CONF_SLOTS) * (MODULE_CONF_SLOT_SIZE) > 0xFF00UL)
+#error "module: the slots and the module table have to lie in the first 64 KB of flash"
 #endif
 
 // bytes of RAM a module gets for its process struct.

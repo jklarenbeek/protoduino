@@ -84,12 +84,13 @@
 <h3><span class="n">6.1</span>Where the pieces live</h3>
 <p>The code is in <code>docs/elfloader/overlay/</code>, at the paths it would have in the library, and it is compiled against the unchanged <code>src/</code>. It follows the conventions of the files around it: a <code>// file:</code> line on top, a block comment that states what the unit is independent of, settings in a <code>*.conf.h</code> with <code>#ifndef</code> defaults, <code>CC_*</code> macros, a selector header in <code>sys/</code> for platform code in <code>cpu/avr/</code>, <code>ptstate_t</code> results and <code>ERR_*</code> codes.</p>
 <pre><code>src/sys/elf.h  elf.c  elf.conf.h         <span class="c">the stream; also builds on the host                 257 lines</span>
-src/sys/elf/load.h  load.c               <span class="c">the load thread: XMODEM-CRC, stream, page cache     258</span>
-src/sys/bootrom.h                        <span class="c">what a running system can ask of the bootloader     header</span>
-src/sys/flash.h   src/cpu/avr/flash.*    <span class="c">program a page: SPM, bootloader table, do_spm       222</span>
+src/sys/elf/load.h  load.c               <span class="c">the load thread: XMODEM-CRC, stream, page cache     276</span>
+src/sys/bootrom.h                        <span class="c">what a running system can ask of the bootloader     154</span>
+src/sys/flash.h   src/cpu/avr/flash.*    <span class="c">program a page: SPM, bootloader table, do_spm       225</span>
 src/sys/module.h  module.c  module.conf.h<span class="c">module descriptor, MODULE(), slots, module table    112</span>
-src/sys/process/loader.h  loader.c       <span class="c">the loader process                                  183</span>
+src/sys/process/loader.h  loader.c       <span class="c">the loader process                                  193</span>
 boot/boot.c  boot.conf.h  softuart.h     <span class="c">the bootloader                                      403</span>
+src/sys/lc-counter.h                     <span class="c">continuation points numbered from 1 (6.10)          147</span>
 ld/module.ld                             <span class="c">linker script for modules</span>
 tools/pd/                                <span class="c">Node 22 ESM tool: send, verify, info, abi           proposed</span></code></pre>
 <p>The Arduino build compiles every source file under <code>src/</code>. The bootloader has its own entry code and no C runtime, so it stays outside that tree. It is one translation unit: <code>boot.c</code> includes <code>sys/elf.c</code>, <code>sys/elf/load.c</code>, <code>cpu/avr/flash.c</code> and the library's own <code>cpu/avr/uart0.c</code>, so that the compiler sees the stream, its sink and the drivers together.</p>
@@ -167,8 +168,8 @@ void flash_page_write(flash_addr_t base, const uint8_t *data);   <span class="c"
   <thead><tr><th style="width:29%"><code>FLASH_CONF_DRIVER</code></th><th>Who executes SPM</th><th style="width:22%">Used by</th><th style="width:12%">Status</th></tr></thead>
   <tbody>
     <tr><td><code>FLASH_DRIVER_SPM</code></td><td>This code: erase, fill the page buffer, write, re-enable the read-while-write section, inside <code>CC_ATOMIC_RESTORE()</code>. Written in assembly by default (<code>FLASH_CONF_SPM_ASM</code>), 76 bytes; the C version, 130 bytes, stays as the reference and passes the same tests.</td><td>the bootloader</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td><code>FLASH_DRIVER_BOOTROM</code></td><td>The protoduino bootloader, through its service table (6.7)</td><td>a kernel</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td><code>FLASH_DRIVER_OPTIBOOT</code></td><td>Optiboot 8 or later, through <code>do_spm</code>: erase, fill word by word, write</td><td>a kernel</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td><code>FLASH_DRIVER_BOOTROM</code></td><td>The protoduino bootloader, through its service table (6.7), also where the table lies above 128 KB</td><td>a kernel</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td><code>FLASH_DRIVER_OPTIBOOT</code></td><td>Optiboot 8 or later, through <code>do_spm</code>: erase, fill word by word, write. Parts up to 128 KB; above, the build stops with <code>#error</code> until the call has been made and tested there.</td><td>a kernel</td><td><span class="tag m">measured</span></td></tr>
     <tr><td><code>FLASH_DRIVER_NONE</code></td><td>Nobody: the build cannot change its flash</td><td>&ndash;</td><td>&ndash;</td></tr>
     <tr><td>NVMCTRL</td><td>tinyAVR 0/1/2, AVR Dx: another mechanism, not designed here</td><td>&ndash;</td><td>&ndash;</td></tr>
   </tbody>
@@ -320,7 +321,7 @@ while (elf_load_read_available(&amp;load))
   <text x="492" y="14" text-anchor="middle" fill="#5b6672">0x7780</text>
   <text x="544" y="14" text-anchor="middle" fill="#5b6672">0x7800</text>
   <text x="700" y="14" text-anchor="end" fill="#5b6672">0x7FF4 to 0x7FFF</text>
-  <text x="0" y="76" fill="#5b6672">ATmega328P with the 2 KB boot section, not to scale. Window 30,592 bytes; bootloader 1,952 to 2,040 bytes used;</text>
+  <text x="0" y="76" fill="#5b6672">ATmega328P with the 2 KB boot section, not to scale. Window 30,592 bytes; bootloader 1,938 to 2,026 bytes used;</text>
   <text x="0" y="89" fill="#5b6672">service table in the last twelve bytes. The tests put two 2 KB module slots at 0x6000 and the module table at 0x7000.</text>
 </svg>
 <figcaption><strong>Figure 6.</strong> Flash layout. The record page sits directly below the loader and outside the window.</figcaption>
@@ -347,7 +348,7 @@ while (elf_load_read_available(&amp;load))
   <li><strong>Its own serial port.</strong> The ATtiny85 has no USART. <code>boot/softuart.h</code> provides the polled part of <code>uart0</code> on two pins, under the same names, so the bootloader source is the same on every part.</li>
 </ol>
 <p>The loader's own pages remain unprotected against a runaway application. On these parts the design is an updater, not a guaranteed recovery path, and an ISP programmer remains the last resort.</p>
-<p>The ATtiny85 build (1,996 bytes, 307 bytes of RAM, with <code>BOOT_CONF_VIRTUAL_RESET</code> and <code>BOOT_CONF_SOFT_UART</code>) compiles and has not executed. Points 2 and 3 were checked on the ATmega328P in simavr, which executes an erased word as the same skip instruction a real AVR does. Started in erased flash below the loader, at either word alignment and with the skip taken or not, execution arrived in the loader all four times. In a control build without the landing pad, one of the four cases skipped the loader's first instruction and ran its rule table as code. <span class="tag m">measured</span></p>
+<p>The ATtiny85 build (1,980 bytes, 307 bytes of RAM, with <code>BOOT_CONF_VIRTUAL_RESET</code> and <code>BOOT_CONF_SOFT_UART</code>) compiles and has not executed. Points 2 and 3 were checked on the ATmega328P in simavr, which executes an erased word as the same skip instruction a real AVR does. Started in erased flash below the loader, at either word alignment and with the skip taken or not, execution arrived in the loader all four times. In a control build without the landing pad, one of the four cases skipped the loader's first instruction and ran its rule table as code. <span class="tag m">measured</span></p>
 
 <h3><span class="n">6.7</span>The service table</h3>
 
@@ -364,17 +365,18 @@ while (elf_load_read_available(&amp;load))
   </tbody>
 </table>
 
-<pre><code>bool                   bootrom_is_present(void);    <span class="c">/* a protoduino bootloader with a table?      */</span>
-uint8_t                bootrom_version(void);
-uint16_t               bootrom_load_size(void);     <span class="c">/* bytes of workspace its thread works on     */</span>
-bootrom_load_thread_fn bootrom_load_thread(void);   <span class="c">/* ptstate_t (*)(struct elf_load *), or 0     */</span>
-bootrom_page_write_fn  bootrom_page_write(void);    <span class="c">/* void (*)(addr, const uint8_t *page)        */</span>
+<pre><code>bool      bootrom_is_present(void);       <span class="c">/* a protoduino bootloader with a table?        */</span>
+uint8_t   bootrom_version(void);
+bool      bootrom_has_load_thread(void);  <span class="c">/* was it built with the thread?                */</span>
+uint16_t  bootrom_load_size(void);        <span class="c">/* bytes of workspace its thread works on       */</span>
+ptstate_t bootrom_load_thread(struct elf_load *self);            <span class="c">/* one turn      */</span>
+void      bootrom_page_write(bootrom_addr_t base, const uint8_t *data);
 
-<span class="c">/* in the loader process: which thread to schedule */</span>
-if (bootrom_is_present()
+<span class="c">/* in the loader process: is there a thread to schedule? */</span>
+return bootrom_is_present()
     &amp;&amp; bootrom_version() == BOOTROM_VERSION
-    &amp;&amp; bootrom_load_size() &lt;= sizeof(loader_workspace))
-  return bootrom_load_thread();</code></pre>
+    &amp;&amp; bootrom_has_load_thread()
+    &amp;&amp; bootrom_load_size() &lt;= sizeof(loader_workspace);</code></pre>
 
 <p><strong>What is shared.</strong> The system and the bootloader are built separately, so they agree on the head of <code>struct elf_load</code> only: the protothread state, the mailbox, the window, the result, the entry point and the key of 6.8. Those fields have the same layout in every build for one part. Everything behind them is private to whoever runs the thread, and the table says how much room that takes. The system brings a workspace at least that large; the loader process adds a margin of 16 bytes to its own <code>sizeof</code> for a bootloader that was built with more options.</p>
 
@@ -382,7 +384,16 @@ if (bootrom_is_present()
 
 <p><strong>Why addresses and not jumps.</strong> The first version of the table held relative jumps. In an 8 KB boot section a relative jump at the end of flash cannot reach a function near the start of the section, and the link failed; and link-time relaxation is free to shorten a long jump and shift whatever follows it. Plain addresses have neither problem.</p>
 
-<p><strong>Cost and evidence.</strong> On the ATmega328P the page service adds 12 bytes to the bootloader and the thread another 76: the table, the lower bound of the window and the check of the key. In the previous draft the blocking session cost 396 bytes to export, because it had to exist twice. An application installed through the bootloader programmed a page through the table and read it back (T10), and a kernel had modules loaded through both entries (M1, M3, M9). <span class="tag m">measured</span> Two limits apply: simavr does not enforce the rule that SPM must run from the boot section (S2 in 8.1), so these runs show the calling convention and not the hardware permission; and on parts above 128 KB the entries lie beyond a 16-bit function pointer, so the call needs the extended indirect register set. That build links and has not run.</p>
+<p><strong>Above 128 KB.</strong> The two services are called through the header and never fetched as pointers, because a pointer cannot hold their address everywhere. On an ATmega2560 a function pointer has 16 bits and reaches the first 128 KB, and the 4 KB boot section lies at <code>0x3F000</code>. The first version called through a truncated pointer; on the simulated part the call ended up in the wrong place and the page stayed unwritten. <span class="tag m">measured</span> The usual answer is to set <code>EIND</code> around an indirect call. That is wrong here: the load thread runs with interrupts enabled, and protoduino's UART handlers call their callbacks through pointers, so a handler that fires while <code>EIND</code> is set would jump into the wrong half of flash. The header therefore does it without <code>EIND</code>:</p>
+<pre><code><span class="c">; ptstate_t bootrom_far_load_thread(struct elf_load *self, uint32_t word_address)</span>
+<span class="c">;   self is in r24-r25 where the thread expects it; the address arrives in r20-r23</span>
+push r20          <span class="c">; the address goes on the stack as a return address ...</span>
+push r21
+push r22
+ret               <span class="c">; ... and RET takes all three bytes of it</span></code></pre>
+<p>The service then returns straight to whoever called the routine. The address is the last argument, so the arguments of the service are already in the registers it expects them in, and the routine for <code>flash_page_write()</code> is the same four instructions with other registers. Both are written at file level and only declared to the compiler: as a C function without a body the first attempt was taken for a function that never returns, and the code after the call was dropped. On parts up to 128 KB the header makes a plain indirect call. The bootloader itself contains one indirect jump, the <code>IJMP</code> into the image, which clears the upper address bits by definition.</p>
+
+<p><strong>Cost and evidence.</strong> On the ATmega328P the page service adds 12 bytes to the bootloader and the thread another 76: the table, the lower bound of the window and the check of the key. In the previous draft the blocking session cost 396 bytes to export, because it had to exist twice. An application installed through the bootloader programmed a page through the table and read it back, on the ATmega328P (T10) and on the ATmega2560 for a page below and one above 64 KB (T20, T21). A kernel had modules loaded through both entries on the ATmega328P (M1, M3, M9) and on the ATmega2560 (M10, M11). <span class="tag m">measured</span> One limit applies: simavr does not enforce the rule that SPM must run from the boot section (S2 in 8.1), so these runs show the calling convention and not the hardware permission.</p>
 
 <h3><span class="n">6.8</span>Modules</h3>
 
@@ -436,7 +447,7 @@ avr-nm kernel.elf | awk '$2 ~ /^[TDBRW]$/ {printf "%s = 0x%s;\n", $3, $1}' &gt; 
 
 avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
         -Wl,-T,ld/module.ld -Wl,-T,kernel-abi.ld -Wl,-e,module_descriptor \
-        -Wl,--defsym=__module_base=0x6000 -Wl,--defsym=__module_kernel_id=0x1c8f \
+        -Wl,--defsym=__module_base=0x6000 -Wl,--defsym=__module_kernel_id=0xa981 \
         -o count.elf count_module.c -lgcc</code></pre>
 <p>The result is a file with one flash segment of 237 bytes at the slot address, its entry point on the descriptor, and calls into the kernel as plain absolute <code>call</code> instructions. <span class="tag m">measured</span> <code>ld/module.ld</code> turns static variables into a link error: <em>module has static variables: keep state in the process struct</em>. The first module build hit exactly that: <code>process.h</code> declares <code>process_current</code> with <code>CC_EXTERN</code>, which is empty in C, so every C file that includes it defines the variable (7, finding 10). Giving the kernel's symbols to the linker as definitions resolves it to the kernel's own.</p>
 
@@ -448,8 +459,8 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
   <tbody>
     <tr><td><strong>0. None</strong></td><td>Nothing with modules</td><td>&ndash;</td><td class="num">0 B</td></tr>
     <tr><td><strong>1. Modules in flash</strong></td><td>Start the modules its module table lists, programmed with the firmware or loaded earlier. It cannot load.</td><td><code>module.c</code>: identity, table, check, start</td><td class="num">378 B</td></tr>
-    <tr><td><strong>2. Run time, thread of the bootloader</strong></td><td>Also load while running, on a protoduino bootloader that offers its thread</td><td><code>module.c</code>, <code>loader.c</code>, the table driver of <code>flash.c</code></td><td class="num">1,656 B</td></tr>
-    <tr><td><strong>2. Run time, own thread</strong></td><td>Also load while running, on any bootloader that can program a page for it</td><td>The same, with <code>elf.c</code> and <code>load.c</code></td><td class="num">3,146 B<br>3,246 B on Optiboot</td></tr>
+    <tr><td><strong>2. Run time, thread of the bootloader</strong></td><td>Also load while running, on a protoduino bootloader that offers its thread</td><td><code>module.c</code>, <code>loader.c</code>, the table driver of <code>flash.c</code></td><td class="num">1,658 B</td></tr>
+    <tr><td><strong>2. Run time, own thread</strong></td><td>Also load while running, on any bootloader that can program a page for it</td><td>The same, with <code>elf.c</code> and <code>load.c</code></td><td class="num">3,102 B<br>3,202 B on Optiboot</td></tr>
   </tbody>
 </table>
 <p>At level 2 the kernel also holds 389 bytes of RAM for the workspace of the thread, 48 per slot for module state, and the loader process. <span class="tag m">measured</span></p>
@@ -570,9 +581,10 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 <p>A developer who prefers Optiboot keeps it. The firmware is uploaded the usual way, and the protoduino kernel loads modules itself, with <code>LOADER_CONF_THREAD</code> set to <code>LOADER_THREAD_OWN</code> and <code>FLASH_CONF_DRIVER</code> to <code>FLASH_DRIVER_OPTIBOOT</code>. What Optiboot offers was read from its source (version 8.3): the second word of the bootloader is a jump to <code>do_spm(address, command, data)</code>, which performs one SPM step and re-enables the read-while-write section after an erase or a write; a build without the feature has a <code>ret</code> there instead. <code>flash_is_writable()</code> recognises a usable Optiboot by a major version of 8 or more in the last byte of flash and a jump in that second word. It takes Optiboot's start as 512 bytes below the end of flash, as Optiboot's own helper header does. Run against the prebuilt 8.3 image from the Optiboot repository, a module was loaded cooperatively, started, entered into the table and started again after a reset (M2). <span class="tag m">measured</span></p>
 
 <h4>What the tests are and are not</h4>
-<p>The kernel in M1 to M9 is <code>prototype/kernel/kernel.c</code>: a sketch with <code>setup()</code> and <code>loop()</code> on the unmodified <code>process.c</code>, <code>ipc.c</code>, serial device process, serial layer and UART driver, built without the Arduino core. A stand-in of 40 lines supplies <code>main()</code>, timer 0 and <code>micros()</code>. Its kernel process doubles as the error logger of the scheduler, which is how it learns that a load failed. Still open:</p>
+<p>The kernel in M1 to M12 is <code>prototype/kernel/kernel.c</code>: a sketch with <code>setup()</code> and <code>loop()</code> on the unmodified <code>process.c</code>, <code>ipc.c</code>, serial device process, serial layer and UART driver, built without the Arduino core. A stand-in of 40 lines supplies <code>main()</code>, timer 0 and <code>micros()</code>. Its kernel process doubles as the error logger of the scheduler, which is how it learns that a load failed. Still open:</p>
 <ul>
-  <li>Hardware, and parts above 64 KB: <code>sys/clock.h</code> refuses to compile for them (7, finding 17).</li>
+  <li>Hardware.</li>
+  <li>The ATmega2560 with the library as it is. M10 to M12 ran the same kernel there, built against a copy of the library in which <code>sys/clock.h</code> also accepts the part; unchanged, that header stops every build that includes a timer (7, finding 17). The ATmega1284P kernel was not built.</li>
   <li>Removal as a command, and reloading a slot whose module is running.</li>
   <li>A loader for another serial device than <code>serial_process0</code>.</li>
 </ul>
@@ -580,6 +592,7 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 <h4>Rules and hazards</h4>
 <ul>
   <li>No static variables. No interrupt handlers: the vector table belongs to the kernel.</li>
+  <li>The slots and the module table lie in the first 64 KB of flash, also on a larger part: the scheduler reads a process type and its name with a 16-bit address and calls the thread through a 16-bit pointer. A configuration that puts them higher is a build error.</li>
   <li>A process struct is at most 255 bytes, because <code>process_type_t.size</code> is one byte, and at most <code>MODULE_CONF_RAM_SIZE</code>.</li>
   <li>A callback a module registers with the kernel, such as a UART receive handler, points into the module. It must be removed in the module's <code>PT_FINALLY</code> block. The kernel cannot check this.</li>
   <li>On a chip, programming a page stops everything for 7.4 to 9.0 ms with interrupts off: the datasheet gives 3.7 to 4.5 ms each for the erase and the write. One timer 0 overflow per millisecond is lost in that time, so <code>micros()</code> falls behind by that much per page.</li>
@@ -605,7 +618,9 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
     <tr><td><code>BOOT_CONF_INFO</code></td><td>off</td><td>Answer <code>?</code> with a line that names the bootloader</td><td class="num">+96 B</td></tr>
     <tr><td><code>BOOT_CONF_VERIFY</code></td><td>off</td><td>Re-check the image CRC at every start</td><td class="num">+48 B</td></tr>
     <tr><td><code>BOOT_CONF_VIRTUAL_RESET</code>, <code>BOOT_CONF_SOFT_UART</code></td><td>off</td><td>Part without a boot section (6.6); serial on two pins</td><td class="num">tiny only</td></tr>
-    <tr><td><code>BOOT_CONF_START</code>, <code>BOOT_CONF_WINDOW</code>, <code>BOOT_CONF_BAUD</code></td><td>&ndash;, 3, 115200</td><td>Where the bootloader is linked; probes before the image starts; line speed</td><td class="num">&ndash;</td></tr>
+    <tr><td><code>BOOT_CONF_SECTION</code></td><td>2 KB; 4 KB above 64 KB of flash</td><td>Bytes of boot section the fuses reserve; <code>BOOT_CONF_START</code> follows from it</td><td class="num">&ndash;</td></tr>
+    <tr><td><code>BOOT_CONF_START</code>, <code>BOOT_CONF_WINDOW</code>, <code>BOOT_CONF_BAUD</code></td><td>section, 3, 115200</td><td>Where the bootloader is linked; probes before the image starts; line speed</td><td class="num">&ndash;</td></tr>
+    <tr><td><code>LC_INCLUDE</code></td><td><code>lc-counter.h</code> in the bootloader</td><td>Continuation points numbered from 1 and not by source line (6.10)</td><td class="num">&minus;14 B</td></tr>
     <tr><td><code>FLASH_CONF_DRIVER</code></td><td>bootloader table</td><td>Who programs a page: 6.3</td><td class="num">60 to 160 B</td></tr>
     <tr><td><code>FLASH_CONF_SPM_ASM</code></td><td>on</td><td>SPM driver: program a page in assembly; off selects the C reference</td><td class="num">&minus;54 B</td></tr>
     <tr><td><code>MODULE_CONF_SUPPORT</code></td><td>0</td><td>Kernel: 0 none, 1 modules in flash, 2 run-time loading</td><td class="num">see 6.8</td></tr>
@@ -614,7 +629,7 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
     <tr><td><code>LOADER_CONF_PATIENCE</code></td><td>30</td><td>Kernel: seconds to wait for a sender</td><td class="num">&ndash;</td></tr>
   </tbody>
 </table>
-<p>Each figure is the difference from the default bootloader of 1,952 bytes when that one setting is flipped. <span class="tag m">measured</span></p>
+<p>Each figure is the difference from the default bootloader of 1,938 bytes when that one setting is flipped. <span class="tag m">measured</span></p>
 
 <h4>Filling the boot section</h4>
 <p>The fuses reserve a boot section of one of four sizes, and whatever is not used is wasted. A build step therefore starts from the smallest bootloader and adds options in order of priority for as long as the result still fits the chosen block. The order is itself a setting. The default puts the checks that prevent damage first and the services for the kernel next: family check, page service, load thread, image CRC, segment merging, signature, EEPROM, description line, CRC check at start.</p>
@@ -622,16 +637,16 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 <table class="tight">
   <thead><tr><th style="width:14%">Part</th><th class="num" style="width:9%">Block</th><th class="num" style="width:10%">Used</th><th class="num" style="width:13%">Spare</th><th>What the block then holds</th></tr></thead>
   <tbody>
-    <tr><td>ATmega328P</td><td class="num">0.5, 1 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 1,864 bytes</td></tr>
-    <tr><td></td><td class="num">2 KB</td><td class="num">2,040 B</td><td class="num">8 B</td><td>Family check, page service, <strong>load thread</strong>, image CRC, segment merging</td></tr>
-    <tr><td></td><td class="num">4 KB</td><td class="num">2,296 B</td><td class="num">1,800 B</td><td>All nine options</td></tr>
-    <tr><td>ATmega1284P</td><td class="num">1, 2 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 2,272 bytes</td></tr>
-    <tr><td></td><td class="num">4, 8 KB</td><td class="num">2,912 B</td><td class="num">1,184 B, 5,280 B</td><td>All nine options</td></tr>
-    <tr><td>ATmega2560</td><td class="num">1, 2 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 2,272 bytes</td></tr>
-    <tr><td></td><td class="num">4, 8 KB</td><td class="num">2,912 B</td><td class="num">1,184 B, 5,280 B</td><td>All nine options</td></tr>
+    <tr><td>ATmega328P</td><td class="num">0.5, 1 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 1,850 bytes</td></tr>
+    <tr><td></td><td class="num">2 KB</td><td class="num">2,026 B</td><td class="num">22 B</td><td>Family check, page service, <strong>load thread</strong>, image CRC, segment merging. The standard section for this part.</td></tr>
+    <tr><td></td><td class="num">4 KB</td><td class="num">2,282 B</td><td class="num">1,814 B</td><td>All nine options</td></tr>
+    <tr><td>ATmega1284P</td><td class="num">1, 2 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 2,256 bytes</td></tr>
+    <tr><td></td><td class="num">4, 8 KB</td><td class="num">2,898 B</td><td class="num">1,198 B, 5,294 B</td><td>All nine options. 4 KB is the standard section for this part.</td></tr>
+    <tr><td>ATmega2560</td><td class="num">1, 2 KB</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>Nothing: the smallest bootloader is 2,256 bytes</td></tr>
+    <tr><td></td><td class="num">4, 8 KB</td><td class="num">2,898 B</td><td class="num">1,198 B, 5,294 B</td><td>All nine options. 4 KB is the standard section for this part.</td></tr>
   </tbody>
 </table>
-<p>These are the results of the step as built (<code>fit.sh</code>). <span class="tag m">measured</span> Three things follow. On the ATmega328P the 2 KB block holds the complete default bootloader and lends its load thread to the kernel, with 8 bytes to spare. On the large parts the bootloader no longer fits the 2 KB block, where the blocking version of the previous draft did with 24 bytes to spare; it takes the 4 KB block and then holds everything. And the space left in the larger blocks is where the next features belong: a verify mode, signed images, and the fix-up stream of 4.8. On parts without a boot section the bootloader simply ends on a page boundary, so there is no block to fill.</p>
+<p>These are the results of the step as built (<code>fit.sh</code>). <span class="tag m">measured</span> Three things follow. On the ATmega328P the 2 KB block holds the complete default bootloader and lends its load thread to the kernel, with 22 bytes to spare. On the parts above 64 KB the bootloader does not fit the 2 KB block, so their standard section is 4 KB: that is the default of <code>BOOT_CONF_SECTION</code> there and the block <code>fit.sh</code> fills when it is given none, and it holds every option. The decision costs 2 KB of a 128 or 256 KB part and buys the device-signature check, the EEPROM image, the description line and the CRC check at every start, all of which were run in that configuration (T15 to T19, M10). And the space that is left, 1,198 bytes, is where the next features belong: a verify mode, signed images, and the fix-up stream of 4.8. On parts without a boot section the bootloader simply ends on a page boundary, so there is no block to fill.</p>
 
 <h3><span class="n">6.10</span>Measured budgets</h3>
 
@@ -640,23 +655,23 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 <table class="tight">
   <thead><tr><th>Build</th><th class="num">Flash</th><th class="num">RAM</th></tr></thead>
   <tbody>
-    <tr><td>ATmega328P, smallest</td><td class="num">1,864 B</td><td class="num">365 B</td></tr>
-    <tr><td>ATmega328P, default</td><td class="num">1,952 B</td><td class="num">371 B</td></tr>
-    <tr><td>ATmega328P, with the load thread offered</td><td class="num">2,040 B</td><td class="num">373 B</td></tr>
-    <tr><td>ATmega328P, everything on</td><td class="num">2,296 B</td><td class="num">376 B</td></tr>
-    <tr><td>ATmega1284P, default</td><td class="num">2,454 B</td><td class="num">516 B</td></tr>
-    <tr><td>ATmega2560, smallest</td><td class="num">2,272 B</td><td class="num">507 B</td></tr>
-    <tr><td>ATmega2560, default</td><td class="num">2,454 B</td><td class="num">516 B</td></tr>
-    <tr><td>ATmega2560, everything on</td><td class="num">2,912 B</td><td class="num">522 B</td></tr>
-    <tr><td>ATtiny85, serial on two pins <span class="tag b">built</span></td><td class="num">1,996 B</td><td class="num">307 B</td></tr>
+    <tr><td>ATmega328P, smallest</td><td class="num">1,850 B</td><td class="num">365 B</td></tr>
+    <tr><td>ATmega328P, default</td><td class="num">1,938 B</td><td class="num">371 B</td></tr>
+    <tr><td>ATmega328P, with the load thread offered</td><td class="num">2,026 B</td><td class="num">373 B</td></tr>
+    <tr><td>ATmega328P, everything on</td><td class="num">2,282 B</td><td class="num">376 B</td></tr>
+    <tr><td>ATmega1284P, default</td><td class="num">2,438 B</td><td class="num">516 B</td></tr>
+    <tr><td>ATmega2560, smallest</td><td class="num">2,256 B</td><td class="num">507 B</td></tr>
+    <tr><td>ATmega2560, default</td><td class="num">2,438 B</td><td class="num">516 B</td></tr>
+    <tr><td>ATmega2560, everything on</td><td class="num">2,898 B</td><td class="num">522 B</td></tr>
+    <tr><td>ATtiny85, serial on two pins <span class="tag b">built</span></td><td class="num">1,980 B</td><td class="num">307 B</td></tr>
   </tbody>
 </table>
 </div>
 <div>
 <table class="tight">
-  <thead><tr><th>Where the 1,952 bytes go</th><th class="num">Flash</th></tr></thead>
+  <thead><tr><th>Where the 1,938 bytes go</th><th class="num">Flash</th></tr></thead>
   <tbody>
-    <tr><td>Load thread: frames, XMODEM, replies</td><td class="num">452 B</td></tr>
+    <tr><td>Load thread: frames, XMODEM, replies</td><td class="num">438 B</td></tr>
     <tr><td>Stream: delivery loop and flash sink</td><td class="num">358 B</td></tr>
     <tr><td>Bootloader: record, start decision, image start</td><td class="num">330 B</td></tr>
     <tr><td>Stream: program headers</td><td class="num">242 B</td></tr>
@@ -671,25 +686,26 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 
 <p><strong>RAM.</strong> The bootloader's RAM is the workspace of the thread, and nothing else: on the ATmega328P the XMODEM block (133), the page buffer (128), the stream (84) and 26 bytes of mailbox, window and bookkeeping. It is not cleared at reset; every field is set before it is read, so the bootloader has no <code>.bss</code> and no code to clear one.</p>
 
-<p><strong>What the protothread costs.</strong> The blocking bootloader of the previous draft was 1,640 bytes; the protothread one was 2,014 before the assembly described below took 62 off, and is 1,952 now. The 374 bytes are the price of a thread whose state lives in memory and not in registers: every wait stores a continuation and returns, every resume goes through a <code>switch</code>, and every variable is a load and a store. Offering the load to the kernel costs what it did, 2,040 bytes against 2,036, and the new one also checks the kernel identity: the thread is compiled once, where the blocking session had to exist twice. The comparison at the level that matters:</p>
+<p><strong>What the protothread costs.</strong> The blocking bootloader of the previous draft was 1,640 bytes; the protothread one was 2,014, and after the assembly and the numbered continuation points described below it is 1,938. The 374 bytes are the price of a thread whose state lives in memory and not in registers: every wait stores a continuation and returns, every resume goes through a <code>switch</code>, and every variable is a load and a store. Offering the load to the kernel now costs less than it did, 2,026 bytes against 2,036, and the new one also checks the kernel identity: the thread is compiled once, where the blocking session had to exist twice. The comparison at the level that matters:</p>
 <table class="tight">
   <thead><tr><th style="width:44%">ATmega328P, 2 KB boot section</th><th>Previous draft, blocking</th><th>This draft, protothread</th></tr></thead>
   <tbody>
-    <tr><td>Bootloader that also loads modules for the kernel</td><td>2,036 B with merging; 12 B spare</td><td>2,040 B with merging; 8 B spare</td></tr>
-    <tr><td>The system during a load</td><td>stands still for the whole transfer</td><td>runs: 18,055 heartbeat turns in 350 ms</td></tr>
+    <tr><td>Bootloader that also loads modules for the kernel</td><td>2,036 B with merging; 12 B spare</td><td>2,026 B with merging; 22 B spare</td></tr>
+    <tr><td>The system during a load</td><td>stands still for the whole transfer</td><td>runs: 17,744 heartbeat turns in 350 ms</td></tr>
     <tr><td>A module for another kernel build</td><td>overwrites the slot, then is refused</td><td>refused before the first page</td></tr>
-    <tr><td>Kernel code for run-time loading</td><td>a call, in a stand-in kernel</td><td>1,656 B on the real scheduler</td></tr>
+    <tr><td>Kernel code for run-time loading</td><td>a call, in a stand-in kernel</td><td>1,658 B on the real scheduler</td></tr>
   </tbody>
 </table>
 
 <p><strong>What would shrink it.</strong> Nothing has been tried from this list, in order of expected yield:</p>
 <ol>
   <li>A hand-written per-byte path for the stream and the frame check. It would live beside the C version, which the host build needs: a last resort.</li>
-  <li>A local-continuation header for the bootloader build that numbers the wait points from 1 instead of using <code>__LINE__</code>. <code>lc.h</code> already lets a build choose one with <code>LC_INCLUDE</code>; small numbers make every store and every compare one instruction shorter. <code>lc-addrlabels.h</code>, the other candidate, is an <code>#error</code> today.</li>
   <li>Replace the 128-byte block with a smaller frame, which also suits the small ATtinys.</li>
   <li>Build with a newer avr-gcc. The repository's <code>platformio.ini</code> already points at one; only 7.3.0 was available here.</li>
 </ol>
-<p>What already mattered, in the order it was found. The first version of the protothread bootloader was 2,520 bytes. One wait point in the thread with a plain function that judges a frame, a mailbox the thread never has to wait on, and setting the UART registers directly (286 of the bytes) brought it to 2,094. <code>-fno-move-loop-invariants -fno-ivopts -fno-tree-scev-cprop</code> saved 26. A workspace that needs no clearing, and with it no <code>.bss</code> code, saved 48. Counting idle passes in 16 bits saved the last 6 of that round. The assembly described next saved 62. <code>-mstrict-X</code>, from the previous draft, keeps the workspace pointer out of the X register, which has no displacement addressing. <span class="tag m">measured</span></p>
+<p>What already mattered, in the order it was found. The first version of the protothread bootloader was 2,520 bytes. One wait point in the thread with a plain function that judges a frame, a mailbox the thread never has to wait on, and setting the UART registers directly (286 of the bytes) brought it to 2,094. <code>-fno-move-loop-invariants -fno-ivopts -fno-tree-scev-cprop</code> saved 26. A workspace that needs no clearing, and with it no <code>.bss</code> code, saved 48. Counting idle passes in 16 bits saved the last 6 of that round. The assembly described next saved 62, and numbered continuation points 14. <code>-mstrict-X</code>, from the previous draft, keeps the workspace pointer out of the X register, which has no displacement addressing. <span class="tag m">measured</span></p>
+
+<p><strong>Numbered continuation points.</strong> <code>lc-switch.h</code> identifies a wait point by the source line it stands on, so the number is stored and compared as 16 bits as soon as the line is above 255. That made the size of the thread depend on where it stands in its file: six comment lines added above it moved one wait point past line 255, and the bootloader grew by two bytes. <code>src/sys/lc-counter.h</code> is the same header with the points numbered 1, 2, 3 from the compiler's <code>__COUNTER__</code>; the bootloader selects it through <code>LC_INCLUDE</code>, which <code>lc.h</code> already provides for. It saves 14 bytes on the ATmega328P and 18 on the ATmega2560, and comments are free again. A kernel that schedules the thread of the bootloader can keep <code>lc-switch.h</code>: a continuation is only ever read by the code that stored it. <span class="tag m">measured</span></p>
 
 <p><strong>What Optiboot does in assembly.</strong> Optiboot 8.3 is one C file of 1,689 lines, and its ATmega328 image is 474 bytes. It is C almost throughout: ten inline-assembly statements (saving the reset cause, the jump into the application, a watchdog reset, two flash reads, three for the bit-banged serial port, two that only define symbols) and a header that re-issues avr-libc's SPM sequences with <code>OUT</code>. Its size comes less from assembly than from what it leaves out: no file format, no checksum, no record of what is installed; the host decides and the device stores pages. It uses assembly where the compiler cannot say a thing at all or says it badly. <span class="tag r">read</span></p>
 
