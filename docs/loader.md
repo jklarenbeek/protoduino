@@ -143,7 +143,7 @@ void setup(void)
 
 On a part without a USART the line is `sys/process/softserial.h`: a serial
 device on two pins (RX PB0, TX PB1, 9600 baud, half duplex). The shell with
-three modules takes 6,640 bytes of flash and 274 bytes of RAM on an ATtiny85
+three modules takes 5,914 bytes of flash and 275 bytes of RAM on an ATtiny85
 (`examples/5-systems/41-shell-tiny85`).
 
 ## Flash slots and the loader
@@ -273,11 +273,11 @@ Built with avr-gcc 7.3.0, `-Os` and link-time optimisation.
 
 | System | Part | Flash | RAM |
 |--------|------|-------|-----|
-| `40-shell`: shell, ticker, blink, upper, vcc | ATmega328P | 8,302 | 516 |
-| `41-shell-tiny85`: shell, ticker, blink, vcc, two-pin serial line | ATtiny85 | 6,640 | 274 |
-| `42-shell-loader`: shell, ticker, blink, two slots, loader | ATmega328P | 9,624 | 969 |
-| the same | ATmega2560 | 9,794 | 1,115 |
-| `43-monitor`: monitor, ticker, blink, vcc, upper, keeper | ATmega328P | 7,702 | 556 |
+| `40-shell`: shell, ticker, blink, upper, vcc | ATmega328P | 7,430 | 517 |
+| `41-shell-tiny85`: shell, ticker, blink, vcc, two-pin serial line | ATtiny85 | 5,914 | 275 |
+| `42-shell-loader`: shell, ticker, blink, two slots, loader | ATmega328P | 8,738 | 970 |
+| the same | ATmega2560 | 8,906 | 1,116 |
+| `43-monitor`: monitor, ticker, blink, vcc, upper, keeper | ATmega328P | 6,990 | 557 |
 
 | Loadable module, ATmega328P | Flash in its slot |
 |-----------------------------|-------------------|
@@ -293,8 +293,9 @@ core brings more than the stand-in of `tools/core`.
 
 - Nothing has run on hardware.
 - The ATtiny85 runs the shell but does not load modules at run time. Beside a
-  bootloader it has 6,016 bytes for the sketch and its slots, and its 512 bytes
-  of RAM cannot hold the workspace of the load thread next to a running system.
+  bootloader it has 6,016 bytes for the sketch and its slots, which the shell
+  with its three modules nearly fills, and its 512 bytes of RAM cannot hold
+  the workspace of the load thread next to a running system.
 - Slots lie in the first 64 KB of flash: the scheduler calls the thread of a
   process through a 16-bit pointer.
 - There is one loader, so one module arrives at a time.

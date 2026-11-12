@@ -107,6 +107,7 @@ PROCESS_DEFINE(shell, "shell", 2,
   uint8_t         len;                   /* characters in line             */
   uint8_t         n;                     /* characters in out              */
   uint8_t         i;                     /* where a list has got to        */
+  uint8_t         list;                  /* what the answer still has to say */
   uint8_t         byte;
   struct process *it;                    /* where a walk has got to        */
   const char     *text;                  /* where a text in flash has got to */
@@ -213,8 +214,8 @@ static const process_type_t *shell_module(uint8_t i, struct process **instance)
 
 /* One line of a list each. They are plain functions on purpose: a local
  * variable does not survive a wait, and in C++ a thread may not even resume
- * behind the initialisation of one. So the thread below only loops and
- * waits, and everything that needs locals happens in here. */
+ * behind the initialisation of one. So the thread at the end only loops
+ * and waits, and everything that needs locals happens in functions. */
 
 static void shell_line_process(process_shell_t *s, const struct process *p)
 {
@@ -387,16 +388,139 @@ static uint8_t shell_command(process_shell_t *s, struct process *self, uint8_t c
 
 #endif /* SHELL_CONF_READONLY */
 
-#define SHELL_WRITE_OUT() \
-  do { \
-    PROCESS_PIPE_WRITE(self->out, self->n); \
-    self->n = 0; \
-  } while (0)
+/* What the shell still has to say (s->list). An answer is produced one
+ * line at a time: the thread asks for the next piece, writes it, and asks
+ * again. That leaves the thread with one place where it writes and one
+ * where it reads, and everything else in plain functions. */
+#define SHELL_SAY_NOTHING 0    /* the shell reads a line                  */
+#define SHELL_SAY_PROMPT  '>'
+#define SHELL_SAY_OK      'o'
+#define SHELL_SAY_NO      '?'
+#define SHELL_SAY_HELP    'h'
+#define SHELL_SAY_LOADING 'g'  /* nothing: the loader has the line        */
+/* 'p' 'm' 'i' 'l': the lists, named after their commands */
+
+// the next piece of the answer into s->out; nothing when there is none
+static void shell_more(process_shell_t *s)
+{
+  while (s->n == 0 && s->list != SHELL_SAY_NOTHING && s->list != SHELL_SAY_LOADING)
+  {
+    uint8_t list = s->list;
+
+    s->list = SHELL_SAY_PROMPT; // what follows, unless the list goes on
+
+    if (list == 'p' || list == 'i')
+    {
+      if (s->it != NULL)
+      {
+        if (list == 'p')
+          shell_line_process(s, s->it);
+        else
+          shell_line_ipc(s, s->it);
+        s->it = process_next(s->it);
+        s->list = list;
+      }
+    }
+    else if (list == 'm')
+    {
+      if (s->i < shell_module_count + SHELL_SLOTS)
+      {
+        shell_line_module(s, s->i++);
+        s->list = list;
+      }
+    }
+    else if (list == 'l')
+    {
+      const struct error_info *e = process_log_entry(s->i++);
+
+      if (e != NULL)
+      {
+        shell_line_log(s, e);
+        s->list = list;
+      }
+    }
+    else if (list == SHELL_SAY_HELP)
+    {
+      char c;
+
+      while ((c = (char)pgm_read_byte(s->text)) != 0 && s->n < sizeof(s->out))
+      {
+        shell_put(s, c);
+        s->text++;
+      }
+      if (c != 0)
+        s->list = list;
+    }
+    else if (list == SHELL_SAY_PROMPT)
+    {
+      shell_put(s, '>');
+      shell_put(s, ' ');
+      s->list = SHELL_SAY_NOTHING;
+    }
+    else
+    {
+      if (list == SHELL_SAY_OK)
+      {
+        shell_put(s, 'o');
+        shell_put(s, 'k');
+      }
+      else
+      {
+        shell_put(s, '?');
+      }
+      shell_eol(s);
+    }
+  }
+}
+
+// the character in s->byte: one more of the line, or the end of it
+static void shell_key(process_shell_t *s, struct process *self)
+{
+  uint8_t c = s->byte;
+
+  if (c == '\r' || c == '\n')
+  {
+    s->line[s->len] = 0;
+    s->len = 0;
+    shell_eol(s);
+
+    /* ---- the command: a list, or one that ends in "ok" or "?" ---- */
+    c = shell_first(s);
+    s->i = 0;
+    s->it = process_next(NULL);
+    s->text = shell_help;
+
+    if (c == 0)
+      s->list = SHELL_SAY_PROMPT; // an empty line
+    else if (c == 'p' || c == 'm' || c == 'i' || c == 'l')
+      s->list = c;
+    else if (c == 'h' || c == '?')
+      s->list = SHELL_SAY_HELP;
+    else
+    {
+      c = shell_command(s, self, c);
+      s->list = c == 2 ? SHELL_SAY_LOADING : c ? SHELL_SAY_OK : SHELL_SAY_NO;
+    }
+    return;
+  }
+
+  if (c == 8 || c == 127)
+  {
+    if (s->len > 0)
+      s->len--;
+  }
+  else if (s->len < sizeof(s->line) - 1)
+  {
+    s->line[s->len++] = (char)c;
+  }
+#if SHELL_CONF_ECHO
+  shell_put(s, (char)c);
+#endif
+}
 
 PROCESS_THREAD(shell, ev, data)
 {
   process_shell_t *self = PROCESS_SELF(shell);
-  uint8_t cmd;
   (void)ev;
   (void)data;
 
@@ -406,116 +530,34 @@ PROCESS_THREAD(shell, ev, data)
    * writes to what the device transmits. */
   process_connect(SHELL_CONF_DEVICE, pt_process);
   process_connect(pt_process, SHELL_CONF_DEVICE);
+  self->list = SHELL_SAY_PROMPT;
 
   while (1)
   {
-    shell_put(self, '>');
-    shell_put(self, ' ');
-    SHELL_WRITE_OUT();
-
-    /* ---- a line ---- */
-    self->len = 0;
-    while (1)
+    /* ---- whatever there is to say, a piece at a time ---- */
+    shell_more(self);
+    if (self->n > 0)
     {
-      PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
-      ipc_pipe_read(PROCESS_PIPEIN(), &self->byte, 1);
-
-      if (self->byte == '\r' || self->byte == '\n')
-        break;
-      if (self->byte == 8 || self->byte == 127)
-      {
-        if (self->len > 0)
-          self->len--;
-      }
-      else if (self->len < sizeof(self->line) - 1)
-      {
-        self->line[self->len++] = (char)self->byte;
-      }
-#if SHELL_CONF_ECHO
-      PROCESS_PIPE_WRITE(&self->byte, 1);
-#endif
-    }
-    self->line[self->len] = 0;
-    shell_eol(self);
-    SHELL_WRITE_OUT();
-
-    if (self->len == 0)
-      continue;
-
-    /* ---- the command: lists write their own lines, the others end in
-     * "ok" or "?". No switch: a protothread cannot wait inside one. ---- */
-    cmd = shell_first(self);
-
-    if (cmd == 'p')
-    {
-      for (self->it = process_next(NULL); self->it != NULL; self->it = process_next(self->it))
-      {
-        shell_line_process(self, self->it);
-        SHELL_WRITE_OUT();
-      }
+      PROCESS_PIPE_WRITE(self->out, self->n);
+      self->n = 0;
       continue;
     }
-
-    if (cmd == 'm')
-    {
-      for (self->i = 0; self->i < shell_module_count + SHELL_SLOTS; self->i++)
-      {
-        shell_line_module(self, self->i);
-        SHELL_WRITE_OUT();
-      }
-      continue;
-    }
-
-    if (cmd == 'i')
-    {
-      for (self->it = process_next(NULL); self->it != NULL; self->it = process_next(self->it))
-      {
-        shell_line_ipc(self, self->it);
-        SHELL_WRITE_OUT();
-      }
-      continue;
-    }
-
-    if (cmd == 'l')
-    {
-      for (self->i = 0; process_log_entry(self->i) != NULL; self->i++)
-      {
-        shell_line_log(self, process_log_entry(self->i));
-        SHELL_WRITE_OUT();
-      }
-      continue;
-    }
-
-    if (cmd == 'h' || cmd == '?')
-    {
-      for (self->text = shell_help; (self->byte = pgm_read_byte(self->text)) != 0; self->text++)
-        PROCESS_PIPE_WRITE(&self->byte, 1);
-      continue;
-    }
-
-    self->byte = shell_command(self, pt_process, cmd);
 
 #if SHELL_LOADER
-    if (self->byte == 2)
+    if (self->list == SHELL_SAY_LOADING)
     {
       /* "get": the loader has the line and gives it back when it ends. The
        * tick brings us round to look. */
       PROCESS_WAIT_EVENT_UNTIL(!loader_is_running());
-      self->byte = module_is_installed(self->i);
+      self->list = module_is_installed(self->i) ? SHELL_SAY_OK : SHELL_SAY_NO;
+      continue;
     }
 #endif
 
-    if (self->byte)
-    {
-      shell_put(self, 'o');
-      shell_put(self, 'k');
-    }
-    else
-    {
-      shell_put(self, '?');
-    }
-    shell_eol(self);
-    SHELL_WRITE_OUT();
+    /* ---- nothing: the next character of a line ---- */
+    PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
+    ipc_pipe_read(PROCESS_PIPEIN(), &self->byte, 1);
+    shell_key(self, pt_process);
   }
 
   PT_FINALLY(&pt_process->pt)
