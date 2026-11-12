@@ -24,6 +24,8 @@ avr-gcc -Os -mmcu=atmega328p -DF_CPU=16000000UL -DBOOT_START=0x7800UL -o $F/jump
 SEG="-Os -mmcu=atmega328p -DF_CPU=16000000UL -Wl,--section-start=.block1=0x5000 -Wl,--section-start=.block2=0x5800"
 avr-gcc $SEG -o $F/seg4.elf seg_app.c
 avr-gcc $SEG -DFIVE -Wl,--section-start=.block3=0x6000 -o $F/seg5.elf seg_app.c
+# images that report the reset cause the bootloader hands them; stripped, for the run inside protosim
+for T in S T; do avr-gcc -Os -mmcu=atmega328p -DF_CPU=16000000UL "-DTAG='$T'" -o $F/cause_app-$T.elf cause_app.c && avr-strip $F/cause_app-$T.elf; done
 head -c 4000 /dev/urandom > $F/junk.bin
 # protoduino example 12, unmodified, with a three-line stand-in for the Arduino core
 C="-Os -g -mmcu=atmega328p -DF_CPU=16000000UL -I$PD/src -I$PD/src/sys"

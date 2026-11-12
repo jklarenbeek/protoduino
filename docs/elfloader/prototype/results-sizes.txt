@@ -1,9 +1,9 @@
 == bootloader, bytes of flash (text) and RAM (bss) ==
 smallest                           atmega328p  text= 1872 data=0 bss= 377
-default                            atmega328p  text= 1932 data=0 bss= 377
-default + page service             atmega328p  text= 1944 data=0 bss= 377
-default + load thread              atmega328p  text= 2022 data=0 bss= 379
-everything                         atmega328p  text= 2336 data=0 bss= 383
+default                            atmega328p  text= 1930 data=0 bss= 377
+default + page service             atmega328p  text= 1942 data=0 bss= 377
+default + load thread              atmega328p  text= 2020 data=0 bss= 379
+everything                         atmega328p  text= 2334 data=0 bss= 383
 smallest                           atmega1284p text= 2278 data=0 bss= 525
 default                            atmega1284p text= 2338 data=0 bss= 525
 default + page service             atmega1284p text= 2350 data=0 bss= 525
@@ -17,19 +17,19 @@ everything                         atmega2560  text= 2950 data=0 bss= 532
 default, virtual reset, soft uart  attiny85    text= 1958 data=0 bss= 313
 
 == one option at a time, ATmega328P, relative to the default ==
-without family-check                   -12  (1920)
-without image-crc                      -14  (1918)
-without watchdog care (unsafe)         -44  (1888)
-wait after every reset                 -22  (1910)
-wait after the reset pin only           -2  (1930)
-without uart-reset                     -12  (1920)
-merge-segments                         +62  (1994)
-page-service                           +12  (1944)
-load-thread (with page-service)        +90  (2022)
-signature                              +50  (1982)
-eeprom                                 +68  (2000)
-info                                   +94  (2026)
-verify-at-start                        +48  (1980)
+without family-check                   -12  (1918)
+without image-crc                      -14  (1916)
+without watchdog care (unsafe)         -42  (1888)
+wait after every reset                 -20  (1910)
+wait also after power-on, brown-out     +2  (1932)
+without uart-reset                     -12  (1918)
+merge-segments                         +62  (1992)
+page-service                           +12  (1942)
+load-thread (with page-service)        +90  (2020)
+signature                              +50  (1980)
+eeprom                                 +68  (1998)
+info                                   +94  (2024)
+verify-at-start                        +48  (1978)
 
 == test kernel on the real scheduler, ATmega328P (kernel/kernel.c) ==
 none           text= 3924 data= 10 bss= 394

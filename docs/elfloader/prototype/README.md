@@ -20,6 +20,7 @@ Nothing here is library code, and nothing under `src/` was changed.
 | `simprobes/` | Programs behind the simavr and protosim findings. |
 | `make_fixtures.sh` | Builds the files the tests send, and the test kernels with their modules. |
 | `run_tests.sh`, `run_modules.sh` | The simulated scenarios T1 to T29 (ATmega328P, ATmega1284P, ATmega2560) and M1 to M12 (ATmega328P, ATmega2560). |
+| `run_protosim.sh`, `protosim_e2e.py`, `cause_app.c` | P1 to P5: the default bootloader inside protosim itself. The script sends files with XMODEM over protosim's PTY and resets the part through protosim (SIGUSR1 reset pin, SIGUSR2 power cycle). |
 | `results-*.txt` | Recorded output: sizes, block filling, T tests, M tests, library probes, simulator probes. |
 
 Requirements: `gcc-avr`, `avr-libc`, `binutils-avr`, `libelf-dev`, and protosim built
@@ -42,6 +43,7 @@ gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
 ./fit.sh atmega328p 2048
 ./fit.sh atmega2560      # its standard section: 4 KB
 ./sizes.sh
+./run_protosim.sh       # P1..P5: the bootloader in protosim: power-on, reset pin, upload
 probes/run_probes.sh    # the library findings of section 7
 
 # stream on the host
@@ -68,8 +70,9 @@ with the clock header widened in a copy of the library, on the ATmega2560; simav
 ATmega2560 core has no signature row, so the signature check runs on the ATmega328P
 and ATmega1284P only; simavr's ELF reader loses the last flash byte, which the harness
 puts back so that the service table is tested where it really is; simavr records
-neither a reset through the pin nor a brown-out, so the tests that depend on the reset
-cause write it into `MCUSR` (`--then-reset`, `--set-mcusr`).
+neither a reset through the pin nor a brown-out, so the harness writes the cause into
+`MCUSR` after each reset it makes, as protosim does since it has reset causes
+(`--reset-at`, `--reset-cause`, SIGUSR1 and SIGUSR2).
 
 The document is rebuilt with `node ../render.mjs` (needs the `playwright` package and
 the Inter and DejaVu Sans Mono fonts).

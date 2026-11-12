@@ -1,0 +1,19 @@
+P1 empty part, power-on: the bootloader probes; a file is sent
+  [PASS] the bootloader probes
+  [PASS] 7 blocks acknowledged, the image starts and reads cause 01 (power-on)  ........[S 01 00]
+P2 power cycle (SIGUSR2): the image starts at once
+  [PASS] no probe before the image, cause 01  [S 01 00]
+P3 reset pin (SIGUSR1): the bootloader waits; a second file is sent
+  [PASS] the bootloader probes  C
+  [PASS] 7 blocks acknowledged, the new image starts and reads cause 02 (reset pin)  ........[T 02 00]
+P4 reset pin, nobody sends: three probes, then the image
+  [PASS] CCC and the image, cause 02  CCC[T 02 00]
+P5 power cycle: the new image starts at once
+  [PASS] no probe before the image, cause 01  [T 01 00]
+protosim log:
+  [RST] Reset vector 0x7800
+  [RST] power-on reset at 1013.848 ms → PC=0x7800 MCUSR=0x01
+  [RST] pin reset at 1020.197 ms → PC=0x7800 MCUSR=0x02
+  [RST] pin reset at 2035.546 ms → PC=0x7800 MCUSR=0x02
+  [RST] power-on reset at 5843.984 ms → PC=0x7800 MCUSR=0x01
+all passed

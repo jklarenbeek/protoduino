@@ -18,7 +18,7 @@ FEATURES=(
   "page-service:-DBOOT_CONF_PAGE_SERVICE=1"
   "load-thread:-DBOOT_CONF_LOAD_SERVICE=1 -DBOOT_CONF_PAGE_SERVICE=1"
   "image-crc:-DBOOT_CONF_IMAGE_CRC=1"
-  "quick-restart:-DBOOT_CONF_WINDOW_AFTER=7"
+  "pin-only:-DBOOT_CONF_WINDOW_AFTER=2"
   "uart-reset:-DBOOT_CONF_UART_RESET=1"
   "merge-segments:-DELF_CONF_COALESCE=1"
   "signature:-DELF_CONF_SIGNATURE=1"

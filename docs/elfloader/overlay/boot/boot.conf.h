@@ -70,15 +70,16 @@
 // starts the image, as a mask of MCUSR flags: 1 power-on, 2 reset pin,
 // 4 brown-out, 8 watchdog. After any other reset a complete image starts
 // at once.
-//    7   not after a watchdog reset: an image that hung is back at once,
-//        and no probe goes out on its serial line
-//   15   wait after every reset
 //    2   only after the reset pin was pulled, which is what an upload tool
-//        does; the rule Optiboot uses
+//        and a reset button do; the rule Optiboot uses. A board starts at
+//        once when power comes on.
+//    7   also after power-on and brown-out, for a board without a reset
+//        line that is updated by cycling its power
+//   15   after every reset
 // An image that jumps to the bootloader is always waited for: it wants to
 // be replaced. Needs BOOT_CONF_WATCHDOG.
 #ifndef BOOT_CONF_WINDOW_AFTER
-#define BOOT_CONF_WINDOW_AFTER 7
+#define BOOT_CONF_WINDOW_AFTER 2
 #endif
 
 // the watchdog control register under its two names

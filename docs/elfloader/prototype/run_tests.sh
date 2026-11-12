@@ -42,17 +42,17 @@ run "T21 2560: the same for a page above 64 KB" atmega2560 "out/2560 service.elf
 # the watchdog and the reset cause
 ./build.sh "328P nowatchdog" atmega328p 0x7800 -DBOOT_CONF_WATCHDOG=0 >/dev/null
 ./build.sh "328P every" atmega328p 0x7800 -DBOOT_CONF_WINDOW_AFTER=15 >/dev/null
-./build.sh "328P pin" atmega328p 0x7800 -DBOOT_CONF_WINDOW_AFTER=2 >/dev/null
+./build.sh "328P power" atmega328p 0x7800 -DBOOT_CONF_WINDOW_AFTER=7 >/dev/null
 run "T22 328P: an image that the watchdog resets after 250 ms; bootloader built without watchdog care. The control" atmega328p "out/328P nowatchdog.elf" $E/wdt_app-atmega328p.elf --watch 30 --watch-loop
-run "T23 328P: the same image, default bootloader, which does not wait after a watchdog reset" atmega328p "out/328P base.elf" $E/wdt_app-atmega328p.elf --watch 30
+run "T23 328P: the same image, default bootloader, which waits only after a reset through the pin" atmega328p "out/328P base.elf" $E/wdt_app-atmega328p.elf --watch 30
 run "T24 328P: the same image, bootloader that waits after every reset (BOOT_CONF_WINDOW_AFTER=15)" atmega328p "out/328P every.elf" $E/wdt_app-atmega328p.elf --watch 30
 run "T25 2560, every option in the 4 KB section: the same image" atmega2560 "out/2560 full.elf" $E/wdt_app-atmega2560.elf --watch 30
 echo; echo "=== T26 328P: a reset with each cause and nobody sending, for three settings of BOOT_CONF_WINDOW_AFTER ==="
-for B in "base:7, the default: not after a watchdog reset" "every:15, wait after every reset" "pin:2, only after the reset pin"; do
+for B in "base:2, the default: only after the reset pin" "power:7, also after power-on and brown-out" "every:15, after every reset"; do
   echo "-- ${B#*:} --"
   ./sim_harness atmega328p "out/328P ${B%%:*}.elf" $E/app-atmega328p.elf --then-reset 1 --then-reset 2 --then-reset 4 --then-reset 8 --then-reset 0 2>&1 | grep "^reset with"
 done
-run "T27 328P: a running image, interrupts and timer on, UART at 300 baud, jumps to the bootloader (reset pin only build)" atmega328p "out/328P pin.elf" $E/jump_app.elf --expect-jump
+run "T27 328P: a running image, interrupts and timer on, UART at 300 baud, jumps to the bootloader" atmega328p "out/328P base.elf" $E/jump_app.elf --expect-jump
 run "T28 328P: firmware with four flash segments: code, initial data and two blocks at fixed addresses" atmega328p "out/328P base.elf" $E/seg4.elf
 run "T29 328P: the same with a fifth segment" atmega328p "out/328P base.elf" $E/seg4.elf --send $E/seg5.elf --expect-refusal
 echo; echo "--- probe timing: no sender, when each 'C' arrives (ATmega328P, then ATmega2560)"

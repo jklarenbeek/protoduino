@@ -59,6 +59,16 @@ static void load_firmware(avr_t *a, elf_firmware_t *f)
   if (last >= 0) a->flash[a->flashend] = (uint8_t)last;
 }
 
+/* A reset through the pin, as an upload tool or a reset button makes it. simavr clears MCUSR
+ * at a reset and records no cause but the watchdog; protosim adds the cause the same way. */
+#define CAUSE_PIN 0x02
+static void reset_part(avr_t *a, avr_flashaddr_t pc, uint8_t cause)
+{
+  avr_reset(a);
+  a->pc = pc;
+  a->data[0x54] = cause;                                   /* MCUSR */
+}
+
 static uint16_t crc16(const uint8_t *p, int n)
 {
   uint16_t c = 0;
@@ -327,7 +337,7 @@ int main(int argc, char **argv)
     file_len = fread(file, 1, 1 << 22, f); fclose(f);
     nblocks = (file_len + 127) / 128;
     cur_blk = 0; finished = 0; refused = -1; eot_acked = 0; after_can = 0; txq_len = txq_pos = 0;
-    avr_reset(avr); avr->pc = boot_start;
+    reset_part(avr, boot_start, CAUSE_PIN);
     avr_cycle_timer_register(avr, 2000, pump, NULL);      /* reset drops pending timers */
     uint64_t t0 = avr->cycle; app_pc_seen = 0; int saw_refusal = -1;
     while (avr->cycle < t0 + max_cycles) {
@@ -363,8 +373,7 @@ int main(int argc, char **argv)
   for (int k = 0; k < n_then_reset && app_pc_seen; k++) {
     unsigned probes_before = c_probes;
     cur_blk = 0xFFFF; c_probes = 0; finished = 0; txq_len = txq_pos = 0;
-    avr_reset(avr); avr->pc = boot_start;
-    avr->data[0x54] = (uint8_t)then_reset[k];
+    reset_part(avr, boot_start, (uint8_t)then_reset[k]);
     uint64_t t0 = avr->cycle; int started = 0;
     while (avr->cycle < t0 + 8 * 16000000ull) {
       state = avr_run(avr);
@@ -401,7 +410,7 @@ int main(int argc, char **argv)
     avr->flash[damage] ^= 0x01;
     unsigned probes_before = c_probes;
     cur_blk = 0xFFFF; c_probes = 0; finished = 0; txq_len = txq_pos = 0;   /* nobody answers the probes */
-    avr_reset(avr); avr->pc = boot_start;
+    reset_part(avr, boot_start, CAUSE_PIN);
     avr_cycle_timer_register(avr, 2000, pump, NULL);
     uint64_t t0 = avr->cycle; int started = 0;
     while (avr->cycle < t0 + 8 * 16000000ull) {
