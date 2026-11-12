@@ -40,7 +40,12 @@ A mathematically rigorous 8-bit taxonomy for system states, events, and errors.
 - **Implementation**: [`src/sys/errors.h`](./src/sys/errors.h), [`src/sys/events.h`](./src/sys/events.h)
 - **Reference**: [Common Error Codes](./docs/common-errors.md), [Common Events](./docs/common-events.md)
 
-### 5. [Unicode & UTF-8 Support](./docs/unicode.md)
+### 5. [Modules, Shell and Loader](./docs/loader.md)
+Process types you connect instead of write, a command line for a running system, and modules that arrive over the serial line while the system runs.
+- **Implementation**: [`src/mod/`](./src/mod), [`src/sys/module.h`](./src/sys/module.h), [`src/sys/elf.h`](./src/sys/elf.h), [`boot/`](./boot)
+- **Features**: `ticker | blink` style pipes with `process_connect`, a shell that fits an ATtiny85, flash slots, a 2 KB bootloader that takes the unmodified `.elf` file.
+
+### 6. [Unicode & UTF-8 Support](./docs/unicode.md)
 Professional text handling ported from Plan 9, suitable for internationalized displays. UTF-8 everywhere, flash-resident classification tables, verified on-target under protosim.
 - **Implementation**: [`src/lib/text/utf8.h`](./src/lib/text/utf8.h), [`src/lib/text/rune16.h`](./src/lib/text/rune16.h), [`src/lib/text/rune32.h`](./src/lib/text/rune32.h)
 
@@ -131,7 +136,9 @@ Most examples in this repository include a `.ino` file. These folders also defin
 | [**Ontology**](./docs/ontology.md) | The mathematical framework for error/event duality. |
 | [**Common Errors**](./docs/common-errors.md) | Comprehensive list of ontological error codes. |
 | [**Common Events**](./docs/common-events.md) | Comprehensive list of ontological event codes. |
-| [**Module Loader**](./docs/loader.md) | *Experimental* runtime code loading. |
+| [**Modules, Shell and Loader**](./docs/loader.md) | Modules, the shell, flash slots, the bootloader and the host tools. |
+| [**ELF Loader Design**](./docs/elf-loader-design.pdf) | Functional and technical design of the streaming ELF loader and the bootloader, with measurements. |
+| [**The Examples**](./examples/README.md) | The examples as a course, track by track. |
 | [**Unicode**](./docs/unicode.md) | UTF-8 codec strictness, rune16/rune32 tables, `PROTODUINO_UNICODE_LEVEL`. |
 | [**mcurses**](./docs/mcurses.md) | Lean terminal output driver — VT/ANSI escapes over an `ipc_pipe_t`. |
 | [**TUI**](./docs/tui.md) | Damage-tracked, Clay-inspired terminal UI layout engine (output side). |
@@ -142,10 +149,14 @@ Most examples in this repository include a `.ino` file. These folders also defin
 
 ## 📂 Project Structure
 
-- `src/sys/`: Core kernel, protothreads, and IPC implementation.
+- `src/sys/`: Core kernel, protothreads, IPC, the ELF stream and the load thread.
+- `src/mod/`: Modules: process types in a header each (ticker, blink, upper, vcc, shell, loader).
 - `src/lib/`: Utility libraries (UTF-8, math, ring buffers).
-- `src/cpu/avr/`: Hardware-specific UART and clock drivers.
-- `examples/`: Step-by-step tutorials from basic to advanced.
+- `src/cpu/avr/`: Hardware-specific UART, clock and flash drivers.
+- `boot/`: The bootloader and the script that builds it.
+- `ld/`: Linker script of a loadable module.
+- `tools/`: Host tools: build a module, talk to a shell, build and test sketches for the simulator.
+- `examples/`: A course in six tracks, from a single protothread to a system that loads modules ([overview](./examples/README.md)).
 - `docs/`: In-depth technical references and specifications.
 
 ---
