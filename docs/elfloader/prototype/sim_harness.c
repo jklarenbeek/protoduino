@@ -9,6 +9,16 @@
  *                    [--damage ADDR]         after the install: flip a bit of the image, reset;
  *                                            the image must not be started
  *                    [--damage-control ADDR] the same, where the image is expected to start
+ *                    [--watch SECONDS]       after the install: keep running, count how often
+ *                                            the part was reset and how often the image started
+ *                    [--set-mcusr VALUE]     reset cause the part finds at its first start
+ *                    [--expect-jump]         the image jumps to the bootloader by itself; answer its
+ *                                            probe and send the file once more
+ *                    [--watch-loop]          with --watch: the control, where the image must not
+ *                                            start again
+ *                    [--then-reset VALUE]    after the install: reset with this cause in MCUSR
+ *                                            (0: no reset, a jump to the bootloader) and report
+ *                                            when the image starts; may be given several times
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +45,19 @@ static uint64_t t_first_block, t_eot_ack;
 static char devtext[400]; static int devtext_len;
 static char posttext[400]; static int posttext_len; static int collect_all;
 static int ask_info;                    /* 1 = ask at the first probe, 2 = reply is arriving */
+
+/* simavr's own loader, plus the one byte it loses: it takes the last flash address as its
+ * limit, so a chunk that ends on the last byte of flash arrives one byte short. The loader
+ * frees the chunks, so the byte is picked up before it runs. */
+static void load_firmware(avr_t *a, elf_firmware_t *f)
+{
+  int last = -1;
+  for (fw_chunk_t *c = f->chunks; c; c = c->next)
+    if (c->addr < AVR_SEGMENT_OFFSET_DATA && c->size && c->addr + c->size == a->flashend + 1)
+      last = c->data[c->size - 1];
+  avr_load_firmware(a, f);
+  if (last >= 0) a->flash[a->flashend] = (uint8_t)last;
+}
 
 static uint16_t crc16(const uint8_t *p, int n)
 {
@@ -108,7 +131,7 @@ int main(int argc, char **argv)
 {
   if (argc < 4) { fprintf(stderr, "usage\n"); return 2; }
   const char *mcu = argv[1], *boot = argv[2], *app = argv[3], *send = argv[3];
-  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0; const char *kernel_elf = NULL; int preinstall = 0, no_send = 0, probe_times = 0; long dump_addr = 0, dump_len = 0; uint64_t settle = 4000000ull; int page_bad = 0; unsigned long slot_lo = 0x6000, slot_hi = 0x7000; long damage = -1; int damage_starts = 0, damage_bad = 0;
+  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0; const char *kernel_elf = NULL; int preinstall = 0, no_send = 0, probe_times = 0; long dump_addr = 0, dump_len = 0; uint64_t settle = 4000000ull; int page_bad = 0; unsigned long slot_lo = 0x6000, slot_hi = 0x7000; long damage = -1; int damage_starts = 0, damage_bad = 0; double watch = 0; long set_mcusr = -1; long then_reset[8]; int n_then_reset = 0; int expect_jump = 0, watch_loop = 0, extra_bad = 0;
   for (int i = 4; i < argc; i++) {
     if (!strcmp(argv[i], "--corrupt")) corrupt_blk = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--drop-ack")) drop_ack_blk = atoi(argv[++i]);
@@ -126,6 +149,11 @@ int main(int argc, char **argv)
     else if (!strcmp(argv[i], "--ask-info")) ask_info = 1;
     else if (!strcmp(argv[i], "--damage")) damage = strtol(argv[++i], 0, 0);
     else if (!strcmp(argv[i], "--damage-control")) { damage = strtol(argv[++i], 0, 0); damage_starts = 1; }
+    else if (!strcmp(argv[i], "--watch")) watch = atof(argv[++i]);
+    else if (!strcmp(argv[i], "--set-mcusr")) set_mcusr = strtol(argv[++i], 0, 0);
+    else if (!strcmp(argv[i], "--expect-jump")) expect_jump = 1;
+    else if (!strcmp(argv[i], "--watch-loop")) watch_loop = 1;
+    else if (!strcmp(argv[i], "--then-reset")) { if (n_then_reset < 8) then_reset[n_then_reset++] = strtol(argv[++i], 0, 0); }
     else if (!strcmp(argv[i], "--slot")) { slot_lo = strtoul(argv[++i], 0, 0); slot_hi = strtoul(argv[++i], 0, 0); }
     else if (!strcmp(argv[i], "--fallthrough")) { fall_addr = strtol(argv[++i], 0, 0); fall_r31 = strtol(argv[++i], 0, 0); }
   }
@@ -160,9 +188,9 @@ int main(int argc, char **argv)
     }
     fclose(hf);
   } else {
-    avr_load_firmware(ob, &bl);
+    load_firmware(ob, &bl);
   }
-  avr_load_firmware(oa, &ap);
+  load_firmware(oa, &ap);
   uint32_t boot_start = 0, page = 0;
   while (boot_start <= ob->flashend && ob->flash[boot_start] == 0xFF) boot_start++;   /* first loader byte */
   if (boot_start == 0 || boot_start > ob->flashend) { fprintf(stderr, "loader has no base address\n"); return 2; }
@@ -176,6 +204,7 @@ int main(int argc, char **argv)
   memset(avr->flash, 0xFF, avr->flashend + 1);
   memcpy(avr->flash + boot_start, ob->flash + boot_start, avr->flashend + 1 - boot_start);
   avr->pc = avr->reset_pc = boot_start;            /* BOOTRST: reset enters the loader */
+  if (set_mcusr >= 0) avr->data[0x54] = (uint8_t)set_mcusr;   /* MCUSR: which reset this start follows */
   avr->codeend = avr->flashend;
   page = avr->flashend > 0xFFFF ? 256 : (avr->flashend > 0x1FFF ? 128 : 64);
   uint32_t rec = boot_start - page;
@@ -204,7 +233,7 @@ int main(int argc, char **argv)
     elf_firmware_t kf = {{0}};
     if (elf_read_firmware(kernel_elf, &kf)) { fprintf(stderr, "cannot read kernel ELF\n"); return 2; }
     avr_t *ok = avr_make_mcu_by_name(mcu); avr_init(ok); ok->log = LOG_ERROR;
-    memset(ok->flash, 0xFF, ok->flashend + 1); avr_load_firmware(ok, &kf);
+    memset(ok->flash, 0xFF, ok->flashend + 1); load_firmware(ok, &kf);
     for (uint32_t i = 0; i < boot_start; i++) if (ok->flash[i] != 0xFF) avr->flash[i] = ok->flash[i];
     avr->pc = avr->reset_pc = 0;
     if (preinstall) {
@@ -249,7 +278,7 @@ int main(int argc, char **argv)
     if (refused < 0) {
       elf_firmware_t sf = {{0}};
       avr_t *os = avr_make_mcu_by_name(mcu); avr_init(os); os->log = LOG_ERROR; memset(os->flash, 0xFF, os->flashend + 1);
-      if (!elf_read_firmware(send, &sf)) { avr_load_firmware(os, &sf); for (unsigned long i = slot_lo; i < slot_hi; i++) if (os->flash[i] != 0xFF) expect[i] = os->flash[i]; }
+      if (!elf_read_firmware(send, &sf)) { load_firmware(os, &sf); for (unsigned long i = slot_lo; i < slot_hi; i++) if (os->flash[i] != 0xFF) expect[i] = os->flash[i]; }
     }
     size_t mm = 0, used = 0, was = 0;
     for (unsigned long i = slot_lo; i < slot_hi; i++) { if (avr->flash[i] != 0xFF) used++; if (preinstall && oa->flash[i] != 0xFF) was++; if (avr->flash[i] != expect[i]) mm++; }
@@ -312,6 +341,60 @@ int main(int argc, char **argv)
     refused = -1;
   }
 
+  /* optional: the image jumps to the bootloader, which then has to wait for a sender although
+   * no reset happened. Its probe is answered with the same file once more. */
+  if (expect_jump && app_pc_seen) {
+    unsigned acks_before = acks;
+    cur_blk = 0; finished = 0; refused = -1; eot_acked = 0; after_can = 0; txq_len = txq_pos = 0;
+    uint64_t t0 = avr->cycle; int back_in_boot = 0, again = 0;
+    while (avr->cycle < t0 + 12 * 16000000ull) {
+      state = avr_run(avr);
+      if (state == cpu_Done || state == cpu_Crashed) break;
+      if (avr->pc >= boot_start) back_in_boot = 1;
+      if (back_in_boot && eot_acked && avr->pc < boot_start) { again = 1; break; }
+    }
+    printf("the image jumped to the bootloader: %s; file sent again: %u blocks acknowledged, image started again=%s\n",
+           back_in_boot ? "yes" : "no", acks - acks_before, again ? "yes" : "no");
+    if (!again) extra_bad = 1;
+  }
+
+  /* optional: resets with a chosen cause, with nobody sending. simavr records neither an
+   * external nor a brown-out reset, so the flag is put into MCUSR by hand. */
+  for (int k = 0; k < n_then_reset && app_pc_seen; k++) {
+    unsigned probes_before = c_probes;
+    cur_blk = 0xFFFF; c_probes = 0; finished = 0; txq_len = txq_pos = 0;
+    avr_reset(avr); avr->pc = boot_start;
+    avr->data[0x54] = (uint8_t)then_reset[k];
+    uint64_t t0 = avr->cycle; int started = 0;
+    while (avr->cycle < t0 + 8 * 16000000ull) {
+      state = avr_run(avr);
+      if (state == cpu_Done || state == cpu_Crashed) break;
+      if (avr->pc < boot_start) { started = 1; break; }
+    }
+    printf("reset with cause 0x%02lx (%s): image started=%s after %.3f s, probes sent=%u, cause handed to the image=0x%02x\n",
+           then_reset[k], then_reset[k] == 0 ? "a jump, no reset" : then_reset[k] == 1 ? "power-on" : then_reset[k] == 2 ? "reset pin" : then_reset[k] == 4 ? "brown-out" : then_reset[k] == 8 ? "watchdog" : "several",
+           started ? "yes" : "no", (avr->cycle - t0) / 16e6, c_probes, avr->data[0x3e]);
+    c_probes = probes_before; finished = 1;
+  }
+
+  /* optional: watch the part after the install. Every watchdog reset enters the bootloader at
+   * its first address; an image start is the first instruction executed below the bootloader. */
+  if (watch > 0 && app_pc_seen) {
+    uint64_t t0 = avr->cycle, tl = 0; unsigned resets = 0, starts = 1; int in_boot = 0;
+    while (tl < (uint64_t)(watch * 16e6)) {
+      avr_flashaddr_t before = avr->pc; uint64_t c0 = avr->cycle;
+      state = avr_run(avr);
+      if (state == cpu_Done || state == cpu_Crashed) break;
+      tl += avr->cycle >= c0 ? avr->cycle - c0 : 0;            /* a reset restarts the cycle counter */
+      if (avr->pc == boot_start && before != boot_start) { resets++; in_boot = 1; if (resets <= 3) printf("reset %u, %.3f s after the install\n", resets, tl / 16e6); }
+      if (in_boot && avr->pc < boot_start) { starts++; in_boot = 0; }
+    }
+    (void)t0;
+    printf("watched %.1f s after the install: the part was reset %u times, the image started %u times\n", watch, resets, starts);
+    printf("what the image printed    : %.*s\n", posttext_len > 120 ? 120 : posttext_len, posttext);
+    if (watch_loop ? starts != 1 : starts < 2) extra_bad = 1;
+  }
+
   /* optional: the image is damaged after it was installed. A bootloader that checks
    * the image CRC at every start must not start it; one that does not, will. */
   if (damage >= 0 && app_pc_seen) {
@@ -365,5 +448,5 @@ int main(int argc, char **argv)
     avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &d);
     printf("eeprom[0..4]: %02x %02x %02x %02x %02x\n", ee[0], ee[1], ee[2], ee[3], ee[4]); }
   if (expect_refusal) return refused >= 0 && !app_pc_seen ? 0 : 1;
-  return (mism == 0 && app_pc_seen && !page_bad && !damage_bad) ? 0 : 1;
+  return (mism == 0 && app_pc_seen && !page_bad && !damage_bad && !extra_bad) ? 0 : 1;
 }

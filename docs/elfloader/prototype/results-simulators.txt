@@ -75,3 +75,13 @@ atmega2560 (device signature 1e 98 01; flash bytes 0, 2, 4 of the probe are 0c 7
   signature read with RAMPZ=0: 0c 72 0c
   signature read with RAMPZ=1: 0c 72 0c
   DONE
+
+== wdt_probe: the watchdog after a watchdog reset, left alone by software (ATmega328P, through protosim) ==
+each line is one start: MCUSR, WDTCSR, then a dot every 10 ms until the next reset. A chip resets after 16 ms.
+  m01 w00   -> 0 dots, 0 ms
+  m08 w08   -> 28 dots, 280 ms
+  m08 w08   -> 29 dots, 290 ms
+  m08 w08   -> 31 dots, 310 ms
+  m08 w08   -> 32 dots, 320 ms
+  m08 w08   -> 34 dots, 340 ms
+  m08 w08   -> 36 dots, 360 ms

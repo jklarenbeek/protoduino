@@ -3,8 +3,9 @@
 # Builds the bootloader of ../overlay/boot against the library in ../../../src.
 # <boot_start> "default" takes the boot section boot.conf.h assumes for the part:
 # 2 KB up to 64 KB of flash, 4 KB above.
-# SVC_BACK=n places the service table n bytes below the end of flash (simavr's
-# ELF reader cannot load the last flash byte, so tests use SVC_BACK=4).
+# SVC_BACK=n places the service table n bytes below the end of flash, for a
+# simulator that cannot load the last flash byte. The harness here restores
+# that byte, so the tests use the real layout.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; mkdir -p "$HERE/out"
 OVL="$HERE/../overlay"; LIB="$HERE/../../../src"

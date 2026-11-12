@@ -4,10 +4,10 @@
 # Needs make_fixtures.sh to have been run.
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"
 K="$HERE/kernel"; E="${FIXTURES:-$HERE/fixtures}"
-# a 2 KB boot section that offers the load thread: the configuration fit.sh selects for this block.
-# The simulator needs the service table four bytes lower (SVC_BACK); it still fits.
-SVC_BACK=4 ./build.sh "328P rom" atmega328p 0x7800 -DBOOT_CONF_LOAD_SERVICE=1 >/dev/null
-SVC_BACK=4 ./build.sh "328P page" atmega328p 0x7800 -DBOOT_CONF_PAGE_SERVICE=1 >/dev/null
+# a 2 KB boot section that offers the load thread: the configuration fit.sh selects for this block,
+# with its service table in the last twelve bytes of flash.
+./build.sh "328P rom" atmega328p 0x7800 -DBOOT_CONF_LOAD_SERVICE=1 >/dev/null
+./build.sh "328P page" atmega328p 0x7800 -DBOOT_CONF_PAGE_SERVICE=1 >/dev/null
 ./build.sh "328P base" atmega328p 0x7800 >/dev/null
 run() { echo; echo "=== $1 ==="; shift; ./sim_harness "$@" 2>&1 | grep -v "^Loaded\|would overflow"; echo "exit=${PIPESTATUS[0]}"; }
 run "M1 protoduino bootloader (2 KB) that offers its load thread; the loader process schedules it" atmega328p "out/328P rom.elf" $K/module-rom.elf --kernel $K/kernel-rom.elf --send $K/module-rom.elf
@@ -23,12 +23,12 @@ run "M9 a module runs from slot 0; a second one, linked for slot 1, is loaded be
 # services through the far call of sys/bootrom.h. The kernel is built against a copy of the library
 # whose sys/clock.h accepts the part (see kernel/build_kernel.sh).
 FULL='-DBOOT_CONF_LOAD_SERVICE=1 -DBOOT_CONF_VERIFY=1 -DELF_CONF_EEPROM=1 -DELF_CONF_SIGNATURE=1 -DBOOT_CONF_INFO=1'
-SVC_BACK=4 ./build.sh "2560 full" atmega2560 default $FULL '-DBOOT_CONF_INFO_TEXT="atmega2560"' >/dev/null
-SVC_BACK=4 ./build.sh "2560 page" atmega2560 default -DBOOT_CONF_PAGE_SERVICE=1 >/dev/null
+./build.sh "2560 full" atmega2560 default $FULL '-DBOOT_CONF_INFO_TEXT="atmega2560"' >/dev/null
+./build.sh "2560 page" atmega2560 default -DBOOT_CONF_PAGE_SERVICE=1 >/dev/null
 run "M10 2560: bootloader with every option in the 4 KB section; the loader process schedules its load thread" atmega2560 "out/2560 full.elf" $K/module-rom2560.elf --kernel $K/kernel-rom2560.elf --send $K/module-rom2560.elf
 run "M11 2560: bootloader with only the page service; the kernel links its own load thread" atmega2560 "out/2560 page.elf" $K/module-own2560.elf --kernel $K/kernel-own2560.elf --send $K/module-own2560.elf
 run "M12 2560: a module linked against another kernel build is offered" atmega2560 "out/2560 full.elf" $K/module-own2560.elf --kernel $K/kernel-rom2560.elf --send $K/module-own2560.elf --expect-refusal
 echo
 echo "=== experiment: the kernel and module of M1, built against a copy of process.c whose process_run() dispatches one event after the polls (FAIR=1) ==="
-(cd kernel && FAIR=1 ./build_kernel.sh fair -DMODULE_CONF_SUPPORT=2 -DLOADER_CONF_THREAD=1 -DFLASH_CONF_DRIVER=2 -DBOOTROM_CONF_TABLE=0x7FF0 >/dev/null)
+(cd kernel && FAIR=1 ./build_kernel.sh fair -DMODULE_CONF_SUPPORT=2 -DLOADER_CONF_THREAD=1 -DFLASH_CONF_DRIVER=2 >/dev/null)
 ./sim_harness atmega328p "out/328P rom.elf" $K/module-fair.elf --kernel $K/kernel-fair.elf --send $K/module-fair.elf 2>&1 | grep -v "^Loaded\|would overflow"; echo "exit=${PIPESTATUS[0]}"

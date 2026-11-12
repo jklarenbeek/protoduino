@@ -305,6 +305,10 @@ static CC_NO_INLINE ptstate_t boot_schedule(struct elf_load *self)
     }
     else
     {
+#if BOOT_CONF_WATCHDOG
+      // for a part whose fuses keep the watchdog running
+      __asm__ __volatile__ ("wdr");
+#endif
 #if BOOT_CONF_IDLE_DELAY > 0
       _delay_loop_1(BOOT_CONF_IDLE_DELAY);
 #endif
@@ -324,18 +328,48 @@ static CC_NO_INLINE ptstate_t boot_schedule(struct elf_load *self)
   return state;
 }
 
+#define BOOT_RESET_ANY (_BV(PORF) | _BV(EXTRF) | _BV(BORF) | _BV(WDRF))
+#if (BOOT_RESET_ANY != 15)
+#error "boot: the reset flags of this part are not where BOOT_CONF_WINDOW_AFTER expects them"
+#endif
+#define BOOT_WINDOW_ALWAYS \
+  (!BOOT_CONF_WATCHDOG || ((BOOT_CONF_WINDOW_AFTER) & BOOT_RESET_ANY) == BOOT_RESET_ANY)
+
+// true when this start should wait for a sender before the image starts.
+// A cause of 0 is no reset at all: the image jumped here because it wants
+// to be replaced.
+static CC_ALWAYS_INLINE bool boot_window_wanted(void)
+{
+#if BOOT_WINDOW_ALWAYS
+  return true;
+#else
+  uint8_t cause = BOOT_RESET_CAUSE;
+
+  return cause == 0 || (cause & (BOOT_CONF_WINDOW_AFTER)) != 0;
+#endif
+}
+
 void boot_main(void) __attribute__((noreturn, used, section(".init9")));
 void boot_main(void)
 {
   ptstate_t state;
+  bool wait = boot_window_wanted();
 
   boot_uart_open();
 
   for (;;)
   {
-    // a firmware image may use everything below the image record
-    elf_load_init(&boot_load, 0, BOOT_RECORD, ELF_LOAD_IMAGE, BOOT_CONF_WINDOW);
-    state = boot_schedule(&boot_load);
+    // PT_EXITED is what a silent line ends in. A reset that nobody uses to
+    // send a file, such as the watchdog stopping a hung image, goes there
+    // without waiting.
+    state = PT_EXITED;
+    if (wait)
+    {
+      // a firmware image may use everything below the image record
+      elf_load_init(&boot_load, 0, BOOT_RECORD, ELF_LOAD_IMAGE, BOOT_CONF_WINDOW);
+      state = boot_schedule(&boot_load);
+    }
+    wait = true;
 
     if (state == PT_ENDED)
     {
@@ -379,6 +413,20 @@ void boot_init(void)
     "clr r1\n"
     "out 0x3f, r1\n"); // SREG = 0: interrupts stay off in the bootloader
   SP = RAMEND;
+
+#if BOOT_CONF_WATCHDOG
+  // After a watchdog reset the watchdog is still running, at its shortest
+  // period, and stays on for as long as WDRF is set: a bootloader that
+  // waits for a sender would be reset again before the first probe. So the
+  // reset cause moves to where the image can read it, the flags are
+  // cleared, and the watchdog is switched off. Where a fuse keeps it on,
+  // that last write still gives it its longest period, and the scheduling
+  // loop feeds it.
+  BOOT_RESET_CAUSE = MCUSR;
+  MCUSR = 0;
+  BOOT_WDT = _BV(WDCE) | _BV(WDE);
+  BOOT_WDT = _BV(WDP3) | _BV(WDP0);
+#endif
 }
 
 /* ------------------------------------------------------------------ */

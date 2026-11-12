@@ -52,6 +52,41 @@
 #endif
 #endif
 
+// flag to take care of the watchdog. An application that is reset by the
+// watchdog, or that resets itself through it, leaves it running; without
+// this the bootloader is then reset over and over and the image never
+// starts again. Off only for a part that has no watchdog reset.
+#ifndef BOOT_CONF_WATCHDOG
+#define BOOT_CONF_WATCHDOG 1
+#endif
+
+// where the bootloader leaves the reset cause (the MCUSR it found) for the
+// image: MCUSR itself has to be cleared.
+#ifndef BOOT_RESET_CAUSE
+#define BOOT_RESET_CAUSE GPIOR0
+#endif
+
+// the reset causes after which the bootloader waits for a sender before it
+// starts the image, as a mask of MCUSR flags: 1 power-on, 2 reset pin,
+// 4 brown-out, 8 watchdog. After any other reset a complete image starts
+// at once.
+//   15   wait after every reset
+//    7   not after a watchdog reset: a hung image is back at once
+//    2   only after the reset pin was pulled, which is what an upload tool
+//        does; the rule Optiboot uses
+// An image that jumps to the bootloader is always waited for: it wants to
+// be replaced. Needs BOOT_CONF_WATCHDOG.
+#ifndef BOOT_CONF_WINDOW_AFTER
+#define BOOT_CONF_WINDOW_AFTER 15
+#endif
+
+// the watchdog control register under its two names
+#ifdef WDTCSR
+#define BOOT_WDT WDTCSR
+#else
+#define BOOT_WDT WDTCR
+#endif
+
 // flag to store a CRC-16 of the image in the image record.
 #ifndef BOOT_CONF_IMAGE_CRC
 #define BOOT_CONF_IMAGE_CRC 1

@@ -1,45 +1,45 @@
 
 === T1 328P: unmodified avr-gcc ELF, clean line ===
-mcu=atmega328p loader=1938 bytes at 0x7800  file=12868 bytes (101 blocks)
+mcu=atmega328p loader=1960 bytes at 0x7800  file=12868 bytes (101 blocks)
 C-probes=1 acks=102 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1377.0 ms of simulated time (22031863 cycles); app reached=yes
+transfer: 1382.0 ms of simulated time (22111763 cycles); app reached=yes
 flash vs simavr's ELF reader: image 312 bytes, region 0..0x7780 compared, 0 mismatches
 record @0x7780: 70 44 00 00 80 01 00 13 80 c1 aa
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T2 328P: block 3 corrupted, ACK of block 5 lost ===
-mcu=atmega328p loader=1938 bytes at 0x7800  file=12868 bytes (101 blocks)
+mcu=atmega328p loader=1960 bytes at 0x7800  file=12868 bytes (101 blocks)
 C-probes=1 acks=103 naks=1 resends=2 duplicate-blocks-sent=1 cancels=0
-transfer: 1404.2 ms of simulated time (22467465 cycles); app reached=yes
+transfer: 1408.9 ms of simulated time (22542662 cycles); app reached=yes
 flash vs simavr's ELF reader: image 312 bytes, region 0..0x7780 compared, 0 mismatches
 record @0x7780: 70 44 00 00 80 01 00 13 80 c1 aa
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T3 328P: protoduino example 12, full ELF (debug info included) ===
-mcu=atmega328p loader=1938 bytes at 0x7800  file=29624 bytes (232 blocks)
+mcu=atmega328p loader=1960 bytes at 0x7800  file=29624 bytes (232 blocks)
 C-probes=1 acks=233 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 3168.4 ms of simulated time (50694355 cycles); app reached=yes
+transfer: 3179.7 ms of simulated time (50874862 cycles); app reached=yes
 flash vs simavr's ELF reader: image 1474 bytes, region 0..0x7780 compared, 0 mismatches
 record @0x7780: 70 44 00 00 00 06 00 f3 74 0d 7e
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T4 328P: protoduino example 12, stripped ELF ===
-mcu=atmega328p loader=1938 bytes at 0x7800  file=2048 bytes (16 blocks)
+mcu=atmega328p loader=1960 bytes at 0x7800  file=2048 bytes (16 blocks)
 C-probes=1 acks=17 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 232.6 ms of simulated time (3720889 cycles); app reached=yes
+transfer: 232.5 ms of simulated time (3719438 cycles); app reached=yes
 flash vs simavr's ELF reader: image 1474 bytes, region 0..0x7780 compared, 0 mismatches
 record @0x7780: 70 44 00 00 00 06 00 f3 74 0d 7e
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T5 328P: empty chip offered an ATmega2560 file ===
-mcu=atmega328p loader=1938 bytes at 0x7800  file=17256 bytes (135 blocks)
+mcu=atmega328p loader=1960 bytes at 0x7800  file=17256 bytes (135 blocks)
 C-probes=1 acks=0 naks=0 resends=0 duplicate-blocks-sent=0 cancels=1
 device refused the file: code 0xd0
-transfer: -1.0 ms of simulated time (18446744073694281216 cycles); app reached=no
+transfer: -1.0 ms of simulated time (18446744073694346739 cycles); app reached=no
 flash vs simavr's ELF reader: image 444 bytes, region 0..0x7780 compared, 443 mismatches (FAIL)
 first mismatch at 0x0: got ff want 0c
 record @0x7780: ff ff ff ff ff ff ff ff ff ff ff
@@ -47,10 +47,10 @@ eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T6 328P: empty chip offered random bytes ===
-mcu=atmega328p loader=1938 bytes at 0x7800  file=4000 bytes (32 blocks)
+mcu=atmega328p loader=1960 bytes at 0x7800  file=4000 bytes (32 blocks)
 C-probes=1 acks=0 naks=0 resends=0 duplicate-blocks-sent=0 cancels=1
 device refused the file: code 0x51
-transfer: -1.0 ms of simulated time (18446744073694281216 cycles); app reached=no
+transfer: -1.0 ms of simulated time (18446744073694346739 cycles); app reached=no
 flash vs simavr's ELF reader: image 312 bytes, region 0..0x7780 compared, 311 mismatches (FAIL)
 first mismatch at 0x0: got ff want 0c
 record @0x7780: ff ff ff ff ff ff ff ff ff ff ff
@@ -60,9 +60,9 @@ exit=0
 === T7 328P: install, reset, offer a 2560 file; old image must survive ===
 first install ok; resetting and sending app-atmega2560.elf
 second session: refusal code=0xd0, previous app started again=yes (4.8 s after reset)
-mcu=atmega328p loader=1938 bytes at 0x7800  file=17256 bytes (135 blocks)
+mcu=atmega328p loader=1960 bytes at 0x7800  file=17256 bytes (135 blocks)
 C-probes=2 acks=102 naks=0 resends=0 duplicate-blocks-sent=0 cancels=1
-transfer: 1377.0 ms of simulated time (22031863 cycles); app reached=yes
+transfer: 1382.0 ms of simulated time (22111763 cycles); app reached=yes
 flash vs simavr's ELF reader: image 312 bytes, region 0..0x7780 compared, 0 mismatches
 record @0x7780: 70 44 00 00 80 01 00 13 80 c1 aa
 eeprom[0..4]: ff ff ff ff ff
@@ -71,7 +71,7 @@ exit=0
 === T8 328P all features: image with EEPROM data and matching signature ===
 mcu=atmega328p loader=4096 bytes at 0x7000  file=12868 bytes (101 blocks)
 C-probes=1 acks=102 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1378.7 ms of simulated time (22058528 cycles); app reached=yes
+transfer: 1377.2 ms of simulated time (22034467 cycles); app reached=yes
 flash vs simavr's ELF reader: image 312 bytes, region 0..0x6f80 compared, 0 mismatches
 record @0x6f80: 70 44 00 00 80 01 00 13 80 c1 aa
 eeprom[0..4]: 01 02 03 04 05
@@ -81,7 +81,7 @@ exit=0
 mcu=atmega328p loader=4096 bytes at 0x7000  file=7460 bytes (59 blocks)
 C-probes=1 acks=4 naks=0 resends=0 duplicate-blocks-sent=0 cancels=1
 device refused the file: code 0x53
-transfer: -1.0 ms of simulated time (18446744073694084447 cycles); app reached=no
+transfer: -1.0 ms of simulated time (18446744073694018900 cycles); app reached=no
 flash vs simavr's ELF reader: image 312 bytes, region 0..0x6f80 compared, 55 mismatches (FAIL)
 first mismatch at 0x100: got ff want 85
 record @0x6f80: ff ff ff ff ff ff ff ff ff ff ff
@@ -91,27 +91,27 @@ exit=0
 === T10 328P: application programs a page through the loader's service table ===
 application ran; flash page @0x6000: a0 a1 a2 a3 a4 a5 a6 a7 ... DDRB=ff
 page written by the application: as expected, interrupts enabled again
-mcu=atmega328p loader=2044 bytes at 0x7800  file=7092 bytes (56 blocks)
+mcu=atmega328p loader=2048 bytes at 0x7800  file=7092 bytes (56 blocks)
 C-probes=1 acks=57 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 764.6 ms of simulated time (12233980 cycles); app reached=yes
+transfer: 767.3 ms of simulated time (12277083 cycles); app reached=yes
 flash vs simavr's ELF reader: image 302 bytes, region 0..0x7780 compared, 0 mismatches
-record @0x7780: 70 44 00 00 80 01 00 fa 59 31 d4
+record @0x7780: 70 44 00 00 80 01 00 45 d9 ae 6f
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T11 2560: small image ===
-mcu=atmega2560 loader=2438 bytes at 0x3f000  file=17256 bytes (135 blocks)
+mcu=atmega2560 loader=2460 bytes at 0x3f000  file=17256 bytes (135 blocks)
 C-probes=1 acks=136 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1847.6 ms of simulated time (29561719 cycles); app reached=yes
+transfer: 1847.0 ms of simulated time (29552321 cycles); app reached=yes
 flash vs simavr's ELF reader: image 444 bytes, region 0..0x3ef00 compared, 0 mismatches
 record @0x3ef00: 70 44 00 00 00 02 00 4f 49 7b 11
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T12 2560: 106 KB image reaching far flash ===
-mcu=atmega2560 loader=2438 bytes at 0x3f000  file=107328 bytes (839 blocks)
+mcu=atmega2560 loader=2460 bytes at 0x3f000  file=107328 bytes (839 blocks)
 C-probes=1 acks=840 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 12675.1 ms of simulated time (202801141 cycles); app reached=yes
+transfer: 12669.6 ms of simulated time (202713418 cycles); app reached=yes
 flash vs simavr's ELF reader: image 106830 bytes, region 0..0x3ef00 compared, 0 mismatches
 record @0x3ef00: 70 44 00 00 00 a2 01 13 38 83 33
 eeprom[0..4]: ff ff ff ff ff
@@ -136,9 +136,9 @@ CORE: *** 7824: Invalid Opcode SP=08ff O=2411
 enter erased flash at 0x6002 with r31=0x80: loader reached (it sent its probe)
 
 === T14 1284P: small image, default bootloader in the 4 KB section ===
-mcu=atmega1284p loader=2438 bytes at 0x1f000  file=14136 bytes (111 blocks)
+mcu=atmega1284p loader=2460 bytes at 0x1f000  file=14136 bytes (111 blocks)
 C-probes=1 acks=112 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1515.5 ms of simulated time (24248364 cycles); app reached=yes
+transfer: 1518.0 ms of simulated time (24288429 cycles); app reached=yes
 flash vs simavr's ELF reader: image 352 bytes, region 0..0x1ef00 compared, 0 mismatches
 record @0x1ef00: 70 44 00 00 00 02 00 7e 61 e8 df
 eeprom[0..4]: ff ff ff ff ff
@@ -146,9 +146,9 @@ exit=0
 
 === T15 1284P, every option: '?' answered, EEPROM data, matching signature; then one bit of the image is flipped ===
 one bit of the image flipped at 0x40, then reset: image started=no after 8.0 s, probes sent=6
-mcu=atmega1284p loader=4092 bytes at 0x1f000  file=14136 bytes (111 blocks)
+mcu=atmega1284p loader=4096 bytes at 0x1f000  file=14136 bytes (111 blocks)
 C-probes=1 acks=112 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1516.8 ms of simulated time (24268246 cycles); app reached=yes
+transfer: 1516.5 ms of simulated time (24263512 cycles); app reached=yes
 flash vs simavr's ELF reader: image 352 bytes, region 0..0x1ef00 compared, 0 mismatches
 record @0x1ef00: 70 44 00 00 00 02 00 7e 61 e8 df
 device text: pD2 atmega1284p
@@ -156,10 +156,10 @@ eeprom[0..4]: 01 02 03 04 05
 exit=0
 
 === T16 1284P, every option: same core family, wrong device signature (ATmega1284 file) ===
-mcu=atmega1284p loader=4092 bytes at 0x1f000  file=8724 bytes (69 blocks)
+mcu=atmega1284p loader=4096 bytes at 0x1f000  file=8724 bytes (69 blocks)
 C-probes=1 acks=4 naks=0 resends=0 duplicate-blocks-sent=0 cancels=1
 device refused the file: code 0x53
-transfer: -1.0 ms of simulated time (18446744073694149896 cycles); app reached=no
+transfer: -1.0 ms of simulated time (18446744073694084339 cycles); app reached=no
 flash vs simavr's ELF reader: image 352 bytes, region 0..0x1ef00 compared, 95 mismatches (FAIL)
 first mismatch at 0x100: got ff want 9f
 record @0x1ef00: ff ff ff ff ff ff ff ff ff ff ff
@@ -168,9 +168,9 @@ exit=0
 
 === T17 1284P, default bootloader (no check at start): the same flipped bit; control for T15 ===
 one bit of the image flipped at 0x40, then reset: image started=yes after 3.8 s, probes sent=3
-mcu=atmega1284p loader=2438 bytes at 0x1f000  file=14136 bytes (111 blocks)
+mcu=atmega1284p loader=2460 bytes at 0x1f000  file=14136 bytes (111 blocks)
 C-probes=1 acks=112 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1515.5 ms of simulated time (24248364 cycles); app reached=yes
+transfer: 1518.0 ms of simulated time (24288429 cycles); app reached=yes
 flash vs simavr's ELF reader: image 352 bytes, region 0..0x1ef00 compared, 0 mismatches
 record @0x1ef00: 70 44 00 00 00 02 00 7e 61 e8 df
 eeprom[0..4]: ff ff ff ff ff
@@ -178,9 +178,9 @@ exit=0
 
 === T18 2560, every option in the 4 KB section: '?' answered, EEPROM data; then one bit of the image is flipped ===
 one bit of the image flipped at 0x40, then reset: image started=no after 8.0 s, probes sent=6
-mcu=atmega2560 loader=4092 bytes at 0x3f000  file=17160 bytes (135 blocks)
+mcu=atmega2560 loader=4096 bytes at 0x3f000  file=17160 bytes (135 blocks)
 C-probes=1 acks=136 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1850.4 ms of simulated time (29607089 cycles); app reached=yes
+transfer: 1849.1 ms of simulated time (29586340 cycles); app reached=yes
 flash vs simavr's ELF reader: image 444 bytes, region 0..0x3ef00 compared, 0 mismatches
 record @0x3ef00: 70 44 00 00 00 02 00 4f 49 7b 11
 device text: pD2 atmega2560
@@ -189,9 +189,9 @@ exit=0
 
 === T19 2560, every option: 106 KB image; then one bit above 64 KB is flipped ===
 one bit of the image flipped at 0x15000, then reset: image started=no after 8.0 s, probes sent=6
-mcu=atmega2560 loader=4092 bytes at 0x3f000  file=107328 bytes (839 blocks)
+mcu=atmega2560 loader=4096 bytes at 0x3f000  file=107328 bytes (839 blocks)
 C-probes=1 acks=840 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 12823.3 ms of simulated time (205172412 cycles); app reached=yes
+transfer: 12807.3 ms of simulated time (204917092 cycles); app reached=yes
 flash vs simavr's ELF reader: image 106830 bytes, region 0..0x3ef00 compared, 0 mismatches
 record @0x3ef00: 70 44 00 00 00 a2 01 13 38 83 33
 eeprom[0..4]: ff ff ff ff ff
@@ -200,31 +200,118 @@ exit=0
 === T20 2560: application programs a page through the service table of the 4 KB boot section ===
 application ran; flash page @0x6000: a0 a1 a2 a3 a4 a5 a6 a7 ... DDRB=ff
 page written by the application: as expected, interrupts enabled again
-mcu=atmega2560 loader=4092 bytes at 0x3f000  file=11636 bytes (91 blocks)
+mcu=atmega2560 loader=4096 bytes at 0x3f000  file=11636 bytes (91 blocks)
 C-probes=1 acks=92 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1247.7 ms of simulated time (19963312 cycles); app reached=yes
+transfer: 1247.3 ms of simulated time (19957122 cycles); app reached=yes
 flash vs simavr's ELF reader: image 496 bytes, region 0..0x3ef00 compared, 0 mismatches
-record @0x3ef00: 70 44 00 00 00 02 00 82 80 53 7c
+record @0x3ef00: 70 44 00 00 00 02 00 1c cc e1 d0
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 === T21 2560: the same for a page above 64 KB ===
 application ran; flash page @0x20000: a0 a1 a2 a3 a4 a5 a6 a7 ... DDRB=ff
 page written by the application: as expected, interrupts enabled again
-mcu=atmega2560 loader=4092 bytes at 0x3f000  file=11636 bytes (91 blocks)
+mcu=atmega2560 loader=4096 bytes at 0x3f000  file=11636 bytes (91 blocks)
 C-probes=1 acks=92 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
-transfer: 1247.7 ms of simulated time (19963387 cycles); app reached=yes
+transfer: 1247.2 ms of simulated time (19955574 cycles); app reached=yes
 flash vs simavr's ELF reader: image 498 bytes, region 0..0x3ef00 compared, 0 mismatches
-record @0x3ef00: 70 44 00 00 00 02 00 fb 08 f1 3d
+record @0x3ef00: 70 44 00 00 00 02 00 65 44 43 91
+eeprom[0..4]: ff ff ff ff ff
+exit=0
+
+=== T22 328P: an image that the watchdog resets after 250 ms; bootloader built without watchdog care. The control ===
+reset 1, 0.257 s after the install
+reset 2, 2.209 s after the install
+reset 3, 4.178 s after the install
+watched 30.0 s after the install: the part was reset 15 times, the image started 1 times
+what the image printed    : [A 00 01]CCCCCCCCCCCCCCCCCCCCCCCCCCCC
+mcu=atmega328p loader=1938 bytes at 0x7800  file=6752 bytes (53 blocks)
+C-probes=1 acks=54 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
+transfer: 723.9 ms of simulated time (11582780 cycles); app reached=yes
+flash vs simavr's ELF reader: image 324 bytes, region 0..0x7780 compared, 0 mismatches
+record @0x7780: 70 44 00 00 80 01 00 b4 a9 f0 08
+eeprom[0..4]: ff ff ff ff ff
+exit=0
+
+=== T23 328P: the same image, default bootloader ===
+reset 1, 0.257 s after the install
+reset 2, 4.315 s after the install
+reset 3, 8.373 s after the install
+watched 30.0 s after the install: the part was reset 8 times, the image started 8 times
+what the image printed    : [A 01 00]CCC[A 08 00]CCC[A 08 00]CCC[A 08 00]CCC[A 08 00]CCC[A 08 00]CCC[A 08 00]CCC[A 08 00]C
+mcu=atmega328p loader=1960 bytes at 0x7800  file=6752 bytes (53 blocks)
+C-probes=1 acks=54 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
+transfer: 726.4 ms of simulated time (11622842 cycles); app reached=yes
+flash vs simavr's ELF reader: image 324 bytes, region 0..0x7780 compared, 0 mismatches
+record @0x7780: 70 44 00 00 80 01 00 b4 a9 f0 08
+eeprom[0..4]: ff ff ff ff ff
+exit=0
+
+=== T24 328P: the same image, bootloader that does not wait after a watchdog reset (BOOT_CONF_WINDOW_AFTER=7) ===
+reset 1, 0.257 s after the install
+reset 2, 0.514 s after the install
+reset 3, 0.770 s after the install
+watched 30.0 s after the install: the part was reset 116 times, the image started 117 times
+what the image printed    : [A 01 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 
+mcu=atmega328p loader=1982 bytes at 0x7800  file=6752 bytes (53 blocks)
+C-probes=1 acks=54 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
+transfer: 726.4 ms of simulated time (11622842 cycles); app reached=yes
+flash vs simavr's ELF reader: image 324 bytes, region 0..0x7780 compared, 0 mismatches
+record @0x7780: 70 44 00 00 80 01 00 b4 a9 f0 08
+eeprom[0..4]: ff ff ff ff ff
+exit=0
+
+=== T25 2560, every option in the 4 KB section: the same image ===
+reset 1, 0.257 s after the install
+reset 2, 0.515 s after the install
+reset 3, 0.774 s after the install
+watched 30.0 s after the install: the part was reset 115 times, the image started 116 times
+what the image printed    : [A 01 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 08 00][A 
+mcu=atmega2560 loader=4096 bytes at 0x3f000  file=11136 bytes (87 blocks)
+C-probes=1 acks=88 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
+transfer: 1193.5 ms of simulated time (19096402 cycles); app reached=yes
+flash vs simavr's ELF reader: image 456 bytes, region 0..0x3ef00 compared, 0 mismatches
+record @0x3ef00: 70 44 00 00 00 02 00 7d 6d 7c 00
+eeprom[0..4]: ff ff ff ff ff
+exit=0
+
+=== T26 328P: a reset with each cause and nobody sending, for three settings of BOOT_CONF_WINDOW_AFTER ===
+-- 15, wait after every reset --
+reset with cause 0x01 (power-on): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x01
+reset with cause 0x02 (reset pin): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x02
+reset with cause 0x04 (brown-out): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x04
+reset with cause 0x08 (watchdog): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x08
+reset with cause 0x00 (a jump, no reset): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x00
+-- 7, not after a watchdog reset --
+reset with cause 0x01 (power-on): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x01
+reset with cause 0x02 (reset pin): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x02
+reset with cause 0x04 (brown-out): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x04
+reset with cause 0x08 (watchdog): image started=yes after 0.000 s, probes sent=0, cause handed to the image=0x08
+reset with cause 0x00 (a jump, no reset): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x00
+-- 2, only after the reset pin --
+reset with cause 0x01 (power-on): image started=yes after 0.000 s, probes sent=0, cause handed to the image=0x01
+reset with cause 0x02 (reset pin): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x02
+reset with cause 0x04 (brown-out): image started=yes after 0.000 s, probes sent=0, cause handed to the image=0x04
+reset with cause 0x08 (watchdog): image started=yes after 0.000 s, probes sent=0, cause handed to the image=0x08
+reset with cause 0x00 (a jump, no reset): image started=yes after 3.801 s, probes sent=3, cause handed to the image=0x00
+
+=== T27 328P: a running image, interrupts and timer on, UART at 300 baud, jumps to the bootloader (reset pin only build) ===
+the image jumped to the bootloader: yes; file sent again: 56 blocks acknowledged, image started again=yes
+mcu=atmega328p loader=1980 bytes at 0x7800  file=6940 bytes (55 blocks)
+C-probes=2 acks=112 naks=0 resends=0 duplicate-blocks-sent=0 cancels=0
+transfer: 754.0 ms of simulated time (12064307 cycles); app reached=yes
+flash vs simavr's ELF reader: image 320 bytes, region 0..0x7780 compared, 0 mismatches
+record @0x7780: 70 44 00 00 80 01 00 28 3d 6e b3
+device text: [J]
 eeprom[0..4]: ff ff ff ff ff
 exit=0
 
 --- probe timing: no sender, when each 'C' arrives (ATmega328P, then ATmega2560)
-probe 1 at 0.954 s (+0.954 s)
-probe 2 at 1.909 s (+0.954 s)
-probe 3 at 2.863 s (+0.954 s)
-probe 4 at 4.772 s (+1.909 s)
-probe 1 at 0.954 s (+0.954 s)
-probe 2 at 1.909 s (+0.954 s)
-probe 3 at 2.863 s (+0.954 s)
-probe 4 at 4.772 s (+1.909 s)
+probe 1 at 0.950 s (+0.950 s)
+probe 2 at 1.901 s (+0.950 s)
+probe 3 at 2.851 s (+0.950 s)
+probe 4 at 4.751 s (+1.901 s)
+probe 1 at 0.950 s (+0.950 s)
+probe 2 at 1.901 s (+0.950 s)
+probe 3 at 2.851 s (+0.950 s)
+probe 4 at 4.751 s (+1.901 s)

@@ -9,16 +9,19 @@ for m in atmega328p atmega1284p atmega2560; do
   ./build.sh "default" $m $st
   ./build.sh "default + page service" $m $st -DBOOT_CONF_PAGE_SERVICE=1
   ./build.sh "default + load thread" $m $st -DBOOT_CONF_LOAD_SERVICE=1
-  ./build.sh "everything" $m $st -DBOOT_CONF_LOAD_SERVICE=1 -DBOOT_CONF_VERIFY=1 -DELF_CONF_EEPROM=1 -DELF_CONF_SIGNATURE=1 -DBOOT_CONF_INFO=1 "-DBOOT_CONF_INFO_TEXT=\"$m\""
+  ./build.sh "everything" $m $st -DBOOT_CONF_LOAD_SERVICE=1 -DBOOT_CONF_VERIFY=1 -DELF_CONF_EEPROM=1 -DELF_CONF_SIGNATURE=1 -DBOOT_CONF_INFO=1 -DBOOT_CONF_WINDOW_AFTER=7 "-DBOOT_CONF_INFO_TEXT=\"$m\""
 done
 ./build.sh "default, virtual reset, soft uart" attiny85 0x17C0 -DBOOT_CONF_VIRTUAL_RESET=1 -DBOOT_CONF_SOFT_UART=1
 echo
 echo "== one option at a time, ATmega328P, relative to the default =="
 base=$(./build.sh x atmega328p 0x7000 | sed -n 's/.*text= *\([0-9]*\).*/\1/p')
-one() { local n="$1"; shift; local s=$(./build.sh x atmega328p 0x7000 "$@" | sed -n 's/.*text= *\([0-9]*\).*/\1/p'); printf '%-28s %+5d  (%d)\n' "$n" $(( s - base )) "$s"; }
+one() { local n="$1"; shift; local s=$(./build.sh x atmega328p 0x7000 "$@" | sed -n 's/.*text= *\([0-9]*\).*/\1/p'); printf '%-36s %+5d  (%d)\n' "$n" $(( s - base )) "$s"; }
 one "without family-check" -DELF_CONF_ARCH_CHECK=0
 one "without merge-segments" -DELF_CONF_COALESCE=0 -DELF_CONF_MAX_SEGMENTS=2
 one "without image-crc" -DBOOT_CONF_IMAGE_CRC=0
+one "without watchdog care (unsafe)" -DBOOT_CONF_WATCHDOG=0
+one "quick-restart (not after watchdog)" -DBOOT_CONF_WINDOW_AFTER=7
+one "window after the reset pin only" -DBOOT_CONF_WINDOW_AFTER=2
 one "page-service" -DBOOT_CONF_PAGE_SERVICE=1
 one "load-thread (with page-service)" -DBOOT_CONF_LOAD_SERVICE=1
 one "signature" -DELF_CONF_SIGNATURE=1
