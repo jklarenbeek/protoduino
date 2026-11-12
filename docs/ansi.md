@@ -228,8 +228,8 @@ standard escape-timeout pattern.
 
 | Example | What it shows |
 |---|---|
-| [`examples/23-ansi-parser`](../examples/6-text-ui/23-ansi-parser/23-ansi-parser.ino) | Feeds a crafted stream (text, UTF-8, CUP, SGR, DECSET, arrows, Ctrl+arrow, F5, SS3 F1, OSC title, CPR) and prints a decode trace. |
-| [`examples/24-ansi-keys`](../examples/6-text-ui/24-ansi-keys/24-ansi-keys.ino) | A shell-style line editor: printable input, Backspace, decoded special keys, Enter to submit, lone-ESC flush. |
+| [`examples/23-ansi-parser`](../examples/7-text-ui/23-ansi-parser/23-ansi-parser.ino) | Feeds a crafted stream (text, UTF-8, CUP, SGR, DECSET, arrows, Ctrl+arrow, F5, SS3 F1, OSC title, CPR) and prints a decode trace. |
+| [`examples/24-ansi-keys`](../examples/7-text-ui/24-ansi-keys/24-ansi-keys.ino) | A shell-style line editor: printable input, Backspace, decoded special keys, Enter to submit, lone-ESC flush. |
 
 Both run head-less and are verified deterministically under protosim:
 

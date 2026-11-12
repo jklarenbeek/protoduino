@@ -104,7 +104,7 @@ initialised with [`ipc_pipe_init()`](./ipc.md). You connect those pipes to a
 transport. On AVR that is the `uart0` driver: its TX-complete ISR pulls bytes
 out of the TX pipe, and its RX-complete ISR pushes received bytes into the RX
 pipe. This is the pattern used by
-[`examples/21-process-mcurses`](../examples/6-text-ui/21-process-mcurses/21-process-mcurses.ino):
+[`examples/21-process-mcurses`](../examples/7-text-ui/21-process-mcurses/21-process-mcurses.ino):
 
 ```c
 static uint8_t    tx_buf[96], rx_buf[32];
@@ -168,7 +168,7 @@ void setup(void) {
 
 A complete, runnable two-process demo (status dashboard + line-editor input)
 lives in
-[`examples/21-process-mcurses`](../examples/6-text-ui/21-process-mcurses/21-process-mcurses.ino).
+[`examples/21-process-mcurses`](../examples/7-text-ui/21-process-mcurses/21-process-mcurses.ino).
 
 ---
 

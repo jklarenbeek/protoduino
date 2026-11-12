@@ -74,9 +74,40 @@ while the system runs.
 `docs/loader.md` is the manual for this track: modules, the shell, flash slots,
 the bootloader and the tools.
 
-## 6 Text UI
+## 6 ATtiny
 
-Terminal output and input, independent of tracks 4 and 5.
+The same framework on the smallest parts, put together differently. An
+ATtiny85 has room for the shell of track 5, as `41-shell-tiny85` shows, but
+not for much beside it. Here the shell moves to the PC and the part keeps a
+port: a process that reads memory, writes memory and calls a function when
+asked. What is left is room for work.
+
+| Sketch | Part | What it adds |
+|--------|------|--------------|
+| `50-port` | ATtiny85, 45 | The port, and `tools/port.mjs`, the shell on the PC: `ps`, `mods`, `ipc`, `stop`, `join`, `run`, `write` as in example 40. The watchdog as the tick, and sleep while idle. |
+| `51-keeper` | ATtiny85, 45, 25 | A chip that looks after a bigger board: resets it when its heartbeat stops, holds it in reset while the supply is low, resets it on request, and counts what it did in EEPROM. |
+| `52-sentinel` | ATtiny85, 45, 25 | Asleep nearly always: wakes on its watchdog, measures the temperature of the chip and its supply, keeps the last samples and the extremes in EEPROM. |
+| `53-regulator` | ATtiny85, 45, 25 | `sense \| smooth \| curve \| pwm`: a signal in, a smooth answer out. A fan that follows a temperature, as built. |
+
+Three things run through the last three:
+
+- **A byte is a sample.** The modules for signals (`sense`, `pulse`,
+  `smooth`, `limit`, `curve`, `pwm`, `record`) pass numbers from 0 to 255,
+  not text.
+- **Settings.** What an appliance runs on is a list of named bytes
+  (`sys/settings.h`): built in, and changeable on the finished chip from the
+  PC, where the changed values are kept in EEPROM.
+- **The RAM of the part decides how it is put together.** On an ATtiny85
+  every stage is a process with a pipe to the next and the port is there. On
+  an ATtiny45 the stages are functions of one process, with the port. On an
+  ATtiny25 they are functions of one process and there is no port. It is the
+  same module code each time, and the sketch chooses.
+
+`docs/loader.md` has the details and the figures.
+
+## 7 Text UI
+
+Terminal output and input, independent of tracks 4 to 6.
 
 | Sketch | What it adds |
 |--------|--------------|
@@ -93,11 +124,14 @@ Terminal output and input, independent of tracks 4 and 5.
   sketch with avr-gcc alone and writes `tools/out/<sketch>-<mcu>.elf`, which
   protosim runs. `tools/talk.mjs --sim "<protosim> <file.elf> -m <mcu>" ps mods`
   then holds a conversation with a shell. `tools/test_systems.sh` does both for
-  every system of track 5.
+  every system of tracks 5 and 6.
 - **PlatformIO.** The repository is an Arduino library with a
   `library.properties`, so `pio ci --lib . --board uno examples/4-modules/30-ticker-blink`
   builds an example against it. This has not been run for this revision: the
   PlatformIO registry was not reachable where it was written.
-- **ATtiny85.** No ATtiny core is needed for `41-shell-tiny85` when it is built
-  with `tools/build_sketch.sh attiny85 8000000 ...`; in the Arduino IDE it needs
-  an ATtiny core such as ATTinyCore.
+- **ATtiny.** No ATtiny core is needed for `41-shell-tiny85` and track 6 when
+  they are built with `tools/build_sketch.sh attiny85 8000000 ...` (or
+  `attiny45`, `attiny25`). In the Arduino IDE they need an ATtiny core such as
+  ATTinyCore; that has not been tried. protosim runs them with
+  `-m attiny85 -f 8000000 --soft-uart B0,B1,9600`, which puts their serial
+  line of two pins on its pseudo terminal.

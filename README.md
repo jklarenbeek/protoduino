@@ -44,6 +44,7 @@ A mathematically rigorous 8-bit taxonomy for system states, events, and errors.
 Process types you connect instead of write, a command line for a running system, and modules that arrive over the serial line while the system runs.
 - **Implementation**: [`src/mod/`](./src/mod), [`src/sys/module.h`](./src/sys/module.h), [`src/sys/elf.h`](./src/sys/elf.h), [`boot/`](./boot)
 - **Features**: `ticker | blink` style pipes with `process_connect`, a shell that fits an ATtiny85, flash slots, a 2 KB bootloader that takes the unmodified `.elf` file.
+- **Small parts**: on an ATtiny85, 45 or 25 the shell moves to the PC and the part keeps a [port](./src/mod/port.h); three appliances show it: a [keeper](./examples/6-attiny/51-keeper) for another board, a [sentinel](./examples/6-attiny/52-sentinel) that sleeps and records, a [regulator](./examples/6-attiny/53-regulator).
 
 ### 6. [Unicode & UTF-8 Support](./docs/unicode.md)
 Professional text handling ported from Plan 9, suitable for internationalized displays. UTF-8 everywhere, flash-resident classification tables, verified on-target under protosim.
@@ -150,13 +151,13 @@ Most examples in this repository include a `.ino` file. These folders also defin
 ## 📂 Project Structure
 
 - `src/sys/`: Core kernel, protothreads, IPC, the ELF stream and the load thread.
-- `src/mod/`: Modules: process types in a header each (ticker, blink, upper, vcc, shell, loader).
+- `src/mod/`: Modules: process types in a header each (ticker, blink, upper, vcc, shell, loader, port, and the ones for signals: sense, pulse, smooth, limit, curve, pwm, record, keeper).
 - `src/lib/`: Utility libraries (UTF-8, math, ring buffers).
 - `src/cpu/avr/`: Hardware-specific UART, clock and flash drivers.
 - `boot/`: The bootloader and the script that builds it.
 - `ld/`: Linker script of a loadable module.
 - `tools/`: Host tools: build a module, talk to a shell, build and test sketches for the simulator.
-- `examples/`: A course in six tracks, from a single protothread to a system that loads modules ([overview](./examples/README.md)).
+- `examples/`: A course in seven tracks, from a single protothread to a system that loads modules and to appliances on an ATtiny ([overview](./examples/README.md)).
 - `docs/`: In-depth technical references and specifications.
 
 ---
