@@ -18,7 +18,7 @@
     <tr><td>11</td><td><code>src/sys/serial.h:6&ndash;7</code>, <code>serial.conf.h</code></td><td><code>serial.h</code> includes <code>protoduino-config.h</code> before <code>cc.h</code>, so <code>serial.conf.h</code> chooses the buffer sizes before <code>RAMEND</code> is defined. Undefined, it counts as 0, and every part gets the 16-byte buffers meant for parts with less than 1 KB of RAM.</td><td><span class="tag m">measured</span> ATmega328P: both rings 16 bytes; 64 when <code>avr/io.h</code> is included first</td></tr>
     <tr><td>12</td><td><code>src/sys/process/ serial_private.h</code>, service loop</td><td>On a poll the serial device moves as many bytes from <code>tx_pipe</code> as the UART ring has room for, then waits for the next event. Nothing polls it for the rest, so they stay in the pipe until somebody happens to write or receive again.</td><td><span class="tag m">measured</span> 80 bytes written at once: 15 left the UART</td></tr>
     <tr><td>13</td><td><code>src/sys/process/ serial.h</code>, usage text</td><td>The documented way to choose a baud rate, setting <code>baud</code> and then calling <code>process_new()</code>, has no effect: <code>process_new()</code> clears the struct. The device opens at the default 9600.</td><td><span class="tag m">measured</span> 115200 requested: <code>UBRR0L</code> = 207, which is 9600</td></tr>
-    <tr><td>14</td><td><code>src/sys/process.c</code>, <code>process_run()</code></td><td><code>if (do_poll()) return; do_event();</code> dispatches an event only when no poll was pending. A process that polls itself on every turn stops all events for good. And because the serial device polls on every received byte, events also stop while bytes arrive back to back.</td><td><span class="tag m">measured</span> a self-polling process ran; a second process never got its INIT event. During a transfer a heartbeat waited 15.1 ms, the length of a block; 2.0 ms with the change below.</td></tr>
+    <tr><td>14</td><td><code>src/sys/process.c</code>, <code>process_run()</code></td><td><code>if (do_poll()) return; do_event();</code> dispatches an event only when no poll was pending. A process that polls itself on every turn stops all events for good. And because the serial device polls on every received byte, events also stop while bytes arrive back to back.</td><td><span class="tag m">measured</span> a self-polling process ran; a second process never got its INIT event. During a transfer a heartbeat waited 15.0 ms, the length of a block; 2.0 ms with the change below.</td></tr>
     <tr><td>15</td><td><code>process.c</code>, <code>call_process()</code></td><td>When a process ends, the scheduler arms <code>PT_FINAL</code> and waits for the next invocation to run the <code>PT_FINALLY</code> block and unlink it. Nothing causes that invocation: <code>process_poll()</code> ignores a process in that state. The process stays linked, its cleanup never runs and its pool slot is never free, unless an event happens to be addressed to it.</td><td><span class="tag m">measured</span> a process that ended: after 2.5 s its cleanup had not run and its state was still EXITING</td></tr>
     <tr><td>16</td><td><code>process.c</code>, <code>process_start()</code></td><td>The return value of the <code>process_post()</code> that delivers the INIT event is ignored. With the default queue of three usable entries, a fourth process started in a row is linked into the list and never runs.</td><td><span class="tag r">read</span></td></tr>
     <tr><td>17</td><td><code>src/sys/clock.h</code></td><td>Accepts only the ATmega328, 168 and 88 families and stops with <code>#error</code> on every other part, although <code>cpu/avr/clock.h</code> has nothing in it that depends on the part. Timers, and everything that uses them, do not build for the ATmega2560 that example 22 targets.</td><td><span class="tag m">measured</span> &ldquo;clock: Unsupported Platform!&rdquo; for <code>-mmcu=atmega2560</code></td></tr>
@@ -220,16 +220,16 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 <table class="tight">
   <thead><tr><th style="width:5%">Test</th><th style="width:41%">Scenario</th><th>Outcome</th></tr></thead>
   <tbody>
-    <tr><td>M1</td><td>protoduino bootloader in the 2 KB section that offers its load thread; the loader process schedules it there</td><td>Slot identical to the reference; module started and ran as a process; entered into the module table; started from flash after a reset. 350.0 ms; heartbeat 18,053 turns, longest wait 15.1 ms</td></tr>
+    <tr><td>M1</td><td>protoduino bootloader in the 2 KB section that offers its load thread; the loader process schedules it there</td><td>Slot identical to the reference; module started and ran as a process; entered into the module table; started from flash after a reset. 350.0 ms; heartbeat 18,055 turns, longest wait 15.0 ms</td></tr>
     <tr><td>M2</td><td>Stock Optiboot 8.3 as the bootloader; the kernel links its own load thread and programs through <code>do_spm</code></td><td>The same. 361.5 ms; 16,859 turns, 15.1 ms</td></tr>
-    <tr><td>M3</td><td>protoduino bootloader with only the page service; the kernel links its own load thread</td><td>The same. 361.4 ms; 16,858 turns, 15.1 ms</td></tr>
+    <tr><td>M3</td><td>protoduino bootloader with only the page service; the kernel links its own load thread</td><td>The same. 361.4 ms; 16,857 turns, 15.0 ms</td></tr>
     <tr><td>M4</td><td>Kernel built for modules in flash only; module programmed together with the firmware</td><td>Module started from the module table; the kernel has no loader</td></tr>
     <tr><td>M5</td><td>A module linked against another kernel build</td><td>Refused <code>0xA4</code> with <strong>0 bytes programmed</strong>; the kernel process got the error from the scheduler and reported it</td></tr>
     <tr><td>M6</td><td>A firmware image offered to the loader process</td><td>Refused <code>0xA2</code> before any write: it lies below the slot</td></tr>
     <tr><td>M7</td><td>Kernel built to load, on a bootloader that offers no service</td><td>The kernel reports that it cannot load and carries on</td></tr>
     <tr><td>M8</td><td>Kernel built without module support, module present in flash</td><td>Module ignored</td></tr>
     <tr><td>M9</td><td>A module runs from slot 0; a second one, linked for slot 1, is loaded beside it</td><td>Both slots identical to their files; after a reset both start and take turns</td></tr>
-    <tr><td>M1'</td><td>M1 against a copy of <code>process.c</code> in which <code>process_run()</code> dispatches an event after the polls</td><td>The same load: 18,686 turns, longest wait 2.0 ms</td></tr>
+    <tr><td>M1'</td><td>M1 against a copy of <code>process.c</code> in which <code>process_run()</code> dispatches an event after the polls</td><td>The same load: 18,683 turns, longest wait 2.0 ms</td></tr>
   </tbody>
 </table>
 <p>In every load the kernel image was unchanged afterwards. The heartbeat figures are from simavr, which programs a page in no time; on a chip each page adds 7.4 to 9.0 ms to the longest wait.</p>
@@ -282,7 +282,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 <div>
 <h4>Risks</h4>
 <ul>
-  <li><strong>Size.</strong> The protothread form costs 374 bytes. On parts above 64 KB the bootloader needs the 4 KB section; on the ATmega328P the 2 KB section is full to within 6 bytes.</li>
+  <li><strong>Size.</strong> The protothread form costs 374 bytes, of which assembly in the page programmer recovered 62. On parts above 64 KB the bootloader needs the 4 KB section; on the ATmega328P the 2 KB section is full to within 8 bytes.</li>
   <li><strong>Page writes still stop the system.</strong> Cooperative means between pages. Each page holds everything for 7 to 9 ms on a chip, and no AVR design can avoid that.</li>
   <li><strong>The scheduler under load.</strong> Until finding 14 is fixed, a process that waits for an event waits out every block of a transfer.</li>
   <li><strong>ATtiny recovery.</strong> Without hardware protection for the bootloader's pages, a faulty application can destroy it. The claim for these parts is deliberately weaker.</li>
@@ -298,7 +298,7 @@ static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
   <li>Which small part is meant by &ldquo;ATtiny8&rdquo;? The answer decides whether the small-frame transport is needed early.</li>
   <li>Should updates be authenticated, and if so with what? A keyed hash costs several hundred bytes.</li>
   <li>Which binding scheme is the default for modules: exact or table?</li>
-  <li>Is the default order for filling the boot section the right one? On the ATmega328P it trades the merging of segments for the load thread.</li>
+  <li>Is the default order for filling the boot section the right one? It decides what is dropped as soon as a block cannot hold everything, and the 2 KB block of the ATmega328P has 8 bytes left.</li>
   <li>Is a 4 KB boot section acceptable on the ATmega2560 and ATmega1284P, or should a blocking build be kept for the 2 KB section there?</li>
   <li>Should the bootloader wait after every reset, or only on request? It changes start-up time by seconds.</li>
   <li>Where should the bootloader's build live, given that it cannot be under <code>src/</code>?</li>

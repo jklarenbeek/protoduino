@@ -17,6 +17,13 @@
 #define FLASH_CONF_DRIVER FLASH_DRIVER_BOOTROM
 #endif
 
+// flag to program a page with a routine written in assembly, when this
+// code executes SPM itself. It is half the size of what the compiler makes
+// of the C version, which stays as the reference.
+#ifndef FLASH_CONF_SPM_ASM
+#define FLASH_CONF_SPM_ASM 1
+#endif
+
 // byte address Optiboot is linked at: 512 bytes below the end of flash,
 // 1024 bytes on parts with more than 64 KB.
 #ifndef FLASH_CONF_OPTIBOOT_START

@@ -218,14 +218,16 @@ static void boot_image_start(void)
 #ifdef RAMPZ
   RAMPZ = 0;
 #endif
-  {
-    uint16_t entry = (uint16_t)BOOT_RD8(BOOT_RECORD + 2) | ((uint16_t)BOOT_RD8(BOOT_RECORD + 3) << 8);
-#ifdef EIND
-    EIND = 0;
+  // The entry is a word address in the image record. IJMP leaves nothing on
+  // the stack and, on parts with a 22-bit program counter, clears its upper
+  // bits, so the image starts as it would after a reset.
+#if (FLASHEND > 0xFFFFUL)
+  uint16_t entry = pgm_read_word_far(BOOT_RECORD + 2);
+#else
+  uint16_t entry = pgm_read_word(BOOT_RECORD + 2);
 #endif
-    ((void (*)(void))entry)();
-  }
-  for (;;) { }
+  __asm__ __volatile__ ("ijmp" : : "z" (entry));
+  __builtin_unreachable();
 }
 
 /* ------------------------------------------------------------------ */

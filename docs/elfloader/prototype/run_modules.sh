@@ -4,9 +4,9 @@
 # Needs make_fixtures.sh to have been run.
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"
 K="$HERE/kernel"; E="${FIXTURES:-$HERE/fixtures}"
-# a 2 KB boot section that offers the load thread. The simulator needs the service table
-# four bytes lower (SVC_BACK), which costs the image CRC and the merging of segments here.
-SVC_BACK=4 ./build.sh "328P rom" atmega328p 0x7800 -DBOOT_CONF_LOAD_SERVICE=1 -DBOOT_CONF_IMAGE_CRC=0 -DELF_CONF_COALESCE=0 -DELF_CONF_MAX_SEGMENTS=2 >/dev/null
+# a 2 KB boot section that offers the load thread: the configuration fit.sh selects for this block.
+# The simulator needs the service table four bytes lower (SVC_BACK); it still fits.
+SVC_BACK=4 ./build.sh "328P rom" atmega328p 0x7800 -DBOOT_CONF_LOAD_SERVICE=1 >/dev/null
 SVC_BACK=4 ./build.sh "328P page" atmega328p 0x7800 -DBOOT_CONF_PAGE_SERVICE=1 >/dev/null
 ./build.sh "328P base" atmega328p 0x7800 >/dev/null
 run() { echo; echo "=== $1 ==="; shift; ./sim_harness "$@" 2>&1 | grep -v "^Loaded\|would overflow"; echo "exit=${PIPESTATUS[0]}"; }

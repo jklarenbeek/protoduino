@@ -57,6 +57,9 @@ Kernel build switches (see `kernel/build_kernel.sh` and `make_fixtures.sh`):
 | `LOADER_CONF_THREAD` | `1` schedule the load thread inside the protoduino bootloader, `2` link a copy into the kernel |
 | `FLASH_CONF_DRIVER` | `2` page writes through the protoduino service table, `3` through Optiboot's `do_spm` |
 
+Bootloader build switch: `-DFLASH_CONF_SPM_ASM=0` selects the C version of the page
+programmer (2,006 bytes on the ATmega328P against 1,952 with the assembly one); both pass T1.
+
 Known limits: sizes are from avr-gcc 7.3.0; nothing has run on hardware; the ATtiny85
 build compiles but has never executed; module loading was run on the ATmega328P only;
 in the tests the service table sits four bytes below the end of flash (`SVC_BACK=4`)
