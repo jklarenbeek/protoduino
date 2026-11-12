@@ -207,7 +207,7 @@ static void call_process(struct process  *p,
                           process_event_t  ev,
                           process_data_t   data)
 {
-  if (!p || p->state == PROCESS_STATE_NONE)
+  if (!p || p->state == PROCESS_STATE_NONE || p->state == PROCESS_STATE_PAUSED)
     return;
 
   uint8_t was_exiting = (p->state == PROCESS_STATE_EXITING);
@@ -278,7 +278,8 @@ static int do_poll(void)
 
   int any = 0;
   for (struct process *pp = process_list; pp != NULL; pp = pp->next) {
-    if (pp->needs_poll) {
+    /* a paused process keeps its poll until it is resumed */
+    if (pp->needs_poll && pp->state != PROCESS_STATE_PAUSED) {
       pp->needs_poll = 0;
       call_process(pp, PROCESS_EVENT_POLL, NULL);
       any++;
@@ -594,3 +595,92 @@ void process_ipc_wake(void *ctx)
     process_poll(p);
 }
 #endif
+
+/* ================================================================== */
+/* §J  Introspection and control: what a shell needs                  */
+/* ================================================================== */
+
+struct process *process_next(struct process *p)
+{
+  return p ? p->next : process_list;
+}
+
+int process_pause(struct process *p)
+{
+  if (!p || p->state != PROCESS_STATE_CALLED)
+    return 0;
+  p->state = PROCESS_STATE_PAUSED;
+  return 1;
+}
+
+int process_resume(struct process *p)
+{
+  if (!p || p->state != PROCESS_STATE_PAUSED)
+    return 0;
+  p->state = PROCESS_STATE_CALLED;
+  process_poll(p); /* whatever it missed, it looks again */
+  return 1;
+}
+
+#if PROCESS_CONF_PIPELINES > 0
+int process_connect(struct process *writer, struct process *reader)
+{
+  ipc_pipe_t *pipe;
+
+  if (!writer || !reader)
+    return 0;
+
+  if (writer->type == PROCESS_TYPE_DEVICE) {
+    /* what the device receives becomes the input of the reader */
+    if (!writer->has_pipein)
+      return 0;
+    pipe = writer->pipein;
+    pipe->wake_cb  = process_ipc_wake;
+    pipe->wake_ctx = (void *)reader;
+    reader->pipein     = pipe;
+    reader->has_pipein = 1;
+    return 1;
+  }
+
+  /* a device transmits what is written to its pipeout */
+  if (reader->type == PROCESS_TYPE_DEVICE)
+    pipe = reader->has_pipeout ? reader->pipeout : NULL;
+  else
+    pipe = reader->has_pipein ? reader->pipein : NULL;
+  if (!pipe)
+    return 0;
+
+  writer->pipeout     = pipe;
+  writer->has_pipeout = 1;
+  return 1;
+}
+
+void process_disconnect(struct process *writer)
+{
+  if (!writer || writer->type == PROCESS_TYPE_DEVICE)
+    return;
+  writer->has_pipeout = 0;
+  writer->pipeout     = NULL;
+}
+
+struct process *process_reader(const ipc_pipe_t *pipe)
+{
+  for (struct process *p = process_list; p != NULL; p = p->next) {
+    if (p->type == PROCESS_TYPE_DEVICE
+          ? (p->has_pipeout && p->pipeout == pipe)
+          : (p->has_pipein && p->pipein == pipe))
+      return p;
+  }
+  return NULL;
+}
+#endif /* PROCESS_CONF_PIPELINES > 0 */
+
+const struct error_info *process_log_entry(uint8_t age)
+{
+  const struct error_info *e;
+
+  if (age >= PROCESS_CONF_ERROR_POOL_SIZE)
+    return NULL;
+  e = &error_pool[(uint8_t)(error_pool_idx - 1 - age) % PROCESS_CONF_ERROR_POOL_SIZE];
+  return e->severity ? e : NULL;
+}

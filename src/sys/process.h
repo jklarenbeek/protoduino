@@ -112,6 +112,7 @@ typedef enum psstate_t {
   PROCESS_STATE_RUNNING = 2, /**< currently executing in call_process()  */
   PROCESS_STATE_CALLED  = 3, /**< suspended, waiting for next event/poll */
   PROCESS_STATE_EXITING = 4, /**< running PT_FINALLY / cleanup blocks    */
+  PROCESS_STATE_PAUSED  = 5, /**< paused: no events, no polls, until resumed */
 } psstate_t;
 
 /** Process kind: multi-instance process or singleton device/driver. */
@@ -634,6 +635,55 @@ CC_EXTERN int process_post_from_isr(struct process *p, process_event_t ev,
  * RAM string [name_segment, name_segment+len).  Returns NULL if not found.
  */
 CC_EXTERN struct process *process_lookup_n(const char *name_segment, size_t len);
+
+/**
+ * process_next(p)
+ *
+ * Walk the processes the scheduler knows, in priority order.
+ * process_next(NULL) is the first one; NULL ends the walk.
+ */
+CC_EXTERN struct process *process_next(struct process *p);
+
+/**
+ * process_pause(p) / process_resume(p)
+ *
+ * A paused process gets no events and no polls. Events addressed to it are
+ * dropped; a poll stays pending and is delivered when it is resumed.
+ * Only a process that is waiting (PROCESS_STATE_CALLED) can be paused, so a
+ * process cannot pause itself. Both return 1 on success, 0 otherwise.
+ */
+CC_EXTERN int process_pause(struct process *p);
+CC_EXTERN int process_resume(struct process *p);
+
+#if PROCESS_CONF_PIPELINES > 0
+/**
+ * process_connect(writer, reader)
+ *
+ * Make the output of writer the input of reader, as a shell pipe does.
+ * The pipe is owned by whoever published it:
+ *   - a process that can be written to has set its pipein
+ *     (PROCESS_SET_PIPEIN), and the writer's pipeout becomes that pipe;
+ *   - a device publishes what it receives as pipein and what it transmits
+ *     as pipeout, so writing to a device means writing to its pipeout, and
+ *     reading from a device means taking its pipein as one's own.
+ * Returns 1 on success, 0 when there is no such pipe.
+ *
+ * process_disconnect(writer) takes the output of writer away again.
+ * process_reader(pipe) is the process that consumes a pipe, or NULL.
+ */
+CC_EXTERN int process_connect(struct process *writer, struct process *reader);
+CC_EXTERN void process_disconnect(struct process *writer);
+CC_EXTERN struct process *process_reader(const ipc_pipe_t *pipe);
+#endif
+
+/**
+ * process_log_entry(age)
+ *
+ * The log entries the kernel still holds, newest first: age 0 is the last
+ * one written. NULL when there is none that old. The pool only fills when
+ * process_init() was given a logger.
+ */
+CC_EXTERN const struct error_info *process_log_entry(uint8_t age);
 
 /* ------------------------------------------------------------------ */
 /* §16  Structured logging API                                         */
