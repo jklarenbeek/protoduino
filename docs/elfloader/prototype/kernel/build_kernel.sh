@@ -28,7 +28,7 @@ fi
 avr-gcc $CF "$@" -Wl,--gc-sections -o kernel-$N.elf \
   kernel.c core.c \
   $PROCESS_C $LIB/sys/ipc.c $LIB/sys/process/serial0.c $LIB/sys/serial/serial0.c $LIB/cpu/avr/uart0.c $LIB/lib/ringb8.c \
-  $LIB/cpu/avr/flash.c $LIB/sys/elf.c $LIB/sys/elf/load.c \
+  $LIB/cpu/avr/flash.c $LIB/cpu/avr/bootrom.S $LIB/sys/elf.c $LIB/sys/elf/load.c \
   2> kernel-$N.log || { echo "kernel $N: BUILD FAILED"; grep -E "error|undefined" kernel-$N.log | head -n 12; exit 1; }
 
 # identity of this build: CRC-16 of its flash image, as module_init() computes it
@@ -44,7 +44,8 @@ print('0x%04x'%c)" kernel-$N.bin)
 # what the kernel offers to modules: every global function and variable of this build
 avr-nm kernel-$N.elf | awk '$2 ~ /^[TDBRW]$/ && $3 !~ /^(__vector|__vectors|__bad_interrupt|__ctors|__dtors|__init|__do_|__stack|__heap|_exit|exit|main|__data|__bss|__eeprom|_etext|_edata|_end|__trampolines|__DATA_REGION|__FUSE|__TEXT_REGION|__LOCK|__SIGNATURE|__USER)/ {printf "%s = 0x%s;\n", $3, $1}' > kernel-$N-abi.ld
 
-avr-gcc $CF "$@" -nostartfiles -nostdlib -Wl,-T,$LD/module.ld -Wl,-T,kernel-$N-abi.ld \
+# the module is not a kernel: the slot functions of sys/module.h stay out of it
+avr-gcc $CF "$@" -DMODULE_CONF_SUPPORT=0 -nostartfiles -nostdlib -Wl,-T,$LD/module.ld -Wl,-T,kernel-$N-abi.ld \
   -Wl,-e,module_descriptor -Wl,--defsym=__do_clear_bss=0 -Wl,--defsym=__do_copy_data=0 -Wl,--defsym=__module_kernel_id=$KID -Wl,--defsym=__module_base=${MODULE_BASE:-0x6000} \
   -o module-$N.elf count_module.c -lgcc 2> module-$N.log || { echo "module $N: BUILD FAILED"; grep -E "error|undefined|ASSERT" module-$N.log | head -n 12; exit 1; }
 set -- $(avr-size kernel-$N.elf | tail -n 1)

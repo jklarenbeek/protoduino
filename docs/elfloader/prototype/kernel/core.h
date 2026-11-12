@@ -1,6 +1,6 @@
 /* core.h - the few things protoduino takes from the Arduino core, for a
  * build without it. Force-included (-include) into every file. */
-#ifndef KERNEL_CORE_H
+#if !defined(KERNEL_CORE_H) && !defined(__ASSEMBLER__)
 #define KERNEL_CORE_H
 #ifdef __cplusplus
 extern "C" {

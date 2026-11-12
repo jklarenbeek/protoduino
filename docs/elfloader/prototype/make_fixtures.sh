@@ -16,8 +16,8 @@ avr-objcopy -R .signature $F/app-atmega2560.elf $F/app-atmega2560-nosig.elf
 avr-gcc -Os -mmcu=atmega2560 -o $F/big2560.elf big.c && avr-strip -o $F/big2560-stripped.elf $F/big2560.elf
 avr-gcc -std=gnu11 -Os -mmcu=atmega328p -DF_CPU=16000000UL -I$PD/src -o $F/svc_app.elf svc_app.c $PD/src/cpu/avr/flash.c
 SVC2560="-std=gnu11 -Os -mmcu=atmega2560 -DF_CPU=16000000UL -I$PD/src"
-avr-gcc $SVC2560 -o $F/svc_app2560.elf svc_app.c $PD/src/cpu/avr/flash.c
-avr-gcc $SVC2560 -DSVC_PAGE=0x20000UL -o $F/svc_app2560-far.elf svc_app.c $PD/src/cpu/avr/flash.c
+avr-gcc $SVC2560 -o $F/svc_app2560.elf svc_app.c $PD/src/cpu/avr/flash.c $PD/src/cpu/avr/bootrom.S
+avr-gcc $SVC2560 -DSVC_PAGE=0x20000UL -o $F/svc_app2560-far.elf svc_app.c $PD/src/cpu/avr/flash.c $PD/src/cpu/avr/bootrom.S
 for M in atmega328p atmega2560; do avr-gcc -Os -mmcu=$M -DF_CPU=16000000UL -o $F/wdt_app-$M.elf wdt_app.c; done
 avr-gcc -Os -mmcu=atmega328p -DF_CPU=16000000UL -DBOOT_START=0x7800UL -o $F/jump_app.elf jump_app.c
 # firmware with four and with five flash segments

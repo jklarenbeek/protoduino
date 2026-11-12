@@ -86,10 +86,13 @@ static CC_ALWAYS_INLINE uint16_t bootrom_load_size(void)
  *   while the service runs still arrives where it should.
  * - The address is the last argument, so the arguments of the service are
  *   already in the registers the service expects them in.
- * - They are written at file level and only declared to the compiler, which
- *   therefore assumes nothing about them. Every file that includes this
- *   header carries a copy; the linker keeps one.
+ * - They are written in assembly (./src/cpu/avr/bootrom.S) and only
+ *   declared to the compiler, which therefore assumes nothing about them.
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // self: r24-r25, word_address: r20-r23
 ptstate_t bootrom_far_load_thread(struct elf_load *self, uint32_t word_address);
@@ -97,28 +100,9 @@ ptstate_t bootrom_far_load_thread(struct elf_load *self, uint32_t word_address);
 // base: r22-r25, data: r20-r21, word_address: r16-r19
 void bootrom_far_page_write(bootrom_addr_t base, const uint8_t *data, uint32_t word_address);
 
-__asm__ (
-  ".pushsection .text.bootrom_far_load_thread,\"axG\",@progbits,bootrom_far_load_thread,comdat\n"
-  ".weak bootrom_far_load_thread\n"
-  ".type bootrom_far_load_thread, @function\n"
-  "bootrom_far_load_thread:\n"
-  "  push r20\n"
-  "  push r21\n"
-  "  push r22\n"
-  "  ret\n"
-  ".size bootrom_far_load_thread, .-bootrom_far_load_thread\n"
-  ".popsection\n"
-  ".pushsection .text.bootrom_far_page_write,\"axG\",@progbits,bootrom_far_page_write,comdat\n"
-  ".weak bootrom_far_page_write\n"
-  ".type bootrom_far_page_write, @function\n"
-  "bootrom_far_page_write:\n"
-  "  push r16\n"
-  "  push r17\n"
-  "  push r18\n"
-  "  ret\n"
-  ".size bootrom_far_page_write, .-bootrom_far_page_write\n"
-  ".popsection\n"
-);
+#ifdef __cplusplus
+}
+#endif
 
 // give the load thread of the bootloader one turn.
 static CC_ALWAYS_INLINE ptstate_t bootrom_load_thread(struct elf_load *self)

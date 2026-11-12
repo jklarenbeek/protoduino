@@ -16,6 +16,8 @@
  *   kill <name>        end a process
  *   mods               modules that can be run: number, name, + when running
  *   run <number>       start a module
+ *   get <number>       receive a module into a flash slot (XMODEM-CRC)   [1]
+ *   del <number>       end the module of a flash slot and take it out    [1]
  *   ipc                connections: "ticker > blink"
  *   join <a> <b>       connect the output of a to the input of b
  *   unjoin <a>         take the output of a away
@@ -24,8 +26,18 @@
  *
  * - The modules are the process types the sketch lists between
  *   SHELL_MODULES_BEGIN and SHELL_MODULES_END, each with the instance it
- *   runs in. Modules in flash slots follow them when SHELL_CONF_SLOTS is set
- *   (see ./src/sys/module.h).
+ *   runs in.
+ * - The flash slots come first in the list when the sketch includes
+ *   <sys/module.h> with MODULE_CONF_SUPPORT set before this header, so the
+ *   number of a slot in the list is the number of the slot. A slot shows
+ *   the name of its module, or "(free)".
+ * - [1] when the sketch includes <mod/loader.h> before this header. "get"
+ *   hands the line to the loader: send the .elf file of the module with
+ *   XMODEM-CRC, and the shell is back when the loader ends, with "ok" when
+ *   the module is in its slot and running.
+ * - With SHELL_CONF_READONLY the shell is a monitor: "ps", "mods", "ipc"
+ *   and "log" are all it knows, so whoever sits at the line can look at
+ *   the system and cannot change it.
  * - The line the shell talks on is the device SHELL_CONF_DEVICE, by default
  *   serial_process0_proc. The device has to be started before the shell.
  * - Give the shell to process_init() as the logger and "log" has something
@@ -45,9 +57,26 @@
 #define SHELL_CONF_ECHO 1
 #endif
 
+// flag for a shell that only shows: no command that changes anything.
+#ifndef SHELL_CONF_READONLY
+#define SHELL_CONF_READONLY 0
+#endif
+
 #ifndef SHELL_CONF_DEVICE
 #include <sys/process/serial.h>
 #define SHELL_CONF_DEVICE (&serial_process0_proc.base)
+#endif
+
+// what the sketch brought along
+#if defined(MODULE_CONF_SUPPORT) && MODULE_CONF_SUPPORT > 0
+#define SHELL_SLOTS MODULE_CONF_SLOTS
+#else
+#define SHELL_SLOTS 0
+#endif
+#if defined(__MOD_LOADER_H__) && !SHELL_CONF_READONLY
+#define SHELL_LOADER 1
+#else
+#define SHELL_LOADER 0
 #endif
 
 /* ------------------------------------------------------------------ */
@@ -84,7 +113,15 @@ PROCESS_DEFINE(shell, "shell", 2,
 );
 
 static const char shell_help[] CC_PROGMEM =
-  "ps stop cont kill mods run ipc join unjoin write log\r\n";
+#if SHELL_CONF_READONLY
+  "ps mods ipc log"
+#else
+  "ps stop cont kill mods run ipc join unjoin write log"
+#if SHELL_LOADER
+  " get del"
+#endif
+#endif
+  "\r\n";
 static const char shell_states[] CC_PROGMEM = "?IRWXP??";
 
 static void shell_put(process_shell_t *s, char c)
@@ -190,13 +227,33 @@ static void shell_line_process(process_shell_t *s, const struct process *p)
   shell_eol(s);
 }
 
+#if SHELL_SLOTS
+static const char shell_free[] CC_PROGMEM = "(free)";
+#endif
+
 static void shell_line_module(process_shell_t *s, uint8_t i)
 {
   struct process *instance;
-  const process_type_t *type = shell_module(i, &instance);
+  const process_type_t *type;
 
   shell_put(s, (char)('0' + i));
   shell_put(s, ' ');
+#if SHELL_SLOTS
+  if (i < SHELL_SLOTS)
+  {
+    // a flash slot
+    if (!module_is_installed(i))
+    {
+      shell_text(s, shell_free);
+      shell_eol(s);
+      return;
+    }
+    type = module_type(i);
+    instance = module_process(i);
+  }
+  else
+#endif
+  type = shell_module(i - SHELL_SLOTS, &instance);
   shell_text(s, (const char *)pgm_read_ptr(&type->name));
   shell_put(s, ' ');
   shell_put(s, instance->state != PROCESS_STATE_NONE ? '+' : '-');
@@ -232,19 +289,61 @@ static void shell_line_log(process_shell_t *s, const struct error_info *e)
 }
 
 // the commands that act on one process or module; 1 when it worked
+#if SHELL_CONF_READONLY
+static uint8_t shell_command(process_shell_t *s, struct process *self, uint8_t cmd)
+{
+  (void)s;
+  (void)self;
+  (void)cmd;
+  return 0; // a monitor changes nothing
+}
+#else
 static uint8_t shell_command(process_shell_t *s, struct process *self, uint8_t cmd)
 {
   struct process *p = shell_process(s, 1);
   const char *word;
   uint8_t len = shell_word(s, 1, &word);
 
-  if (cmd == 'r')
+  if (cmd == 'r' || cmd == 'g' || cmd == 'd')
   {
     uint8_t number = len ? (uint8_t)(word[0] - '0') : 255;
     struct process *instance;
     const process_type_t *type;
 
-    if (number >= shell_module_count)
+#if SHELL_SLOTS
+    if (number < SHELL_SLOTS)
+    {
+      // a flash slot
+      if (cmd == 'r')
+        return module_is_installed(number) && module_start(number) != NULL;
+#if SHELL_LOADER
+      if (cmd == 'g')
+      {
+        // only into a free slot: "del" comes first. Then the loader takes
+        // the line, and the thread waits until it has ended.
+        if (module_is_installed(number)
+            || module_process(number)->state != PROCESS_STATE_NONE
+            || loader_start(number, SHELL_CONF_DEVICE) == NULL)
+          return 0;
+        s->i = number;
+        return 2;
+      }
+      if (!module_is_installed(number) || loader_is_running() || !flash_is_writable())
+        return 0;
+      // del: no new start from the table, and the process ends on its next turn
+      module_table_write(number, false, loader_workspace.bytes);
+      instance = module_process(number);
+      if (instance->state != PROCESS_STATE_NONE)
+      {
+        process_resume(instance);
+        process_destroy(instance);
+      }
+      return 1;
+#endif
+    }
+#endif
+    number -= SHELL_SLOTS; // wraps below the slots, and is then too large
+    if (cmd != 'r' || number >= shell_module_count)
       return 0;
     type = shell_module(number, &instance);
     // process_new() clears the instance: never on one that runs
@@ -285,6 +384,8 @@ static uint8_t shell_command(process_shell_t *s, struct process *self, uint8_t c
   }
   return 0;
 }
+
+#endif /* SHELL_CONF_READONLY */
 
 #define SHELL_WRITE_OUT() \
   do { \
@@ -357,7 +458,7 @@ PROCESS_THREAD(shell, ev, data)
 
     if (cmd == 'm')
     {
-      for (self->i = 0; self->i < shell_module_count; self->i++)
+      for (self->i = 0; self->i < shell_module_count + SHELL_SLOTS; self->i++)
       {
         shell_line_module(self, self->i);
         SHELL_WRITE_OUT();
@@ -392,9 +493,19 @@ PROCESS_THREAD(shell, ev, data)
       continue;
     }
 
-    self->i = shell_command(self, pt_process, cmd);
+    self->byte = shell_command(self, pt_process, cmd);
 
-    if (self->i)
+#if SHELL_LOADER
+    if (self->byte == 2)
+    {
+      /* "get": the loader has the line and gives it back when it ends. The
+       * tick brings us round to look. */
+      PROCESS_WAIT_EVENT_UNTIL(!loader_is_running());
+      self->byte = module_is_installed(self->i);
+    }
+#endif
+
+    if (self->byte)
     {
       shell_put(self, 'o');
       shell_put(self, 'k');

@@ -481,7 +481,13 @@ typedef struct {
  * Public read is fine; do not write from user code.
  * Use PROCESS_CURRENT() for the safe accessor form.
  */
-CC_EXTERN struct process *process_current;
+/* "extern" also in C: without it every C file that includes this header
+ * would define the variable again. */
+#ifdef __cplusplus
+extern "C" struct process *process_current;
+#else
+extern struct process *process_current;
+#endif
 #define PROCESS_CURRENT() (process_current)
 
 /* ------------------------------------------------------------------ */

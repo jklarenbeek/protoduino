@@ -49,6 +49,8 @@ static process_num_events_t event_tail = 0; /* next read  position */
 
 /* Process list – sorted by prio; lower numeric = higher priority ---- */
 static struct process *process_list = NULL;
+/* The process whose thread is running; NULL outside call_process(). */
+struct process *process_current = NULL;
 
 /* Poll request flag – set by process_poll(), cleared by do_poll() -- */
 static volatile uint8_t poll_requested = 0;

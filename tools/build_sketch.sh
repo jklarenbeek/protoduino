@@ -9,9 +9,10 @@ MCU="$1"; FCPU="$2"; INO="$3"; shift 3
 NAME="$(basename "$INO" .ino)-$MCU"
 CF="-Os -mmcu=$MCU -DF_CPU=$FCPU -include $HERE/core/core.h -I$LIB -I$LIB/sys -ffunction-sections -fdata-sections -flto -w"
 OBJ=""
-for f in sys/process.c sys/ipc.c lib/ringb8.c sys/serial/serial0.c sys/process/serial0.c cpu/avr/uart0.c; do
+for f in sys/process.c sys/ipc.c lib/ringb8.c sys/serial/serial0.c sys/process/serial0.c cpu/avr/uart0.c \
+         cpu/avr/flash.c cpu/avr/bootrom.S sys/elf.c sys/elf/load.c; do
   case "$MCU:$f" in attiny*:*serial*|attiny*:*uart*|attiny*:lib/ringb8.c) continue;; esac
-  o="$OUT/$NAME-$(echo $f | tr / _ | sed s/\\.c$//).o"; avr-gcc -std=gnu11 $CF "$@" -c "$LIB/$f" -o "$o"; OBJ="$OBJ $o"
+  o="$OUT/$NAME-$(echo $f | tr / _ | sed 's/\\.[cS]$//').o"; avr-gcc -std=gnu11 $CF "$@" -c "$LIB/$f" -o "$o"; OBJ="$OBJ $o"
 done
 avr-gcc -std=gnu11 $CF -c "$HERE/core/core.c" -o "$OUT/$NAME-core.o"
 avr-g++ -std=gnu++11 -fno-exceptions -fno-threadsafe-statics -fpermissive $CF "$@" -x c++ -c "$INO" -o "$OUT/$NAME-sketch.o"

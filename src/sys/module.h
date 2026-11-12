@@ -109,6 +109,51 @@ extern const uint8_t __module_kernel_id;
  */
 #define MODULE_TABLE_ENTRY(slot) (MODULE_TABLE_ADDR + 2 + 2 * (uint16_t)(slot))
 
+/* What a kernel offers to its modules.
+ *
+ * A module is linked against the functions of one kernel build, and a
+ * build only contains the functions somebody in it refers to: what the
+ * kernel does not call itself is left out, and what it calls in one way
+ * only may be reshaped for that way. This table refers to the functions a
+ * module is likely to need, so that every kernel has them as they are
+ * declared. Add your own with MODULE_CONF_API, each followed by a comma:
+ *
+ *   #define MODULE_CONF_API (module_api_fn)analogRead, (module_api_fn)digitalWrite,
+ */
+typedef void (*module_api_fn)(void);
+
+#ifndef MODULE_CONF_API
+#define MODULE_CONF_API
+#endif
+
+extern const module_api_fn module_api[]; // a name of its own, also in a sketch
+const module_api_fn module_api[] __attribute__((used)) CC_PROGMEM = {
+  MODULE_CONF_API
+  (module_api_fn)process_post,
+  (module_api_fn)process_poll,
+  (module_api_fn)process_new,
+  (module_api_fn)process_destroy,
+  (module_api_fn)process_lookup_n,
+#if PROCESS_CONF_PIPELINES > 0
+  (module_api_fn)process_connect,
+  (module_api_fn)process_disconnect,
+  (module_api_fn)process_ipc_wake,
+  (module_api_fn)ipc_pipe_init,
+  (module_api_fn)ipc_pipe_read,
+  (module_api_fn)ipc_pipe_write,
+  (module_api_fn)ipc_pipe_available,
+  (module_api_fn)ipc_pipe_space,
+#endif
+  (module_api_fn)micros
+};
+
+/* Where the slots are, for whoever builds a module for this kernel:
+ * tools/module.mjs reads it from the .elf file of the kernel. */
+extern const uint32_t module_layout[5];
+const uint32_t module_layout[5] __attribute__((used)) CC_PROGMEM = {
+  MODULE_CONF_BASE, MODULE_CONF_SLOT_SIZE, MODULE_CONF_SLOTS, MODULE_CONF_RAM_SIZE, F_CPU
+};
+
 // end of the kernel image in flash, from the linker
 extern const char __data_load_end[];
 
@@ -124,6 +169,10 @@ uint8_t module_ram[MODULE_CONF_SLOTS][MODULE_CONF_RAM_SIZE];
 static inline void module_init(void)
 {
   uint16_t crc = 0;
+
+  // Nobody in the kernel reads the two tables above, and the linker leaves
+  // out what nobody refers to. Naming them here keeps them in the build.
+  __asm__ __volatile__ ("" : : "r" (&module_api[0]), "r" (&module_layout[0]));
 
   for (uint16_t a = 0; a != (uint16_t)__data_load_end; a++)
     crc = _crc_xmodem_update(crc, pgm_read_byte(a));

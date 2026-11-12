@@ -1,7 +1,7 @@
 /* core.h - the few things protoduino takes from an Arduino core, for a build
  * without one: micros(), setup() and loop(). Force-included (-include) into
  * every file of such a build. See core.c. */
-#ifndef PROTODUINO_TOOLS_CORE_H
+#if !defined(PROTODUINO_TOOLS_CORE_H) && !defined(__ASSEMBLER__)
 #define PROTODUINO_TOOLS_CORE_H
 #ifdef __cplusplus
 extern "C" {
