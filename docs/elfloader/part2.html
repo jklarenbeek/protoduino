@@ -211,7 +211,8 @@ uint8_t elfld_sink(uint8_t space, elfld_addr_t addr, uint8_t byte);</code></pre>
   <li><strong>A landing pad.</strong> Because that skip instruction may skip one word, the loader starts with a one-word no-op.</li>
   <li><strong>Its own serial port.</strong> The ATtiny85 has no USART; the build uses a bit-banged port.</li>
 </ol>
-<p>The loader's own pages remain unprotected against a runaway application. On these parts the design is an updater, not a guaranteed recovery path, and an ISP programmer remains the last resort. This path compiles and has not executed. The simulator cannot settle point 2: simavr treats <code>0xFFFF</code> as an invalid opcode.</p>
+<p>The loader's own pages remain unprotected against a runaway application. On these parts the design is an updater, not a guaranteed recovery path, and an ISP programmer remains the last resort.</p>
+<p>The ATtiny build compiles and has not executed. Points 2 and 3 were checked on the ATmega328P in simavr, which executes an erased word as the same skip instruction a real AVR does. Started in erased flash below the loader, at either word alignment and with the skip taken or not, execution arrived in the loader all four times. In a control build without the landing pad, one of the four cases skipped the loader's first instruction and ran its rule table as code. <span class="tag m">measured</span></p>
 
 <h3><span class="n">6.7</span>The service entry</h3>
 <pre><code><span class="c">/* last four bytes of flash:  rjmp bootsvc_write_page ; 'p' ; 'D' */</span>
@@ -219,7 +220,7 @@ typedef void (*pd_write_page_fn)(uint32_t addr, const uint8_t *page);
 
 if (pgm_read_byte(FLASHEND - 1) == 'p' &amp;&amp; pgm_read_byte(FLASHEND) == 'D')
   ((pd_write_page_fn)((FLASHEND - 3) / 2))(0x6000UL, page);     <span class="c">/* returns when the page is programmed */</span></code></pre>
-<p>The entry disables interrupts while it works, because the caller's interrupt handlers live in the section being programmed, and restores the caller's interrupt state on return. It costs 28 bytes in the loader. In simulation an application installed through the loader called it and read its page back correctly <span class="tag m">measured</span>. Two limits apply to that result: simavr does not enforce the rule that SPM must run from the boot section, so the test shows the calling convention and not the hardware permission; and on parts above 128 KB the entry lies beyond a 16-bit function pointer and needs a small far-call trampoline, which is not built.</p>
+<p>The entry disables interrupts while it works, because the caller's interrupt handlers live in the section being programmed, and restores the caller's interrupt state on return. It costs 28 bytes in the loader. In simulation an application installed through the loader called it and read its page back correctly <span class="tag m">measured</span>. Two limits apply to that result: simavr does not enforce the rule that SPM must run from the boot section (S2 in 8.1), so the test shows the calling convention and not the hardware permission; and on parts above 128 KB the entry lies beyond a 16-bit function pointer and needs a small far-call trampoline, which is not built.</p>
 <p>The planned form is a short table, not a single entry: write a page, begin a load, feed a load, report information. With the core exported this way, the kernel's module loader carries no second copy of it. <span class="tag p">proposed</span></p>
 
 <h3><span class="n">6.8</span>Modules <span class="tag p">proposed</span></h3>
@@ -346,4 +347,4 @@ avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib \
 </ol>
 <p>One compiler option already mattered. By default avr-gcc kept the context pointer in the X register, which has no displacement addressing, and spent three instructions on each field access. With <code>-mstrict-X</code> the header check alone fell from 154 to 120 bytes. <span class="tag m">measured</span></p>
 
-<p><strong>Time.</strong> Line time dominates: 13.3 ms per block at 115200 baud in simulation, about 9.6 KB per second. Real hardware adds the time to erase and program each page, a few milliseconds each, which simavr does not model.</p>
+<p><strong>Time.</strong> Line time dominates: 13.3 ms per block at 115200 baud in simulation, about 9.6 KB per second. Real hardware adds the time to erase and program each page, a few milliseconds each, which simavr does not model (S5 in 8.1).</p>

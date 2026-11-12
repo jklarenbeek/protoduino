@@ -62,24 +62,64 @@ void CC_TMPL_FN(close)(void)
 
 <div class="box">
 <h4>Findings from my first review that testing withdrew</h4>
-<p>They are listed so the record is straight. The polled receive calls do work after <code>open()</code> when interrupts are off. <code>rx_clear_errors()</code> does clear an overrun under simavr; on a real chip those flags are read-only and clear when the data register is read, so the call is harmless there. The transmit path through the data-register-empty interrupt is sound: 18 bytes went out in 19 handler calls. The 57600 special case is the deliberate Arduino-compatible behaviour. The read-modify-write on the control register can at worst cause one extra interrupt that switches itself off.</p>
+<p>They are listed so the record is straight. The polled receive calls do work after <code>open()</code> when interrupts are off. <code>rx_clear_errors()</code> does clear an overrun under simavr (S7 in 8.1); on a real chip those flags are read-only and clear when the data register is read, so the call is harmless there. The transmit path through the data-register-empty interrupt is sound: 18 bytes went out in 19 handler calls. The 57600 special case is the deliberate Arduino-compatible behaviour. The read-modify-write on the control register can at worst cause one extra interrupt that switches itself off.</p>
 </div>
 
-<h2><span class="n">8</span>What protosim needs</h2>
+<h2 class="newpage"><span class="n">8</span>Simulator findings: simavr and protosim</h2>
 
-<p>protosim already loads a bootloader beside an application and can drive one over the simulated UART. Testing this loader with it, not with a separate harness, needs the following. All are proposals.</p>
+<p>Running the prototype and the probes turned up behaviour in both simulators that matters to anyone testing firmware with them. This section lists all of it: where simavr differs from a real chip, defects in protosim, and what protosim would need to test this loader without a separate harness. The versions are protosim <code>6fadc6f</code> and simavr <code>a6fc4cc</code>, the commit protosim pins. Nothing was changed in either project. Recorded probe output is in <code>prototype/results-simulators.txt</code>.</p>
+
+<h3><span class="n">8.1</span>simavr: where the simulation differs from the hardware</h3>
 
 <table>
-  <thead><tr><th style="width:4%">#</th><th style="width:27%">Change</th><th>Why</th><th style="width:26%">Evidence</th></tr></thead>
+  <thead><tr><th style="width:4%">#</th><th style="width:17%">Where</th><th>What simavr does</th><th style="width:22%">A real AVR</th><th style="width:25%">Evidence</th></tr></thead>
   <tbody>
-    <tr><td>P1</td><td>Binary input for the UART: <code>--uart0-in-file</code>, or an XMODEM sender beside the STK500 one</td><td><code>--uart0-in</code> takes a C string. An ELF file contains zero bytes and cannot be passed.</td><td><span class="tag r">read</span></td></tr>
-    <tr><td>P2</td><td>Pace injected bytes from the UART's configured rate</td><td>Bytes are injected every millisecond whatever the baud rate. At 9600 a byte takes 1.04 ms, so bytes queue inside simavr and the receive flag stays set with no interrupt pending.</td><td><span class="tag m">measured</span> the flag stayed visible for 568 consecutive polls at 9600; never at 19200.</td></tr>
-    <tr><td>P3</td><td>Set simavr's <code>reset_pc</code> when <code>--bootloader</code> is given</td><td>Only the initial program counter is set today. A watchdog or software reset would restart at address 0, so the &ldquo;application asks for an update&rdquo; path cannot be tested.</td><td><span class="tag r">read</span> protosim never assigns <code>reset_pc</code>. The harness set it and reset correctly.</td></tr>
-    <tr><td>P4</td><td><code>--expect-flash &lt;file.elf&gt;</code>: compare flash with simavr's own load of a file at exit</td><td>This is the oracle test of section 9, as a one-line check for CI.</td><td><span class="tag m">measured</span> in the harness</td></tr>
-    <tr><td>P5</td><td>Page size from the part in the STK500 uploader</td><td>The uploader assumes 128-byte pages, so the automatic upload suits ATmega328P-class parts only.</td><td><span class="tag r">read</span></td></tr>
-    <tr><td>P6</td><td>Work around simavr's ELF reader at the end of flash</td><td>It refuses a chunk that ends on the last flash byte (&ldquo;would overflow buffer&rdquo;), so a service stub in the last four bytes is silently not loaded.</td><td><span class="tag m">measured</span> the service test had to place its stub four bytes lower.</td></tr>
+    <tr><td>S1</td><td><code>sim_elf.c:103, :255</code></td><td>The firmware loader is given the last valid flash address as its limit and rejects any chunk that ends on the last byte of flash. The bytes are dropped with only a log line. This is an off-by-one.</td><td>The chunk fits.</td><td><span class="tag m">measured</span> &ldquo;Loading 4 bytes of Flash data at 7ffc would overflow buffer (32767 bytes)&rdquo;</td></tr>
+    <tr><td>S2</td><td><code>avr_flash.c</code>, SPM handling</td><td>SPM is carried out wherever the program counter is.</td><td>On parts with a boot section, SPM outside it does nothing.</td><td><span class="tag m">measured</span> a program at address 0 erased and wrote a page</td></tr>
+    <tr><td>S3</td><td><code>avr_flash.c</code></td><td>A page write replaces the page with the buffer contents.</td><td>Programming only clears bits; without an erase the result is old AND new.</td><td><span class="tag m">measured</span> <code>F0</code> then <code>3C</code> with no erase read back <code>3C</code>, not <code>30</code></td></tr>
+    <tr><td>S4</td><td><code>avr_flash.c</code></td><td>There is no read-while-write state. The application section reads back correctly straight after a page write, and the busy bit is never set.</td><td>The section cannot be read until it is re-enabled.</td><td><span class="tag m">measured</span> data read back at once; <code>SPMCSR</code> = <code>04</code></td></tr>
+    <tr><td>S5</td><td><code>avr_flash.c</code></td><td>Erase and write finish within the instruction. The page-write bit stays set in <code>SPMCSR</code> afterwards.</td><td>Each takes milliseconds; the control bits clear on completion.</td><td><span class="tag m">measured</span> zero busy polls</td></tr>
+    <tr><td>S6</td><td><code>sim_core.c:777</code></td><td>When the program counter reaches the end of flash, the CPU is marked as crashed. Erased words themselves are executed correctly, as the skip instruction.</td><td>The program counter wraps to address 0.</td><td><span class="tag m">measured</span> &ldquo;CPU CRASHED&rdquo; after running through erased flash with nothing above it</td></tr>
+    <tr><td>S7</td><td><code>avr_uart.c:334&ndash;336</code></td><td>Any write to the UART status register clears the overrun flag; the line that would preserve it is commented out.</td><td>The flag is read-only and clears when the data register is read.</td><td><span class="tag m">measured</span> status <code>AA</code> before <code>rx_clear_errors()</code>, <code>A2</code> after</td></tr>
+    <tr><td>S8</td><td><code>avr_uart.c</code>, status read</td><td>The frame-error flag is recomputed only while a received byte is waiting, and writes cannot clear it, so it stays set after the last byte has been read.</td><td>The flag belongs to the byte that is next to be read.</td><td><span class="tag r">read</span> It matches the note in protoduino's driver that the flag cannot be cleared.</td></tr>
+    <tr><td>S9</td><td><code>avr_uart.c</code>, input queue</td><td>The receiver queues 63 bytes before it reports an overrun.</td><td>Two bytes and the shift register.</td><td><span class="tag m">measured</span> 63 bytes drained after 100 were sent with nobody reading</td></tr>
+    <tr><td>S10</td><td><code>avr_uart.c</code>, receive timer</td><td>With more than one byte queued, the receive flag stays set while the interrupt is raised again only one byte time later. Code that polls with interrupts on sees the flag and can take the byte ahead of the handler.</td><td>The interrupt is taken as soon as the flag is set.</td><td><span class="tag m">measured</span> 568 consecutive polls saw the flag at 9600 baud; none at 19200</td></tr>
+    <tr><td>S11</td><td><code>sim_avr.c</code>, <code>avr_reset()</code></td><td>A reset discards every pending cycle timer and restarts the cycle counter at zero. An external reset is not recorded in <code>MCUSR</code>.</td><td>Reset causes are all recorded.</td><td><span class="tag m">measured</span> <code>MCUSR</code> = <code>01</code> at power-on and <code>08</code> after a watchdog reset, both correct. Timers and external reset <span class="tag r">read</span>; effects in B6 and B7.</td></tr>
   </tbody>
 </table>
+
+<div class="box warn">
+<h4>What this means for a bootloader tested in simulation</h4>
+<p>S2 to S5 are the ones that matter here. A loader that forgets to erase before writing, forgets to re-enable the read-while-write section, does not wait for an operation to finish, or runs outside the boot section passes every test in simavr and fails on a chip. The prototype does all four correctly, but the simulated results in section 9 are not what shows that. They establish parsing, protocol and addressing. Flash discipline, timing and power loss need hardware.</p>
+</div>
+
+<h3><span class="n">8.2</span>protosim: defects</h3>
+
+<table>
+  <thead><tr><th style="width:4%">#</th><th style="width:19%">Where</th><th>What happens</th><th style="width:25%">Evidence</th><th style="width:19%">Suggested fix</th></tr></thead>
+  <tbody>
+    <tr><td>B1</td><td><code>src/protosim.c:470</code></td><td>The exit status is always 0: the last line is <code>return force_exit_success ? 0 : 0;</code>. A CPU crash before <code>--exit-on-uart</code> matches is reported as success. Only running out of <code>--max-steps</code> fails.</td><td><span class="tag m">measured</span> &ldquo;CPU CRASHED&rdquo;, exit status 0</td><td>Non-zero on a crash, and whenever an expected string was not seen.</td></tr>
+    <tr><td>B2</td><td><code>src/protosim.c:304</code></td><td>For a bootloader given as ELF, the entry point is read from the temporary instance's program counter, which simavr never sets when it loads a file. The loader is &ldquo;started&rdquo; at address 0.</td><td><span class="tag m">measured</span> <code>entry=0x0000</code> for the ELF, <code>0x7800</code> for the same loader as HEX</td><td>Use the firmware's base address or the ELF entry point.</td></tr>
+    <tr><td>B3</td><td><code>src/protosim.c:305</code></td><td>The ELF path copies the temporary instance's whole flash over the simulated flash, which wipes the application loaded just before. The HEX path overlays only the bootloader. With B2 the result looks right by accident: address 0 is now erased, and erased flash runs through to the loader.</td><td><span class="tag m">measured</span> only the loader's banner appears; the application's never does</td><td>Copy only the bootloader's own range.</td></tr>
+    <tr><td>B4</td><td><code>src/protosim.c:195</code></td><td>A main firmware given as Intel HEX is read with simavr's single-chunk reader. Of a file with two regions, only the first is loaded.</td><td><span class="tag m">measured</span> application and loader in one file: &ldquo;Loaded HEX: 180 bytes&rdquo;, the loader absent</td><td>Use simavr's multi-chunk reader, or protosim's own.</td></tr>
+    <tr><td>B5</td><td><code>src/protosim.c:84, :349</code></td><td><code>--uart0-in</code> injects one byte per millisecond, starting 1 ms after start, whatever the baud rate and whether or not the receiver is on. Bytes sent before the receiver is enabled are lost. At 9600 baud bytes arrive faster than a byte time and queue (S10).</td><td><span class="tag m">measured</span> receiver enabled at 5 ms: the first 5 of 16 bytes were lost</td><td>Start when the receiver is enabled, as the TCP path does, and pace from the configured rate.</td></tr>
+    <tr><td>B6</td><td><code>src/protosim.c:349</code></td><td>Injection stops for good after any reset, because simavr's reset discards the timer that drives it (S11).</td><td><span class="tag m">measured</span> after a watchdog reset none of the remaining bytes arrived</td><td>Register the timer again after a reset.</td></tr>
+    <tr><td>B7</td><td>Profiling reports</td><td>After a reset the cycle counter restarts at zero, so the report's totals no longer match the per-function sums.</td><td><span class="tag m">measured</span> &ldquo;hottest single edge: 200.0% of total runtime&rdquo;; 99.4% without a reset</td><td>Keep a running total of its own.</td></tr>
+    <tr><td>B8</td><td><code>src/protosim.c:384</code></td><td><code>--bootloader</code> always starts the STK500 uploader thread. No switch turns it off or selects another protocol. In headless mode, where no terminal device exists, the thread printed nothing after its start message.</td><td><span class="tag m">measured</span> and <span class="tag r">read</span></td><td>A switch; see 8.3.</td></tr>
+    <tr><td>B9</td><td>No assignment anywhere</td><td>simavr's <code>reset_pc</code> is never set, so a reset during a <code>--bootloader</code> run restarts at address 0 and not in the loader.</td><td><span class="tag r">read</span> The harness set it and reset correctly.</td><td>Set it when a bootloader is given.</td></tr>
+    <tr><td>B10</td><td><code>include/ stk500_uploader.h:36</code></td><td>The uploader's page size is fixed at 128 bytes, so the automatic upload suits ATmega328P-class parts only.</td><td><span class="tag r">read</span></td><td>Take it from the part.</td></tr>
+    <tr><td>B11</td><td><code>src/ihex_loader.c:65</code></td><td>The bootloader HEX reader fills gaps between regions with <code>00</code>, where erased flash is <code>FF</code>.</td><td><span class="tag r">read</span></td><td>Fill with <code>FF</code>.</td></tr>
+    <tr><td>B12</td><td><code>--uart0-in</code></td><td>The input is a C string. A file that contains zero bytes, such as an ELF, cannot be passed.</td><td><span class="tag r">read</span></td><td>See 8.3.</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="n">8.3</span>protosim: additions for testing this loader <span class="tag p">proposed</span></h3>
+<ul>
+  <li><strong>Binary input.</strong> <code>--uart0-in-file</code>, or better an XMODEM sender beside the STK500 one, with a switch for which of the two runs with <code>--bootloader</code>, and one for neither.</li>
+  <li><strong>Flash comparison.</strong> <code>--expect-flash &lt;file.elf&gt;</code>: at exit, compare flash with simavr's own load of that file. This is the oracle test of section 9 as a one-line check for CI, and it needs B1 fixed to be of use.</li>
+  <li><strong>Reset into the loader.</strong> B9, so that an application's request for an update can be tested.</li>
+  <li><strong>A strict flash mode.</strong> An option that reports SPM outside the boot section, a page write with no erase before it, and reads of the application section while it is busy. That would turn S2 to S4 from blind spots into test failures. It could live in simavr or as a check in protosim.</li>
+</ul>
 
 <h2><span class="n">9</span>Verification</h2>
 
@@ -101,6 +141,7 @@ void CC_TMPL_FN(close)(void)
     <tr><td>T10</td><td>328P: an installed application programs a page through the service entry</td><td>Page reads back as written; the caller's interrupt state restored</td></tr>
     <tr><td>T11</td><td>2560: small image</td><td>Flash identical; record written; application reached</td></tr>
     <tr><td>T12</td><td>2560: 106,830-byte image reaching far flash, 839 blocks</td><td>Flash identical; 11.9 s of line time</td></tr>
+    <tr><td>T13</td><td>328P: execution started in erased flash below the loader, at both word alignments, with the skip taken and not taken</td><td>The loader was reached in all four cases. In a control build without the landing pad, one case skipped the loader's first instruction and ran its rule table as code</td></tr>
   </tbody>
 </table>
 
@@ -117,7 +158,8 @@ void CC_TMPL_FN(close)(void)
 <ul>
   <li>Anything on hardware, including fuse and lock-bit settings and real programming times.</li>
   <li>Loss of power during an update. The transaction argument in 4.4 is by construction.</li>
-  <li>The ATtiny path: it has never executed.</li>
+  <li>The ATtiny path: it has never executed. Only its run-through mechanism was checked, on the ATmega328P (T13).</li>
+  <li>Flash discipline. simavr accepts a missing erase, a missing read-while-write re-enable and SPM from the application section (8.1), so the simulated results cannot show that the loader gets these right.</li>
   <li>The image CRC check at start-up, the information reply, and the service entry on the ATmega2560.</li>
   <li>The module layer beyond linking and the window check.</li>
 </ul>
@@ -125,7 +167,7 @@ void CC_TMPL_FN(close)(void)
 <h3><span class="n">9.4</span>Test plan from here</h3>
 <ul>
   <li><strong>Host unit tests in CI</strong> for the core, with the files above as fixtures, and a fuzzer on <code>elfld_write()</code>. The core is small, pure C and takes untrusted input, which is the ideal fuzzing target.</li>
-  <li><strong>protosim end to end</strong> per supported part, once P1 to P4 exist, with the oracle comparison as the pass criterion.</li>
+  <li><strong>protosim end to end</strong> per supported part, once the additions of 8.3 exist and B1 is fixed, with the oracle comparison as the pass criterion.</li>
   <li><strong>Hardware</strong>: an Uno and a Mega 2560, with an ISP programmer at hand for fuses. A relay on the supply to cut power at random points of an update, hundreds of times, checking that the board always answers afterwards.</li>
 </ul>
 
@@ -136,7 +178,7 @@ void CC_TMPL_FN(close)(void)
   <tbody>
     <tr><td>M0</td><td>The fixes of section 7</td><td>The probes in <code>prototype/probes</code> give the corrected results</td></tr>
     <tr><td>M1</td><td>Core in <code>src/sys/elf</code>, host tests, fuzzing</td><td>Fixtures pass in CI on the host and for two AVR parts</td></tr>
-    <tr><td>M2</td><td>Bootloader for ATmega328P and ATmega2560; protosim P1 to P4</td><td>T1 to T12 run in protosim; first boards flashed with a terminal program</td></tr>
+    <tr><td>M2</td><td>Bootloader for ATmega328P and ATmega2560; protosim fixes B1 to B9 and the additions of 8.3</td><td>T1 to T13 run in protosim; first boards flashed with a terminal program</td></tr>
     <tr><td>M3</td><td>Service table, <code>elfboot_request()</code>, information reply; the <code>pd</code> tool; PlatformIO upload through it</td><td><code>pio run -t upload</code> sends the <code>.elf</code>; the power-cut rig passes</td></tr>
     <tr><td>M4</td><td>Modules, exact binding; the kernel's loader process</td><td>A module is installed over serial, runs as a process, survives reset and can be removed</td></tr>
     <tr><td>M5</td><td>ATtiny path on hardware; relocation by fix-up stream; signed modules; a size pass in assembly</td><td>Each on its own evidence</td></tr>
@@ -204,7 +246,7 @@ S=../../../../protosim/libraries/simavr/simavr
 gcc -O2 -o sim_harness sim_harness.c -I$S/sim -I$S/sim/avr \
     $S/obj-x86_64-linux-gnu/libsimavr.a -lelf -lm -lpthread
 ./sim_harness atmega328p out/m328.elf app.elf --corrupt 3 --drop-ack 5</code></pre>
-<p class="small">Recorded outputs are in <code>results-sizes.txt</code> and <code>results-tests.txt</code>. The UART and serial findings of section 7 come from <code>probes/uart_probe.c</code> and <code>probes/serial_flush_probe.c</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>.</p>
+<p class="small">Recorded outputs are in <code>results-sizes.txt</code>, <code>results-tests.txt</code> and <code>results-simulators.txt</code>. The simulator findings of section 8 come from the programs in <code>simprobes/</code> and from <code>sim_harness --fallthrough</code>. The UART and serial findings of section 7 come from <code>probes/uart_probe.c</code> and <code>probes/serial_flush_probe.c</code>, built against protoduino's own sources and run with <code>protosim --uart0-in &hellip; --uart0-out &hellip;</code>.</p>
 
 <h3>Sources</h3>
 <ul class="src">

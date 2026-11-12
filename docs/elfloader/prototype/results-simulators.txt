@@ -1,0 +1,64 @@
+Simulator findings: recorded probe output
+protosim 6fadc6f, simavr a6fc4cc, avr-gcc 7.3.0, ATmega328P at 16 MHz
+
+== spm_probe: self-programming from the application section (simavr) ==
+protosim exit=0
+pc_is_application_section=01 spmcsr_right_after_page_write=04 busy_polls_high=00 busy_polls_low=00 read_back_without_rww_enable=f0 after_second_write_without_erase=3c 
+DONE
+== erased_probe: jump into erased flash with nothing above it (simavr, protosim exit status) ==
+protosim exit=0
+first start: jumping into erased flash at 0x6000
+[DBG] CPU CRASHED at PC=0x0000 after 48001 steps
+
+== reset_probe: watchdog reset, reset cause, --uart0-in after the reset ==
+protosim exit=0
+start mcusr=01
+first run: receiver off for 15 ms, then watchdog reset
+start mcusr=08
+after reset, received:  count=00
+DONE
+== late_rx_probe: receiver enabled 5 ms after start, 16 bytes injected ==
+protosim exit=0
+received: 56789abcdef
+DONE
+== --bootloader with the same loader as ELF and as Intel HEX ==
+[STK] Captured app binary: 210 bytes from flash
+[BL] Loaded bootloader ELF: crtboot.elf  entry=0x0000
+[BL] Initial PC set to bootloader entry 0x0000
+[STK] Auto-upload thread started (port 0)
+uart: BOOT-BANNER|
+[STK] Captured app binary: 210 bytes from flash
+[BL] Loaded bootloader HEX: 212 bytes at 0x7800
+[BL] Initial PC set to bootloader entry 0x7800
+[STK] Auto-upload thread started (port 0)
+uart: BOOT-BANNER|
+
+== profiling report with and without a watchdog reset ==
+no reset:   [CG]  (hottest single edge: 99.4% of total runtime)
+with reset: [CG]  (hottest single edge: 200.0% of total runtime)
+
+== main firmware as a two-region Intel HEX (application + loader at 0x7800) ==
+Loaded HEX: 180 bytes at 0x0000
+[DBG] CPU CRASHED at PC=0x0000 after 2967 steps
+uart: J   (J = application ran; a loader probe 'C' never appears)
+
+== erased flash runs through to the loader; the landing pad (sim_harness --fallthrough) ==
+enter erased flash at 0x6000 with r31=0x00: loader reached (it sent its probe)
+enter erased flash at 0x6000 with r31=0x80: loader reached (it sent its probe)
+enter erased flash at 0x6002 with r31=0x00: loader reached (it sent its probe)
+enter erased flash at 0x6002 with r31=0x80: loader reached (it sent its probe)
+-- control: loader built without the landing pad --
+enter erased flash at 0x6000 with r31=0x00: loader reached (it sent its probe)
+enter erased flash at 0x6000 with r31=0x80: loader reached (it sent its probe)
+enter erased flash at 0x6002 with r31=0x00: loader reached (it sent its probe)
+CORE: *** 7812: Invalid Opcode SP=08ff O=5312
+CORE: *** 7816: Invalid Opcode SP=08ff O=341c
+CORE: *** 781a: Invalid Opcode SP=08ff O=001e
+CORE: *** 781c: Invalid Opcode SP=08ff O=001f
+CORE: *** 781e: Invalid Opcode SP=08ff O=202a
+CORE: *** 7822: Invalid Opcode SP=08ff O=002d
+CORE: *** 7824: Invalid Opcode SP=08ff O=2411
+enter erased flash at 0x6002 with r31=0x80: loader reached (it sent its probe)
+
+== simavr's ELF reader and the last byte of flash (loader built with the service stub at the end) ==
+Loading 4 bytes of Flash data at 7ffc would overflow buffer (32767 bytes).

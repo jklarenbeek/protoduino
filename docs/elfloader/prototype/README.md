@@ -9,12 +9,13 @@ is deliberately kept outside `src/`, which the Arduino build compiles in full.
 | `boot.c` | Serial bootloader around the core: XMODEM-CRC, page cache, image record, service entry. |
 | `build.sh` | `./build.sh <name> <mcu> <boot_start> [-D...]` builds `out/<name>.elf` and prints its size. |
 | `host_test.c` | Runs the core natively on a real `.elf` and writes the flash image it produced. |
-| `sim_harness.c` | Runs the bootloader inside simavr, sends a file with XMODEM, compares flash with simavr's own ELF reader. |
+| `sim_harness.c` | Runs the bootloader inside simavr, sends a file with XMODEM, compares flash with simavr's own ELF reader. `--fallthrough <addr> <r31>` starts execution in erased flash instead. |
 | `svc_app.c` | Application that programs a page through the loader's service entry. |
 | `big.c` | A 106 KB image for the ATmega2560 that reaches far flash. |
 | `module/` | Link recipe for a prelinked module: `kernel.c`, `blink_mod.c`, `pd-module.ld`. |
 | `probes/` | Programs that produced the UART and serial findings, built against protoduino's own sources. |
-| `results-sizes.txt`, `results-tests.txt` | Recorded output of the size matrix and the twelve simulated scenarios. |
+| `simprobes/` | Programs that produced the simavr and protosim findings (section 8 of the document). |
+| `results-sizes.txt`, `results-tests.txt`, `results-simulators.txt` | Recorded output of the size matrix, the simulated scenarios T1 to T12, and the simulator probes including T13. |
 
 Requirements: `gcc-avr`, `avr-libc`, `binutils-avr`, `libelf-dev`, and protosim built
 with its simavr submodule (`./scripts/setup-simavr.sh && make`).
@@ -41,6 +42,13 @@ avr-gcc -Os -mmcu=atmega328p -o kernel.elf kernel.c
 avr-nm kernel.elf | awk '$2=="T" && $3 ~ /^kernel_/ {printf "PROVIDE(%s = 0x%s);\n", $3, $1}' > kernel-abi.ld
 avr-gcc -Os -mmcu=atmega328p -nostartfiles -nostdlib -Wl,-T,pd-module.ld -Wl,-T,kernel-abi.ld \
         -Wl,-e,pd_module -Wl,--defsym=__pd_kernel_id=0x8013 -o blink_mod.elf blink_mod.c
+
+# simulator probes (from simprobes/): plain applications, run under protosim
+avr-gcc -std=gnu11 -Os -mmcu=atmega328p -DF_CPU=16000000UL -o spm_probe.elf spm_probe.c
+$SIM spm_probe.elf -m atmega328p --uart0-out out.txt --exit-on-uart DONE --max-steps 20000000
+
+# erased flash and the landing pad (control: -DELFBOOT_FEAT_LANDING_PAD=0)
+./sim_harness atmega328p out/m328.elf app.elf --fallthrough 0x6002 0x80
 
 # UART and serial probes (from probes/, with protoduino's src as $PD and protosim's binary as $SIM)
 avr-gcc -std=gnu11 -Os -mmcu=atmega328p -DF_CPU=16000000UL -DTEST=1 -I$PD -I$PD/sys \

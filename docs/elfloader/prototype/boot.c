@@ -13,6 +13,7 @@
  *   ELFBOOT_FEAT_SERVICE       export a page-write service to the application
  *   ELFBOOT_VIRTUAL_RESET      part has no boot section: patch the reset vector
  *   ELFBOOT_SOFT_UART          part has no USART: bit-banged serial
+ *   ELFBOOT_FEAT_LANDING_PAD   one-word no-op at the loader's first address (default on)
  */
 #include <avr/io.h>
 #include <avr/boot.h>
@@ -44,6 +45,9 @@
 #endif
 #ifndef ELFBOOT_SOFT_UART
 #define ELFBOOT_SOFT_UART 0
+#endif
+#ifndef ELFBOOT_FEAT_LANDING_PAD
+#define ELFBOOT_FEAT_LANDING_PAD 1    /* 0 only for the control experiment */
 #endif
 #ifndef ELFBOOT_CONF_TIMEOUT_POLLS
 #define ELFBOOT_CONF_TIMEOUT_POLLS (F_CPU / 10)   /* about one second of polling */
@@ -430,7 +434,9 @@ void boot_vec(void) __attribute__((naked, used, section(".vectors")));
 void boot_vec(void)
 {
   __asm__ __volatile__(
+#if ELFBOOT_FEAT_LANDING_PAD
     "nop\n"                /* erased flash (0xFFFF) may skip one word on the way in */
+#endif
     "rjmp boot_init\n");
 }
 void boot_init(void) __attribute__((naked, used, section(".init0")));

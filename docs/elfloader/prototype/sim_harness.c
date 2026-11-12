@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 {
   if (argc < 4) { fprintf(stderr, "usage\n"); return 2; }
   const char *mcu = argv[1], *boot = argv[2], *app = argv[3], *send = argv[3];
-  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1;
+  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0;
   for (int i = 4; i < argc; i++) {
     if (!strcmp(argv[i], "--corrupt")) corrupt_blk = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--drop-ack")) drop_ack_blk = atoi(argv[++i]);
@@ -103,6 +103,7 @@ int main(int argc, char **argv)
     else if (!strcmp(argv[i], "--expect-refusal")) expect_refusal = 1;
     else if (!strcmp(argv[i], "--then-send")) then_send = argv[++i];
     else if (!strcmp(argv[i], "--check-page")) check_page = strtoul(argv[++i], 0, 0);
+    else if (!strcmp(argv[i], "--fallthrough")) { fall_addr = strtol(argv[++i], 0, 0); fall_r31 = strtol(argv[++i], 0, 0); }
   }
 
   FILE *f = fopen(send, "rb"); if (!f) { perror(send); return 2; }
@@ -143,6 +144,22 @@ int main(int argc, char **argv)
   rx_irq = avr_io_getirq(avr, AVR_IOCTL_UART_GETIRQ('0'), UART_IRQ_INPUT);
   avr_irq_register_notify(avr_io_getirq(avr, AVR_IOCTL_UART_GETIRQ('0'), UART_IRQ_OUTPUT), from_device, NULL);
   avr_cycle_timer_register(avr, 2000, pump, NULL);
+
+  /* Erased-flash test: start executing in erased flash with a chosen r31 and
+   * see whether execution arrives in the loader (its first 'C' probe proves it). */
+  if (fall_addr >= 0) {
+    avr->pc = (avr_flashaddr_t)fall_addr;
+    avr->data[31] = (uint8_t)fall_r31;
+    cur_blk = 0xFFFF;                               /* never answer the probe */
+    int st = cpu_Running;
+    while (avr->cycle < 40000000ull && !c_probes) {
+      st = avr_run(avr);
+      if (st == cpu_Done || st == cpu_Crashed) break;
+    }
+    printf("enter erased flash at 0x%lx with r31=0x%02lx: %s\n", fall_addr, fall_r31,
+           c_probes ? "loader reached (it sent its probe)" : (st == cpu_Crashed ? "CPU crashed" : "no probe"));
+    return c_probes ? 0 : 1;
+  }
 
   int state = cpu_Running; uint64_t app_pc_seen = 0;
   while (avr->cycle < max_cycles) {

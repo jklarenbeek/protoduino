@@ -10,16 +10,16 @@
     <div><div class="v">84 B</div><div class="l">of loader state on an ATmega328P; no heap, no seeking</div></div>
     <div><div class="v">1,676 B</div><div class="l">serial ELF bootloader for the ATmega328P, as measured</div></div>
     <div><div class="v">5.6 %</div><div class="l">of example 12's ELF file is all the loader has to receive</div></div>
-    <div><div class="v">12 of 12</div><div class="l">simulated scenarios on ATmega328P and ATmega2560 behaved as designed</div></div>
+    <div><div class="v">13 of 13</div><div class="l">simulated scenarios on ATmega328P and ATmega2560 behaved as designed</div></div>
   </div>
 
   <div class="box accent">
     <h4>What is real in this document</h4>
     <ul>
       <li>A prototype of the loader core and of a serial bootloader built on it was written and run for this document. Every figure marked <span class="tag m">measured</span> comes from it: avr-gcc 7.3.0, and simavr at the commit that protosim pins.</li>
-      <li>Nothing has run on hardware. Power loss during an update was not simulated.</li>
+      <li>Nothing has run on hardware. Power loss during an update was not simulated, and simavr's flash model is more forgiving than a chip (8.1).</li>
       <li>The module layer (6.8), relocation (4.7) and the ATtiny path (6.6) are designs. The ATtiny build compiles; it has not executed anywhere.</li>
-      <li>No protoduino or protosim source file was changed. The fixes in section 7 and section 8 are proposals. The prototype sits beside this document in <code>docs/elfloader/prototype/</code>, outside <code>src/</code>.</li>
+      <li>No protoduino, protosim or simavr source file was changed. The fixes in section 7 and section 8 are proposals. The prototype sits beside this document in <code>docs/elfloader/prototype/</code>, outside <code>src/</code>.</li>
     </ul>
   </div>
 
@@ -36,7 +36,7 @@
     <li><span class="n">5</span>Functional specification</li>
     <li><span class="n">6</span>Technical design</li>
     <li><span class="n">7</span>Fixes for current protoduino caveats</li>
-    <li><span class="n">8</span>What protosim needs</li>
+    <li><span class="n">8</span>Simulator findings: simavr and protosim</li>
     <li><span class="n">9</span>Verification</li>
     <li><span class="n">10</span>Roadmap, risks and open questions</li>
     <li><span class="n">A</span>ELF fields the loader reads</li>
@@ -132,7 +132,7 @@
     <tr>
       <td><strong>urboot, micronucleus</strong><br><span class="small">parts without a boot section</span></td>
       <td>They patch the application's reset vector so that reset reaches the loader, and rely on erased flash running through to it. The known hazard, in urboot's own words: if the first page is erased but not rewritten, the part is bricked until it meets an ISP programmer.</td>
-      <td>Erase from the top down with page 0 last, and give the loader a landing pad. There is then no instant at which a reset fails to reach the loader (6.6). <span class="tag p">proposed</span></td>
+      <td>Erase from the top down with page 0 last, and give the loader a landing pad. There is then no instant at which a reset fails to reach the loader (6.6). <span class="tag p">proposed</span> The run-through and the landing pad were checked in simulation (T13).</td>
     </tr>
     <tr>
       <td><strong>simple-avr-bootloader</strong><br><span class="small">m3y54m; a tutorial by its own description</span> <span class="tag r">read</span></td>
