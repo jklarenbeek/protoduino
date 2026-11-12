@@ -4,22 +4,22 @@
     <h1>A streaming ELF loader<br>for AVR</h1>
     <p class="sub">Functional and technical design of a compile-time configurable ELF32 loader: a bootloader that is one protothread, lent to the running system to load modules that are process types. With measurements and fixes for protoduino caveats.</p>
   </div>
-  <div class="meta"><span>Draft 0.7 &middot; 12 November 2026</span><span>jklarenbeek/protoduino &middot; branch ccr-8617b1c3-gjnqlx</span></div>
+  <div class="meta"><span>Draft 0.8 &middot; 12 November 2026</span><span>jklarenbeek/protoduino &middot; branch ccr-8617b1c3-gjnqlx</span></div>
 
   <div class="keyfacts">
     <div><div class="v">1 thread</div><div class="l">the bootloader is a Protothreads v2 thread, and the kernel schedules the same one</div></div>
     <div><div class="v">2,020 B</div><div class="l">in the 2 KB boot section of an ATmega328P, with the thread offered to the kernel</div></div>
-    <div><div class="v">17,741</div><div class="l">turns a heartbeat process took while a module was loaded beside it</div></div>
-    <div><div class="v">46 of 46</div><div class="l">simulated scenarios behaved as designed, five of them in protosim itself</div></div>
+    <div><div class="v">15,113</div><div class="l">turns a heartbeat process took while a module was loaded beside it</div></div>
+    <div><div class="v">51 of 51</div><div class="l">simulated scenarios behaved as designed, nine of them in protosim itself</div></div>
   </div>
 
   <div class="box accent">
     <h4>What is real in this document</h4>
     <ul>
       <li>The loader was written and run for this document. Every figure marked <span class="tag m">measured</span> comes from it: avr-gcc 7.3.0, and simavr at the commit that protosim pins.</li>
-      <li>Module loading runs on protoduino's scheduler, serial device process and pipes: unmodified on the ATmega328P, with one header widened on the ATmega2560 (finding 17).</li>
+      <li>Module loading runs on protoduino's scheduler, serial device process and pipes, on the ATmega328P and the ATmega2560. Since this draft it is also driven from a shell: a sketch built by the Arduino builder took modules over its command line inside protosim (9.2).</li>
       <li>Nothing has run on hardware. Power loss was not simulated. simavr programs a page in no time, so timings leave out the 7 to 9 ms a real page costs (8.1). Relocation (4.8) is a design; the ATtiny build compiles and has not executed.</li>
-      <li>No protoduino, protosim or simavr source file was changed; the fixes in sections 7 and 8 are proposals. The code is in <code>docs/elfloader/overlay/</code>, laid out as it would land in the library; the test bench is in <code>docs/elfloader/prototype/</code>.</li>
+      <li>The loader is part of the library since this draft: the stream, the load thread and the flash driver in <code>src/</code>, module slots and the loader process as headers a sketch configures, the bootloader in <code>boot/</code>, the layout of a module in <code>ld/</code> (6.1). The test bench stays in <code>docs/elfloader/prototype/</code>. The library itself changed in a few places, listed in 7; most fixes of sections 7 and 8 are still proposals. No simavr source file was changed.</li>
     </ul>
   </div>
 
@@ -71,12 +71,13 @@
     <tr><td>A file for the wrong core family, offered to a device with a working application</td><td>Refused with a reason code; nothing erased; the application starts again</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>Start-up: the bootloader waits for a sender only after a reset through the pin</td><td>After power-on, a brown-out or a watchdog reset the image starts at once; an upload tool or the reset button opens the window. Run in the harness and inside protosim, which records reset causes since <code>f4d382e</code>: a file uploaded over its PTY after a pin reset, no wait after a power cycle.</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>An image that the watchdog resets, because it hung or to restart itself</td><td>Starts again at once after every reset and reads the reset cause the bootloader hands it. The previous draft left the watchdog alone and the image never came back.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>A module sent to a running protoduino kernel, loaded by the thread in the 2 KB boot section</td><td>Programmed into its slot, started with <code>process_new()</code>, entered into the module table, and started again after a reset. A heartbeat process took 17,741 turns during the 350 ms transfer.</td><td><span class="tag m">measured</span></td></tr>
-    <tr><td>The same on the ATmega2560, where the thread sits in the 4 KB boot section above 128 KB</td><td>Works: the kernel reaches the thread with a far call that leaves <code>EIND</code> alone. 16,876 heartbeat turns during the 365 ms transfer. The kernel was built against a copy of the library with one header widened (7, finding 17).</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>A module sent to a running protoduino kernel, loaded by the thread in the 2 KB boot section</td><td>Programmed into its slot, started with <code>process_new()</code>, entered into the module table, and started again after a reset. A heartbeat process took 15,113 turns during the 350 ms transfer.</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>The same on the ATmega2560, where the thread sits in the 4 KB boot section above 128 KB</td><td>Works: the kernel reaches the thread with a far call that leaves <code>EIND</code> alone. 14,446 heartbeat turns during the 365 ms transfer.</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>The same with a stock Optiboot 8.3 as the bootloader</td><td>Works: the kernel links the thread and programs pages through Optiboot's <code>do_spm</code></td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A module linked against another kernel build</td><td>Refused before a single page is programmed</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A second module loaded beside a running one</td><td>Both run, and both start after a reset</td><td><span class="tag m">measured</span></td></tr>
     <tr><td>A module that declares static RAM</td><td>Fails at link time with a clear message</td><td><span class="tag m">measured</span></td></tr>
+    <tr><td>The whole chain as a user meets it, inside protosim: bootloader, a sketch with a shell built by the Arduino builder, modules sent to the shell</td><td>The sketch arrives through the bootloader; <code>get</code> takes modules into flash slots while the other processes run, <code>del</code> removes them, a module for another build is refused and the log says why, and what a slot holds runs again after a power cycle. On the ATmega328P and the ATmega2560.</td><td><span class="tag m">measured</span></td></tr>
   </tbody>
 </table>
 
@@ -116,7 +117,7 @@
   <thead><tr><th>Part</th><th class="num">Flash</th><th class="num">RAM</th><th class="num">Page</th><th>Boot section</th><th>Bootloader</th><th style="width:31%">Run-time modules</th></tr></thead>
   <tbody>
     <tr><td class="nw">ATmega328P</td><td class="num">32 KB</td><td class="num">2 KB</td><td class="num">128 B</td><td>0.5 to 4 KB</td><td>2 KB section <span class="tag m">measured</span></td><td>Yes. The load thread fits the 2 KB section and the kernel schedules it there. <span class="tag m">measured</span></td></tr>
-    <tr><td class="nw">ATmega2560</td><td class="num">256 KB</td><td class="num">8 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section, every option <span class="tag m">measured</span></td><td>Yes. The thread sits in the 4 KB section, above 128 KB, and the kernel reaches it with a far call (6.7). <span class="tag m">measured</span> with <code>sys/clock.h</code> widened in a copy of the library (7, finding 17).</td></tr>
+    <tr><td class="nw">ATmega2560</td><td class="num">256 KB</td><td class="num">8 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section, every option <span class="tag m">measured</span></td><td>Yes. The thread sits in the 4 KB section, above 128 KB, and the kernel reaches it with a far call (6.7). <span class="tag m">measured</span></td></tr>
     <tr><td class="nw">ATmega1284P</td><td class="num">128 KB</td><td class="num">16 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section, every option <span class="tag m">measured</span></td><td>As the ATmega2560, without the far call: its boot section is in reach of a plain call. The kernel side was not run. <span class="tag p">proposed</span></td></tr>
     <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>none</td><td><span class="tag b">built</span></td><td>Off by default: the workspace of the thread alone is 313 of its 512 bytes of RAM.</td></tr>
     <tr><td class="nw">ATtiny25 / 45</td><td class="num">2 / 4 KB</td><td class="num">128 / 256 B</td><td class="num">32 / 64 B</td><td>none</td><td>Needs a small-frame transport <span class="tag p">proposed</span></td><td>No. Excluded at compile time.</td></tr>
@@ -340,9 +341,9 @@
 <figcaption><strong>Figure 4.</strong> The load thread does no I/O and reads no clock, so the bootloader and a process can both drive it. In M1 the lower path ran the thread where it sits in the 2 KB boot section of an ATmega328P, in M10 in the 4 KB section of an ATmega2560.</figcaption>
 </figure>
 
-<p><strong>What was measured.</strong> A sketch on protoduino's scheduler ran the serial device process, a kernel process, the loader process and a heartbeat process that takes a turn as often as it can. While a 3,184-byte module file arrived in 350 ms, the heartbeat took 17,741 turns. With the blocking session of the previous draft it would have taken none. <span class="tag m">measured</span></p>
+<p><strong>What was measured.</strong> A sketch on protoduino's scheduler ran the serial device process, a kernel process, the loader process and a heartbeat process that takes a turn as often as it can. While a 3,144-byte module file arrived in 350 ms, the heartbeat took 15,113 turns. With the blocking session of the previous draft it would have taken none. <span class="tag m">measured</span></p>
 
-<p><strong>How long the others wait.</strong> The longest wait of the heartbeat was 15.1 ms, the time one XMODEM block spends on the wire. That is not the loader: <code>process_run()</code> serves polls before events, and the serial device polls on every received byte, so an event-driven process waits out the block (7, finding 14). Built against a copy of <code>process.c</code> with that one function changed, the longest wait fell to 2.2 ms, which is the time the thread needs to check a block and push it through the stream. <span class="tag m">measured</span> On a chip, each page adds 7.4 to 9.0 ms: an AVR cannot execute application code while it erases and programs application flash, and interrupts stay off for that time. No design removes that; XMODEM's stop-and-wait keeps the sender quiet meanwhile.</p>
+<p><strong>How long the others wait.</strong> The longest wait of the heartbeat was 15.2 ms, the time one XMODEM block spends on the wire. That is not the loader: <code>process_run()</code> serves polls before events, and the serial device polls on every received byte, so an event-driven process waits out the block (7, finding 14). Built against a copy of <code>process.c</code> with that one function changed, the longest wait fell to 2.0 ms, which is the time the thread needs to check a block and push it through the stream. <span class="tag m">measured</span> On a chip, each page adds 7.4 to 9.0 ms: an AVR cannot execute application code while it erases and programs application flash, and interrupts stay off for that time. No design removes that; XMODEM's stop-and-wait keeps the sender quiet meanwhile.</p>
 
 <div class="box">
 <h4>Is cooperative loading tied to a fuse setting?</h4>
