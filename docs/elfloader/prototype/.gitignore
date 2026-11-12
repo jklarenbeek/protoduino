@@ -8,3 +8,4 @@ sim_harness
 *.log
 *-abi.ld
 kernel/process-fair.c
+kernel/lib-clockfix/

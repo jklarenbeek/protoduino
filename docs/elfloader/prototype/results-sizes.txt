@@ -1,45 +1,50 @@
 == bootloader, bytes of flash (text) and RAM (bss) ==
-smallest                           atmega328p  text= 1864 data=0 bss= 365
-default                            atmega328p  text= 1952 data=0 bss= 371
-default + page service             atmega328p  text= 1964 data=0 bss= 371
-default + load thread              atmega328p  text= 2040 data=0 bss= 373
-everything                         atmega328p  text= 2296 data=0 bss= 376
-smallest                           atmega1284p text= 2272 data=0 bss= 507
-default                            atmega1284p text= 2454 data=0 bss= 516
-default + page service             atmega1284p text= 2466 data=0 bss= 516
-default + load thread              atmega1284p text= 2564 data=0 bss= 519
-everything                         atmega1284p text= 2912 data=0 bss= 522
-smallest                           atmega2560  text= 2272 data=0 bss= 507
-default                            atmega2560  text= 2454 data=0 bss= 516
-default + page service             atmega2560  text= 2466 data=0 bss= 516
-default + load thread              atmega2560  text= 2564 data=0 bss= 519
-everything                         atmega2560  text= 2912 data=0 bss= 522
-default, virtual reset, soft uart  attiny85    text= 1996 data=0 bss= 307
+smallest                           atmega328p  text= 1850 data=0 bss= 365
+default                            atmega328p  text= 1938 data=0 bss= 371
+default + page service             atmega328p  text= 1950 data=0 bss= 371
+default + load thread              atmega328p  text= 2026 data=0 bss= 373
+everything                         atmega328p  text= 2282 data=0 bss= 376
+smallest                           atmega1284p text= 2256 data=0 bss= 507
+default                            atmega1284p text= 2438 data=0 bss= 516
+default + page service             atmega1284p text= 2450 data=0 bss= 516
+default + load thread              atmega1284p text= 2548 data=0 bss= 519
+everything                         atmega1284p text= 2898 data=0 bss= 522
+smallest                           atmega2560  text= 2256 data=0 bss= 507
+default                            atmega2560  text= 2438 data=0 bss= 516
+default + page service             atmega2560  text= 2450 data=0 bss= 516
+default + load thread              atmega2560  text= 2548 data=0 bss= 519
+everything                         atmega2560  text= 2898 data=0 bss= 522
+default, virtual reset, soft uart  attiny85    text= 1980 data=0 bss= 307
 
 == one option at a time, ATmega328P, relative to the default ==
-without family-check           -12  (1940)
-without merge-segments         -62  (1890)
-without image-crc              -14  (1938)
-page-service                   +12  (1964)
-load-thread (with page-service)   +88  (2040)
-signature                      +60  (2012)
-eeprom                         +78  (2030)
-info                           +96  (2048)
-verify-at-start                +48  (2000)
+without family-check           -12  (1926)
+without merge-segments         -62  (1876)
+without image-crc              -14  (1924)
+page-service                   +12  (1950)
+load-thread (with page-service)   +88  (2026)
+signature                      +60  (1998)
+eeprom                         +78  (2016)
+info                           +96  (2034)
+verify-at-start                +48  (1986)
 
 == test kernel on the real scheduler, ATmega328P (kernel/kernel.c) ==
 none           text= 3924 data= 10 bss= 394
 static         text= 4818 data= 10 bss= 492
-rom            text= 7782 data= 10 bss= 917
-own-bootrom    text= 9272 data= 10 bss= 917
-own-optiboot   text= 9372 data= 10 bss= 917
+rom            text= 7784 data= 10 bss= 915
+own-bootrom    text= 9226 data= 10 bss= 915
+own-optiboot   text= 9326 data= 10 bss= 915
+
+== the same kernel for the ATmega2560 (library copy with the clock header of finding 17 widened) ==
+rom2560        text= 8034 data= 10 bss=1061
+own2560        text= 9758 data= 10 bss=1061
 
 == library code a kernel links for modules, ATmega328P, bytes of flash per object ==
 sys/module.c            start modules in flash         378
 sys/module.c            also enter them into the table   494
-sys/process/loader.c    thread of the bootloader      1102
-sys/process/loader.c    own thread                    1018
+sys/process/loader.c    thread of the bootloader      1104
+sys/process/loader.c    own thread                     972
 cpu/avr/flash.c         through the bootloader table    60
 cpu/avr/flash.c         through Optiboot do_spm        160
 sys/elf.c               stream (own thread only)       784
-sys/elf/load.c          load thread (own thread only)   790
+sys/elf/load.c          load thread (own thread only)   792
+cpu/avr/flash.c         the same, ATmega2560 (far call)   102

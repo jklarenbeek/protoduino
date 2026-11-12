@@ -4,8 +4,22 @@
 #      and module-<name>.elf: count_module.c linked against exactly that kernel build.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"; N="$1"; shift
-OVL="$HERE/../../overlay"; LIB="$HERE/../../../../src"; export LIBSYS="$LIB/sys"
-CF="-std=gnu11 -Os -mmcu=atmega328p -DF_CPU=16000000UL -include $HERE/core.h -I$OVL/src -I$LIB -I$LIB/sys
+OVL="$HERE/../../overlay"; LIB="$HERE/../../../../src"
+# MCU=<part> builds for another part than the ATmega328P. sys/clock.h of the library
+# stops with #error for every part outside the ATmega328/168/88 families (finding 17 of
+# the document), so such a build uses a copy of the library in which that one header
+# also accepts the part. Nothing else in the copy differs.
+if [ "${MCU:-atmega328p}" != atmega328p ]; then
+  rm -rf lib-clockfix; cp -r "$LIB" lib-clockfix; LIB="$HERE/lib-clockfix"
+  python3 - "$LIB/sys/clock.h" <<'PY'
+import sys
+p=sys.argv[1]; s=open(p,encoding='utf-8-sig').read()
+a="defined (__AVR_ATmega88__)"; assert a in s
+open(p,'w').write(s.replace(a, a+" || defined(__AVR_ATmega2560__) || defined(__AVR_ATmega1284P__)",1))
+PY
+fi
+export LIBSYS="$LIB/sys"
+CF="-std=gnu11 -Os -mmcu=${MCU:-atmega328p} -DF_CPU=16000000UL -include $HERE/core.h -I$OVL/src -I$LIB -I$LIB/sys
     -DPROCESS_CONF_EVENT_QUEUE_SIZE=8 -DELF_CONF_WINDOW_LO=1 -DMODULE_CONF_BASE=0x6000
     -ffunction-sections -fdata-sections -mrelax -Wall -Wno-implicit-fallthrough -Wno-unused-function -Wno-unknown-pragmas"
 # FAIR=1: experiment for the document. process_run() of the library serves polls and then

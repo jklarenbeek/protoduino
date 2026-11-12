@@ -62,3 +62,16 @@ enter erased flash at 0x6002 with r31=0x80: loader reached (it sent its probe)
 
 == simavr's ELF reader and the last byte of flash (loader built with the service stub at the end) ==
 Loading 4 bytes of Flash data at 7ffc would overflow buffer (32767 bytes).
+
+== sig_probe: reading the device signature from software (simavr cores, through protosim) ==
+atmega328p (device signature 1e 95 0f; flash bytes 0, 2, 4 of the probe are 0c 34 0c)
+  signature read: 1e 95 0f
+  DONE
+atmega1284p (device signature 1e 97 05; flash bytes 0, 2, 4 of the probe are 0c 46 0c)
+  signature read with RAMPZ=0: 1e 97 05
+  signature read with RAMPZ=1: 0c 46 0c
+  DONE
+atmega2560 (device signature 1e 98 01; flash bytes 0, 2, 4 of the probe are 0c 72 0c)
+  signature read with RAMPZ=0: 0c 72 0c
+  signature read with RAMPZ=1: 0c 72 0c
+  DONE

@@ -57,7 +57,6 @@ typedef struct {
   struct process  base;      /* MUST be first – §6.7.2.1 */
   uint8_t         slot;      /* Slot to load into */
   struct process *notify;    /* Who gets EVENT_MODULE_INIT – may be NULL */
-  ptstate_t     (*thread)(struct elf_load *self); /* The load thread in use */
   struct timer    silence;   /* Time since the sender was last heard */
   ipc_wake_cb_t   wake_cb;   /* Whoever listened to the serial device before */
   void           *wake_ctx;

@@ -25,22 +25,30 @@ static union {
 } loader_workspace;
 
 // ---- The load thread to schedule -----------------------------------------
-static bootrom_load_thread_fn loader_thread(void)
+static bool loader_has_thread(void)
 {
 #if LOADER_CONF_THREAD == LOADER_THREAD_ROM
-  if (bootrom_is_present()
+  return bootrom_is_present()
       && bootrom_version() == BOOTROM_VERSION
-      && bootrom_load_size() <= sizeof(loader_workspace))
-    return bootrom_load_thread();
-  return NULL;
+      && bootrom_has_load_thread()
+      && bootrom_load_size() <= sizeof(loader_workspace);
 #else
-  return elf_load_thread;
+  return true;
+#endif
+}
+
+static CC_ALWAYS_INLINE ptstate_t loader_thread(struct elf_load *load)
+{
+#if LOADER_CONF_THREAD == LOADER_THREAD_ROM
+  return bootrom_load_thread(load);
+#else
+  return elf_load_thread(load);
 #endif
 }
 
 bool loader_is_available(void)
 {
-  return flash_is_writable() && loader_thread() != NULL;
+  return flash_is_writable() && loader_has_thread();
 }
 
 void loader_start(uint8_t slot, struct process *notify)
@@ -78,8 +86,7 @@ ptstate_t process_thread_loader_process(
   PROCESS_BEGIN();
 
   /* Somebody has to program the pages, and the slot has to be free. */
-  self->thread = loader_thread();
-  if (self->thread == NULL || !flash_is_writable())
+  if (!loader_has_thread() || !flash_is_writable())
     LOADER_RAISE(ERR_INIT_NOSUP);
   if (self->slot >= MODULE_CONF_SLOTS || module_is_installed(self->slot))
     LOADER_RAISE(ERR_STATE_LOCKED);
@@ -113,7 +120,7 @@ ptstate_t process_thread_loader_process(
       timer_restart(&self->silence);
     }
 
-    self->state = (uint8_t)self->thread(load);
+    self->state = (uint8_t)loader_thread(load);
 
     /* Its replies go out before it runs again. */
     while (elf_load_read_available(load) > 0) {

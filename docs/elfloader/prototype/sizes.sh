@@ -29,6 +29,9 @@ echo
 echo "== test kernel on the real scheduler, ATmega328P (kernel/kernel.c) =="
 (cd kernel && for v in none static rom own-bootrom own-optiboot; do set -- $(avr-size kernel-$v.elf | tail -n 1); printf '%-14s text=%5d data=%3d bss=%4d\n' $v $1 $2 $3; done)
 echo
+echo "== the same kernel for the ATmega2560 (library copy with the clock header of finding 17 widened) =="
+(cd kernel && for v in rom2560 own2560; do set -- $(avr-size kernel-$v.elf | tail -n 1); printf '%-14s text=%5d data=%3d bss=%4d\n' $v $1 $2 $3; done)
+echo
 echo "== library code a kernel links for modules, ATmega328P, bytes of flash per object =="
 OVL=../overlay; LIB=../../../src
 CF="-std=gnu11 -Os -mmcu=atmega328p -DF_CPU=16000000UL -include kernel/core.h -I$OVL/src -I$LIB -I$LIB/sys -DELF_CONF_WINDOW_LO=1 -ffunction-sections -w"
@@ -41,3 +44,5 @@ printf '%-52s %5s\n' "cpu/avr/flash.c         through the bootloader table"  "$(
 printf '%-52s %5s\n' "cpu/avr/flash.c         through Optiboot do_spm"       "$(obj $OVL/src/cpu/avr/flash.c -DFLASH_CONF_DRIVER=3)"
 printf '%-52s %5s\n' "sys/elf.c               stream (own thread only)"      "$(obj $OVL/src/sys/elf.c)"
 printf '%-52s %5s\n' "sys/elf/load.c          load thread (own thread only)" "$(obj $OVL/src/sys/elf/load.c)"
+CF="${CF/atmega328p/atmega2560}"
+printf '%-52s %5s\n' "cpu/avr/flash.c         the same, ATmega2560 (far call)" "$(obj $OVL/src/cpu/avr/flash.c -DFLASH_CONF_DRIVER=2)"

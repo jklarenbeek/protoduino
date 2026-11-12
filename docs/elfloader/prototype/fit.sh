@@ -1,12 +1,15 @@
 #!/bin/bash
-# fit.sh <mcu> <block-bytes> - fill one boot section: start from the smallest
+# fit.sh <mcu> [block-bytes] - fill one boot section: start from the smallest
 # loader and add features in priority order for as long as the result still
 # fits the block the BOOTSZ fuses reserve. Prints the feature set it chose.
+# Without a block size it fills the section boot.conf.h assumes for the part:
+# 2 KB up to 64 KB of flash, 4 KB above.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"; mkdir -p out
-MCU="$1"; BLOCK="$2"
+MCU="$1"
 FLASHEND=$(echo "#include <avr/io.h>
 FLASHEND" | avr-gcc -mmcu=$MCU -E -P - | tail -n 1 | tr -d ' ()')
+BLOCK="${2:-$(( FLASHEND > 0xFFFF ? 4096 : 2048 ))}"
 START=$(printf '0x%X' $(( FLASHEND + 1 - BLOCK )))
 
 # name : flags, most valuable first

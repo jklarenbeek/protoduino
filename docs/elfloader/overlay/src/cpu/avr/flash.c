@@ -177,13 +177,16 @@ bool flash_is_writable(void)
 
 void flash_page_write(flash_addr_t base, const uint8_t *data)
 {
-  bootrom_page_write()(base, data);
+  bootrom_page_write(base, data);
 }
 
 #elif FLASH_CONF_DRIVER == FLASH_DRIVER_OPTIBOOT
 
 // Optiboot 8 and later: the second word of the bootloader is "rjmp do_spm",
 // and the last byte of flash holds its major version.
+#if defined(__AVR_3_BYTE_PC__)
+#error "flash: FLASH_DRIVER_OPTIBOOT has not been made to work above 128 KB of flash"
+#endif
 typedef void (*flash_do_spm_fn)(uint16_t address, uint8_t command, uint16_t data);
 
 #if (FLASHEND > 0xFFFFUL)

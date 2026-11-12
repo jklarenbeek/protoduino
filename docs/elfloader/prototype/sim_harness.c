@@ -5,6 +5,10 @@
  *
  * usage: sim_harness <mcu> <boot.elf> <app.elf> [--corrupt N] [--drop-ack N]
  *                    [--send <file>] [--max-mcycles M] [--expect-refusal]
+ *                    [--ask-info]            send '?' before the file and print the reply
+ *                    [--damage ADDR]         after the install: flip a bit of the image, reset;
+ *                                            the image must not be started
+ *                    [--damage-control ADDR] the same, where the image is expected to start
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +34,7 @@ static int finished, refused = -1, eot_acked, after_can;
 static uint64_t t_first_block, t_eot_ack;
 static char devtext[400]; static int devtext_len;
 static char posttext[400]; static int posttext_len; static int collect_all;
+static int ask_info;                    /* 1 = ask at the first probe, 2 = reply is arriving */
 
 static uint16_t crc16(const uint8_t *p, int n)
 {
@@ -69,8 +74,14 @@ static void from_device(struct avr_irq_t *irq, uint32_t value, void *param)
     if (v == CAN) return;
     refused = v; finished = 1; return;
   }
+  if (ask_info == 2) {                   /* the line that answers '?' */
+    if (v >= 0x20 && v < 0x7f && devtext_len < 399) devtext[devtext_len++] = (char)v;
+    if (v == '\n') { ask_info = 0; cur_blk = 1; t_first_block = avr->cycle; queue_block(1, 0); }
+    return;
+  }
   if (cur_blk == 0) {
-    if (v == 'C') { c_probes++; cur_blk = 1; t_first_block = avr->cycle; queue_block(1, corrupt_blk == 1 && !corrupt_done++); }
+    if (v == 'C' && ask_info == 1) { c_probes++; ask_info = 2; queue_byte('?'); }
+    else if (v == 'C') { c_probes++; cur_blk = 1; t_first_block = avr->cycle; queue_block(1, corrupt_blk == 1 && !corrupt_done++); }
     else if (v >= 0x20 && v < 0x7f && devtext_len < 399) devtext[devtext_len++] = (char)v;
     return;
   }
@@ -97,7 +108,7 @@ int main(int argc, char **argv)
 {
   if (argc < 4) { fprintf(stderr, "usage\n"); return 2; }
   const char *mcu = argv[1], *boot = argv[2], *app = argv[3], *send = argv[3];
-  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0; const char *kernel_elf = NULL; int preinstall = 0, no_send = 0, probe_times = 0; long dump_addr = 0, dump_len = 0; uint64_t settle = 4000000ull; int page_bad = 0; unsigned long slot_lo = 0x6000, slot_hi = 0x7000;
+  uint64_t max_cycles = 4000ull * 1000000ull; int expect_refusal = 0; const char *then_send = NULL; long check_page = -1; long fall_addr = -1, fall_r31 = 0; const char *kernel_elf = NULL; int preinstall = 0, no_send = 0, probe_times = 0; long dump_addr = 0, dump_len = 0; uint64_t settle = 4000000ull; int page_bad = 0; unsigned long slot_lo = 0x6000, slot_hi = 0x7000; long damage = -1; int damage_starts = 0, damage_bad = 0;
   for (int i = 4; i < argc; i++) {
     if (!strcmp(argv[i], "--corrupt")) corrupt_blk = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--drop-ack")) drop_ack_blk = atoi(argv[++i]);
@@ -112,6 +123,9 @@ int main(int argc, char **argv)
     else if (!strcmp(argv[i], "--probe-times")) probe_times = 1;
     else if (!strcmp(argv[i], "--settle")) settle = strtoull(argv[++i], 0, 0) * 1000000ull;
     else if (!strcmp(argv[i], "--dump-ram")) { dump_addr = strtol(argv[++i], 0, 0); dump_len = strtol(argv[++i], 0, 0); }
+    else if (!strcmp(argv[i], "--ask-info")) ask_info = 1;
+    else if (!strcmp(argv[i], "--damage")) damage = strtol(argv[++i], 0, 0);
+    else if (!strcmp(argv[i], "--damage-control")) { damage = strtol(argv[++i], 0, 0); damage_starts = 1; }
     else if (!strcmp(argv[i], "--slot")) { slot_lo = strtoul(argv[++i], 0, 0); slot_hi = strtoul(argv[++i], 0, 0); }
     else if (!strcmp(argv[i], "--fallthrough")) { fall_addr = strtol(argv[++i], 0, 0); fall_r31 = strtol(argv[++i], 0, 0); }
   }
@@ -298,6 +312,27 @@ int main(int argc, char **argv)
     refused = -1;
   }
 
+  /* optional: the image is damaged after it was installed. A bootloader that checks
+   * the image CRC at every start must not start it; one that does not, will. */
+  if (damage >= 0 && app_pc_seen) {
+    avr->flash[damage] ^= 0x01;
+    unsigned probes_before = c_probes;
+    cur_blk = 0xFFFF; c_probes = 0; finished = 0; txq_len = txq_pos = 0;   /* nobody answers the probes */
+    avr_reset(avr); avr->pc = boot_start;
+    avr_cycle_timer_register(avr, 2000, pump, NULL);
+    uint64_t t0 = avr->cycle; int started = 0;
+    while (avr->cycle < t0 + 8 * 16000000ull) {
+      state = avr_run(avr);
+      if (state == cpu_Done || state == cpu_Crashed) break;
+      if (avr->pc < boot_start) { started = 1; break; }
+    }
+    printf("one bit of the image flipped at 0x%lx, then reset: image started=%s after %.1f s, probes sent=%u\n",
+           damage, started ? "yes" : "no", (avr->cycle - t0) / 16e6, c_probes);
+    avr->flash[damage] ^= 0x01;
+    damage_bad = started != damage_starts;
+    c_probes = probes_before; finished = 1;
+  }
+
   if (check_page >= 0 && app_pc_seen) {
     uint64_t t0 = avr->cycle;
     while (avr->cycle < t0 + 3000000) avr_run(avr);          /* let the application run */
@@ -330,5 +365,5 @@ int main(int argc, char **argv)
     avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &d);
     printf("eeprom[0..4]: %02x %02x %02x %02x %02x\n", ee[0], ee[1], ee[2], ee[3], ee[4]); }
   if (expect_refusal) return refused >= 0 && !app_pc_seen ? 0 : 1;
-  return (mism == 0 && app_pc_seen && !page_bad) ? 0 : 1;
+  return (mism == 0 && app_pc_seen && !page_bad && !damage_bad) ? 0 : 1;
 }

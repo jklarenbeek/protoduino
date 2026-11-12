@@ -7,10 +7,28 @@
 /* Configuration of the bootloader (override on the command line)      */
 /* ------------------------------------------------------------------ */
 
-// byte address the bootloader is linked at: the start of the boot
-// section selected by the BOOTSZ fuses.
+#include <avr/io.h>
+
+// bytes of the boot section the BOOTSZ fuses reserve. The bootloader fills
+// 2 KB on parts with up to 64 KB of flash; above that it takes 4 KB, where
+// every option fits.
+#ifndef BOOT_CONF_SECTION
+#if (FLASHEND > 0xFFFFUL)
+#define BOOT_CONF_SECTION 4096
+#else
+#define BOOT_CONF_SECTION 2048
+#endif
+#endif
+
+// byte address the bootloader is linked at: the start of that boot section.
+// The linker has to be given the same address. A part without a boot
+// section has no default.
 #ifndef BOOT_CONF_START
+#if defined(BOOT_CONF_VIRTUAL_RESET) && BOOT_CONF_VIRTUAL_RESET
 #error "boot: define BOOT_CONF_START (byte address the bootloader is linked at)"
+#else
+#define BOOT_CONF_START (FLASHEND + 1UL - BOOT_CONF_SECTION)
+#endif
 #endif
 
 #ifndef BOOT_CONF_BAUD
@@ -85,7 +103,14 @@
 #define BOOT_CONF_LANDING_PAD 1
 #endif
 
-/* what the bootloader asks of the load thread and of the flash driver */
+/* what the bootloader asks of the protothreads, of the load thread and of
+ * the flash driver */
+
+// continuation points numbered 1, 2, 3 ... instead of by source line: a
+// number below 256 is stored and compared in one byte.
+#ifndef LC_INCLUDE
+#define LC_INCLUDE <sys/lc-counter.h>
+#endif
 
 #define ELF_LOAD_CONF_IMAGE 1
 #define FLASH_CONF_DRIVER   1 /* FLASH_DRIVER_SPM */

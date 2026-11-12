@@ -106,6 +106,12 @@ uint8_t elf_stream_sink(elf_stream_t *s, uint8_t space, elf_addr_t addr, uint8_t
 #if ELF_CONF_SIGNATURE
   if (space == ELF_SPACE_SIGNATURE)
   {
+#ifdef RAMPZ
+    // The signature row is read with LPM, which takes its address from Z
+    // alone. simavr adds RAMPZ to it, and a bootloader above 64 KB has
+    // left RAMPZ set after its last far read.
+    RAMPZ = 0;
+#endif
     // the file stores the signature as sig2, sig1, sig0
     return boot_signature_byte_get((uint8_t)(4 - 2 * (uint8_t)addr)) == byte
       ? ERR_SUCCESS

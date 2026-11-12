@@ -21,6 +21,8 @@
  * - elf_load_thread() is the protothread of ./src/sys/elf/load.h: the system
  *   schedules the very same code that loaded its own image, with a workspace
  *   that the system owns.
+ * - The services are called, not fetched: bootrom_load_thread(self) and
+ *   bootrom_page_write(base, data) reach the boot section wherever it lies.
  */
 
 #include <protoduino.h>
@@ -50,9 +52,6 @@ typedef uint16_t bootrom_addr_t;
 
 struct elf_load;
 
-typedef ptstate_t (*bootrom_load_thread_fn)(struct elf_load *self);
-typedef void (*bootrom_page_write_fn)(bootrom_addr_t base, const uint8_t *data);
-
 // true when a protoduino bootloader with a service table is installed.
 static CC_ALWAYS_INLINE bool bootrom_is_present(void)
 {
@@ -64,22 +63,92 @@ static CC_ALWAYS_INLINE uint8_t bootrom_version(void)
   return BOOTROM_RD8(8);
 }
 
+// true when the bootloader was built with its load thread.
+static CC_ALWAYS_INLINE bool bootrom_has_load_thread(void)
+{
+  return BOOTROM_RD32(0) != 0;
+}
+
 // bytes of workspace the load thread of the bootloader works on.
 static CC_ALWAYS_INLINE uint16_t bootrom_load_size(void)
 {
   return (uint16_t)BOOTROM_RD8(9) * 4;
 }
 
-// the load thread of the bootloader, or 0 when it was built without.
-static CC_ALWAYS_INLINE bootrom_load_thread_fn bootrom_load_thread(void)
+#if defined(__AVR_3_BYTE_PC__)
+
+/* Parts with more than 128 KB of flash. A function pointer has 16 bits and
+ * reaches the first 128 KB; the boot section lies above. The two routines
+ * below put the word address of the service on the stack and return to it,
+ * so the service returns to whoever called the routine.
+ *
+ * - EIND is not touched: an interrupt handler that calls through a pointer
+ *   while the service runs still arrives where it should.
+ * - The address is the last argument, so the arguments of the service are
+ *   already in the registers the service expects them in.
+ * - They are written at file level and only declared to the compiler, which
+ *   therefore assumes nothing about them. Every file that includes this
+ *   header carries a copy; the linker keeps one.
+ */
+
+// self: r24-r25, word_address: r20-r23
+ptstate_t bootrom_far_load_thread(struct elf_load *self, uint32_t word_address);
+
+// base: r22-r25, data: r20-r21, word_address: r16-r19
+void bootrom_far_page_write(bootrom_addr_t base, const uint8_t *data, uint32_t word_address);
+
+__asm__ (
+  ".pushsection .text.bootrom_far_load_thread,\"axG\",@progbits,bootrom_far_load_thread,comdat\n"
+  ".weak bootrom_far_load_thread\n"
+  ".type bootrom_far_load_thread, @function\n"
+  "bootrom_far_load_thread:\n"
+  "  push r20\n"
+  "  push r21\n"
+  "  push r22\n"
+  "  ret\n"
+  ".size bootrom_far_load_thread, .-bootrom_far_load_thread\n"
+  ".popsection\n"
+  ".pushsection .text.bootrom_far_page_write,\"axG\",@progbits,bootrom_far_page_write,comdat\n"
+  ".weak bootrom_far_page_write\n"
+  ".type bootrom_far_page_write, @function\n"
+  "bootrom_far_page_write:\n"
+  "  push r16\n"
+  "  push r17\n"
+  "  push r18\n"
+  "  ret\n"
+  ".size bootrom_far_page_write, .-bootrom_far_page_write\n"
+  ".popsection\n"
+);
+
+// give the load thread of the bootloader one turn.
+static CC_ALWAYS_INLINE ptstate_t bootrom_load_thread(struct elf_load *self)
 {
-  return (bootrom_load_thread_fn)(uint16_t)(BOOTROM_RD32(0) >> 1);
+  return bootrom_far_load_thread(self, BOOTROM_RD32(0) >> 1);
 }
 
 // erase and program one page of flash from a buffer.
-static CC_ALWAYS_INLINE bootrom_page_write_fn bootrom_page_write(void)
+static CC_ALWAYS_INLINE void bootrom_page_write(bootrom_addr_t base, const uint8_t *data)
 {
-  return (bootrom_page_write_fn)(uint16_t)(BOOTROM_RD32(4) >> 1);
+  bootrom_far_page_write(base, data, BOOTROM_RD32(4) >> 1);
 }
+
+#else
+
+typedef ptstate_t (*bootrom_load_thread_fn)(struct elf_load *self);
+typedef void (*bootrom_page_write_fn)(bootrom_addr_t base, const uint8_t *data);
+
+// give the load thread of the bootloader one turn.
+static CC_ALWAYS_INLINE ptstate_t bootrom_load_thread(struct elf_load *self)
+{
+  return ((bootrom_load_thread_fn)(uint16_t)(BOOTROM_RD32(0) >> 1))(self);
+}
+
+// erase and program one page of flash from a buffer.
+static CC_ALWAYS_INLINE void bootrom_page_write(bootrom_addr_t base, const uint8_t *data)
+{
+  ((bootrom_page_write_fn)(uint16_t)(BOOTROM_RD32(4) >> 1))(base, data);
+}
+
+#endif
 
 #endif /* __BOOTROM_H__ */
