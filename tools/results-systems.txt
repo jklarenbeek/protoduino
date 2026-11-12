@@ -13,5 +13,46 @@
 == 41-shell-tiny85: the shell on an ATtiny85, serial line on two pins ==
 41-shell-tiny85-attiny85     flash  5914 B   RAM  275 B
 [PASS] processes, modules and pipes over the two-pin line
+== 50-port: the shell on the PC, a port on the ATtiny85 ==
+50-port-attiny85             flash  3836 B   RAM  247 B
+[PASS] processes, modules, pipes, pause, start, write and kill through the port
+== 51-keeper on the attiny85: a process per stage, with the port ==
+51-keeper-attiny85           flash  4666 B   RAM  288 B
+[PASS] counts and settings through the port; a reset on request
+[PASS] reset after 4 s of silence, held while the supply is low, released when it is back
+== 52-sentinel on the attiny85: a process per stage, with the port ==
+52-sentinel-attiny85         flash  3902 B   RAM  280 B
+[PASS] temperature and supply recorded in EEPROM and shown
+[PASS] asleep all but a few milliseconds of ten minutes: asleep 99.99% of 647168.613 ms, awake 42.077 ms
+== 53-regulator on the attiny85: a process per stage, with the port ==
+53-regulator-attiny85        flash  4492 B   RAM  286 B
+[PASS] input below the curve: off
+[PASS] input above it: full
+[PASS] input on it: 60 %; a setting changed while it runs: 73 %
+== 51-keeper on the attiny45: one process, with the port ==
+51-keeper-attiny45           flash  3916 B   RAM  166 B
+[PASS] counts and settings through the port; a reset on request
+[PASS] reset after 4 s of silence, held while the supply is low, released when it is back
+== 52-sentinel on the attiny45: one process, with the port ==
+52-sentinel-attiny45         flash  3664 B   RAM  155 B
+[PASS] temperature and supply recorded in EEPROM and shown
+[PASS] asleep all but a few milliseconds of ten minutes: asleep 99.99% of 647168.399 ms, awake 38.830 ms
+== 53-regulator on the attiny45: one process, with the port ==
+53-regulator-attiny45        flash  3566 B   RAM  149 B
+[PASS] input below the curve: off
+[PASS] input above it: full
+[PASS] input on it: 60 %; a setting changed while it runs: 73 %
+== 51-keeper on the attiny25: one process, no port ==
+51-keeper-attiny25           flash  1804 B   RAM   67 B
+[PASS] reset after 4 s of silence, held while the supply is low, released when it is back; both counted
+== 52-sentinel on the attiny25: one process, no port ==
+52-sentinel-attiny25         flash  1726 B   RAM   70 B
+[PASS] five samples of each in EEPROM, with lowest and highest
+[PASS] asleep all but a few milliseconds of ten minutes: asleep 99.99% of 647168.143 ms, awake 35.534 ms
+== 53-regulator on the attiny25: one process, no port ==
+53-regulator-attiny25        flash  1592 B   RAM   64 B
+[PASS] 1000 mV at the input: duty 0 of 255
+[PASS] 2500 mV at the input: duty 153 of 255
+[PASS] 4500 mV at the input: duty 255 of 255
 
 all passed

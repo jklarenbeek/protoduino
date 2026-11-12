@@ -1,5 +1,5 @@
 #!/bin/bash
-# test_systems.sh - run the systems of examples/5-systems in the simulator.
+# test_systems.sh - run the systems of examples/5-systems and examples/6-attiny in the simulator.
 #
 #   tools/test_systems.sh
 #
@@ -8,9 +8,9 @@
 # with each system (tools/talk.mjs) that has to go as expected.
 #
 # Needs avr-gcc, node and protosim, built, beside this repository
-# (PROTOSIM=<path to bin/protosim> for another place). The ATtiny85 has no
-# USART for protosim to connect: its system is run when tools/sim/pin_session
-# has been built (see tools/sim/pin_session.c).
+# (PROTOSIM=<path to bin/protosim> for another place). The ATtiny parts have
+# no USART: protosim bridges their serial line of two pins (--soft-uart), and
+# plays the board around them with its pin and voltage options.
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE/.."
 SIM="${PROTOSIM:-$HERE/../../protosim/bin/protosim}"
 [ -x "$SIM" ] || { echo "no protosim at $SIM: build it, or set PROTOSIM"; exit 2; }
@@ -65,18 +65,92 @@ for part in atmega328p:0x7800 atmega2560:0x3F000; do
     "del 0" "get 0" send:$O/vcc-$mcu-slot0.elf mods expect:"0 vcc +"
 done
 
-if [ -x tools/sim/pin_session ]; then
-  echo "== 41-shell-tiny85: the shell on an ATtiny85, serial line on two pins =="
-  build attiny85 8000000 examples/5-systems/41-shell-tiny85/41-shell-tiny85.ino
-  if tools/sim/pin_session attiny85 8000000 $O/41-shell-tiny85-attiny85.elf 9600 ps mods "join ticker blink" ipc "run 2" ps > $O/talk.log 2>&1 \
-     && grep -q "ticker > blink" $O/talk.log && grep -q "2 vcc -" $O/talk.log && grep -q "vcc      W 3" $O/talk.log; then
-    echo "[PASS] processes, modules and pipes over the two-pin line"
+echo "== 41-shell-tiny85: the shell on an ATtiny85, serial line on two pins =="
+build attiny85 8000000 examples/5-systems/41-shell-tiny85/41-shell-tiny85.ino
+TINY="-f 8000000 --soft-uart B0,B1,9600"
+talk "processes, modules and pipes over the two-pin line" "$O/41-shell-tiny85-attiny85.elf -m attiny85 $TINY" \
+  ps expect:"shell    R 2" mods expect:"2 vcc -" "join ticker blink" ipc expect:"ticker > blink" "run 2" ps expect:"vcc      W 3"
+
+# ---- examples/6-attiny: the shell is on the PC, the part has a port ----------
+
+# port <name> <file.elf> <protosim arguments> <command> ...   a conversation through tools/port.mjs
+port() {
+  local name="$1" elf="$2" args="$3"; shift 3
+  if node tools/port.mjs "$elf" --sim "$SIM $elf $args" --sim-log "$O/sim.log" "$@" > "$O/talk.log" 2>&1; then
+    echo "[PASS] $name"
   else
-    echo "[FAIL] the ATtiny85 session"; tr -d '\r' < $O/talk.log | tail -n 12 | sed 's/^/       /'; fails=$((fails + 1))
+    echo "[FAIL] $name"; tail -n 12 "$O/talk.log" | sed 's/^/       /'; fails=$((fails + 1))
   fi
-else
-  echo "== 41-shell-tiny85: skipped, tools/sim/pin_session is not built =="
-fi
+}
+# seen <name> <file> <pattern> ...   every pattern has to be in the file
+seen() {
+  local name="$1" file="$2" p; shift 2
+  for p in "$@"; do
+    if ! grep -q -- "$p" "$file"; then
+      echo "[FAIL] $name: no \"$p\""; tail -n 12 "$file" | sed 's/^/       /'; fails=$((fails + 1)); return
+    fi
+  done
+  echo "[PASS] $name"
+}
+
+echo "== 50-port: the shell on the PC, a port on the ATtiny85 =="
+build attiny85 8000000 examples/6-attiny/50-port/50-port.ino
+port "processes, modules, pipes, pause, start, write and kill through the port" $O/50-port-attiny85.elf "-m attiny85 $TINY" \
+  ps expect:"port     R 2" mods expect:"2 upper -" "join ticker blink" ipc expect:"ticker > blink" \
+  "stop blink" ps expect:"blink    P 3" "cont blink" "run 2" mods expect:"2 upper +" \
+  "join upper serial:0" "write upper hello" "kill upper" ps "kill port" expect:"?" "join nobody blink" expect:"?"
+
+# The board the keeper watches: a heartbeat every 200 ms that stops after 6 s and returns at 14 s;
+# a supply of 5 V that sags to 4.0 V from 20 s to 24 s. The reset line has the pull-up of the board.
+BOARD="--warp --pin-pull B3:1 --pin-log B3 --vcc 5000 --pin-wave B2:200:0:6000 --pin-wave B2:200:14000 --vcc 4000@20000 --vcc 5000@24000"
+LINE='B3=0 at 100[0-9][0-9]\.' ; LOW='B3=0 at 202[0-9][0-9]\.' ; BACK='B3=1 at 240[0-9][0-9]\.'
+
+for mcu in attiny85 attiny45 attiny25; do
+  case $mcu in attiny85) how="a process per stage, with the port";; attiny45) how="one process, with the port";; *) how="one process, no port";; esac
+
+  echo "== 51-keeper on the $mcu: $how =="
+  build $mcu 8000000 examples/6-attiny/51-keeper/51-keeper.ino
+  E=$O/51-keeper-$mcu.elf
+  if [ $mcu != attiny25 ]; then
+    port "counts and settings through the port; a reset on request" $E "-m $mcu $TINY $BOARD" \
+      wait:1.5 resets expect:"resets after a missed heartbeat: 1" resets expect:"times the supply was low: 1" \
+      "write keeper R" wait:0.3 resets expect:"resets asked for: 1" "set timeout 9" settings expect:"timeout      9   (  4)"
+    seen "reset after 4 s of silence, held while the supply is low, released when it is back" $O/sim.log "$LINE" "$LOW" "$BACK"
+  else
+    "$SIM" $E -m $mcu -f 8000000 $BOARD --run-ms 30000 --dump-eeprom 16:3 > $O/sim.log 2>&1
+    seen "reset after 4 s of silence, held while the supply is low, released when it is back; both counted" $O/sim.log \
+      "$LINE" "$LOW" "$BACK" "EEPROM. 0x0010: 01 01 ff"
+  fi
+
+  echo "== 52-sentinel on the $mcu: $how =="
+  build $mcu 8000000 examples/6-attiny/52-sentinel/52-sentinel.ino
+  E=$O/52-sentinel-$mcu.elf
+  if [ $mcu != attiny25 ]; then
+    port "temperature and supply recorded in EEPROM and shown" $E "-m $mcu $TINY --warp --vcc 3000 --adc temp:322" \
+      wait:0.6 temperature expect:"lowest 24 C, highest 24 C" supply expect:"lowest 3.0 V, highest 3.0 V"
+  else
+    "$SIM" $E -m $mcu -f 8000000 --warp --vcc 3000 --adc temp:322 --run-ms 330000 --dump-eeprom 8:42 > $O/sim.log 2>&1
+    seen "five samples of each in EEPROM, with lowest and highest" $O/sim.log \
+      "0x0008: 40 40 40 40 40 40 40 ff" " 1e 1e 1e 1e 1e 1e 1e ff"
+  fi
+  "$SIM" $E -m $mcu -f 8000000 --warp --vcc 3000 --adc temp:322 --run-ms 640000 > $O/sim.log 2>&1
+  seen "asleep all but a few milliseconds of ten minutes: $(grep -o 'asleep.*' $O/sim.log)" $O/sim.log "asleep 99.99%"
+
+  echo "== 53-regulator on the $mcu: $how =="
+  build $mcu 8000000 examples/6-attiny/53-regulator/53-regulator.ino
+  E=$O/53-regulator-$mcu.elf
+  if [ $mcu != attiny25 ]; then
+    port "input below the curve: off" $E "-m $mcu $TINY --warp --vcc 5000 --adc 3:1000" wait:0.5 duty expect:"duty cycle: 0 %"
+    port "input above it: full" $E "-m $mcu $TINY --warp --vcc 5000 --adc 3:4500" wait:0.5 duty expect:"duty cycle: 100 %"
+    port "input on it: 60 %; a setting changed while it runs: 73 %" $E "-m $mcu $TINY --warp --vcc 5000 --adc 3:2500" \
+      wait:0.5 duty expect:"duty cycle: 60 %" "set min 128" wait:0.5 duty expect:"duty cycle: 73 %"
+  else
+    for v in 1000:0 2500:153 4500:255; do
+      "$SIM" $E -m $mcu -f 8000000 --warp --vcc 5000 --adc 3:${v%%:*} --run-ms 3000 -t 23000000 -w 0x4b:1:OCR1B > $O/sim.log 2>&1
+      seen "${v%%:*} mV at the input: duty ${v##*:} of 255" $O/sim.log "= 0x.. (${v##*:})"
+    done
+  fi
+done
 
 echo
 [ $fails -eq 0 ] && echo "all passed" || echo "$fails failed"
