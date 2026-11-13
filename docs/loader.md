@@ -252,9 +252,9 @@ needed there.
 
 ### The port, and the shell on the PC
 
-`mod/port.h` is a process that does three things when asked: read memory,
-flash or EEPROM, write memory or EEPROM, and call a function with up to three
-arguments. The shell runs on the PC, as `tools/port.mjs`, and takes every
+`mod/port.h` is a process that does what the PC asks of it: read memory,
+flash or EEPROM, write the settings, write memory, call a function, program a
+page of flash. The shell runs on the PC, as `tools/port.mjs`, and takes every
 name and address from the `.elf` file of the sketch:
 
 ```sh
@@ -263,26 +263,126 @@ node tools/port.mjs 50-port.elf --port /dev/ttyUSB0 ps mods "join ticker blink" 
 
 The commands and what they print are those of the shell on the part: `ps`,
 `mods`, `ipc`, `log`, `stop`, `cont`, `kill`, `run`, `join`, `unjoin`,
-`write`. Without a command the tool reads them from its input. It first
-checks that the part runs the file it was given.
+`write`, and with flash slots `get` and `del`. Without a command the tool
+reads them from its input. It first checks that the part runs the file it
+was given.
 
-| `PORT_CONF_LEVEL` | The PC can | ATtiny85, `50-port` |
-|-------------------|------------|---------------------|
-| 1 look | read: `ps`, `mods`, `ipc`, `log`, settings, views. A monitor. | 3,520 B |
-| 2 change | also write memory and EEPROM: `set` | 3,632 B |
-| 3 work | also call functions: the whole shell. The default. | 3,836 B |
+#### How far the door opens
 
-The same three modules with the shell on the part are 5,914 bytes.
+A port that writes memory and calls functions lets whoever reaches the line
+do anything to the part. So how far it opens is a setting, and the default is
+the least:
 
-- A request is twelve bytes with a check byte; the port looks at the last
-  twelve it received, so a damaged request costs nothing but itself and
-  nothing is written from one that does not check out.
-- The line belongs to the port. A process that writes text to the same device
-  garbles its answers.
-- At level 2 or 3 the port is a debug port: whoever reaches the line can do
-  anything to the part.
-- The port works on any part and any serial device; the examples use it where
-  it is needed.
+| `PORT_CONF_LEVEL` | The PC can | Open |
+|-------------------|------------|------|
+| 1 look | read: `ps`, `mods`, `ipc`, `log`, `settings`, views, `door`. A monitor. The default. | always |
+| 2 settings | also `set` the settings of the sketch, and nothing else in EEPROM or memory, and run its actions | always |
+| 3 work | also write any memory and EEPROM and call any function: the whole shell | behind the guard |
+| 4 load | also program modules into flash slots (below). ATtiny25/45/85 only. | behind the guard |
+
+Level 2 is the one for a finished product: the PC can change what the sketch
+was made to have changed, and run what it names, and no more. Actions are
+functions of the sketch that the PC may run at level 2:
+
+```cpp
+static void restart_board(void);
+#define PORT_ACTIONS(X) X(restart, restart_board, "reset the board through its reset line now")
+#include <mod/port.h>
+```
+
+```sh
+node tools/port.mjs 51-keeper.elf --port /dev/ttyUSB0 actions restart
+```
+
+Levels 3 and 4 are behind a guard, `PORT_CONF_GUARD`:
+
+| Guard | Open |
+|-------|------|
+| `PORT_GUARD_RESET` | for `PORT_CONF_WINDOW` seconds (60) after a reset through the reset pin, and as long as requests keep coming with less than that between them. A power-on, a brown-out or a watchdog reset leave it closed: somebody has to be at the board and press its button. The default. |
+| `PORT_GUARD_SKETCH` | while `port_may_open()`, a function of the sketch, says so: a jumper, a button held, a setting. |
+| `PORT_GUARD_NONE` | always. For a board on the desk. |
+
+`door` shows the level, whether the guard is open, the last reset cause and,
+at level 4, whether the part can program its flash. A request the part
+refuses is answered with the reason, and `port.mjs` says what to do:
+
+```
+? levels 3 and 4 are closed. Reset the part through its reset pin (a button, or "reset" here), then go on within 60 s
+```
+
+- The port clears the flag of the reset pin once it has seen it, so a later
+  watchdog reset cannot open the door with an old flag. A bootloader that
+  clears the flags itself leaves the cause somewhere else: set
+  `PORT_CONF_RESET_CAUSE` to that (`GPIOR0` for the bootloader in `boot/`).
+- The guard is only as good as the lock bits: with them unprogrammed, a
+  programmer on the ISP pins reads and writes everything. Program them on
+  finished parts.
+- A line that leaves the box (RS-485, a radio, a long cable into a shared
+  space) wants more than this: a key and a check of each request. That is
+  not built.
+
+#### Modules into flash slots: level 4
+
+The ATtiny25/45/85 have no boot section: a running sketch programs its own
+flash, from anywhere. So on these parts the port is also the loader, and it
+needs no RAM for it: the PC fills the page buffer of the chip itself, a few
+words per request, and then has the page erased and programmed.
+
+```cpp
+#define MODULE_CONF_SUPPORT   1        /* start what the table lists */
+#define MODULE_CONF_SLOTS     2
+#define MODULE_CONF_SLOT_SIZE 1024
+#define MODULE_CONF_BASE      0x1500   /* above the sketch */
+#define MODULE_CONF_RAM_SIZE  40
+#include <sys/module.h>
+
+#include <avr/fuse.h>
+FUSES = { 0xE2, 0xDF, 0xFE };          /* 8 MHz, and SELFPRGEN programmed */
+
+#define PORT_CONF_LEVEL PORT_LEVEL_LOAD
+#include <mod/port.h>
+
+void setup(void) { ...  module_init();  module_autostart(); ... }
+```
+
+```sh
+node tools/module.mjs 50-port.elf upper 0                 # a module for this build and slot 0
+node tools/port.mjs 50-port.elf --port /dev/ttyUSB0 "get 0 upper-slot0.elf" mods
+[sent upper-slot0.elf: 293 bytes, 5 pages]
+ok
+0 upper +
+```
+
+- `get` sends the module page by page and reads each page back; a page that
+  does not take is sent again, and after three tries the tool asks whether
+  the `SELFPRGEN` fuse is programmed. Then the part checks the module (magic,
+  version, kernel build, size of its process struct), enters it into the
+  table and starts it. What the table lists starts with the system.
+- `del` takes a module out of the table and ends it. A slot takes a new
+  module once its old one has ended.
+- The part checks every page itself, whatever the PC sends: it programs only
+  pages in a free slot and above the end of the sketch, and the table only
+  through `get` and `del`.
+- `SELFPRGEN` is in the extended fuse and is not programmed on a new chip. A
+  programmer has to write it once; `FUSES` in the sketch says what it should
+  be, and `door` says what it is. With it programmed, a sketch that runs wild
+  could change its own flash.
+- A page write stops the processor for about 9 ms; on a chip the serial line
+  hears nothing in that time. The PC waits for the answer to each request, so
+  nothing is sent meanwhile.
+- An ATtiny45 has the flash for slots but not the RAM for a process in them;
+  an ATtiny25 has neither. On the ATmega parts the boot section programs
+  flash, and the loader of `mod/loader.h` does this job.
+
+| `50-port` on the ATtiny85, 2 slots | Flash | RAM |
+|------------------------------------|-------|-----|
+| level 1 | 4,123 | 297 |
+| level 2 | 4,135 | 297 |
+| level 3 | 4,461 | 299 |
+| level 4 | 5,151 | 301 |
+
+The slots and the module support take about 600 bytes of flash and 98 of RAM
+at every level; loading adds 690 bytes to level 3.
 
 ### The tick from the watchdog, and sleep
 
@@ -376,10 +476,10 @@ part, `<NAME>_CONF_FUSED` and `<NAME>_CONF_PORT`:
 
 | | ATtiny85, 512 B RAM | ATtiny45, 256 B | ATtiny25, 128 B |
 |---|---|---|---|
-| put together as | a process per stage, the port | one process, the port | one process, no port |
-| `51-keeper` | 4,666 B flash, 288 B RAM | 3,916 B, 166 B | 1,804 B, 67 B |
-| `52-sentinel` | 3,902 B, 280 B | 3,664 B, 155 B | 1,726 B, 70 B |
-| `53-regulator` | 4,492 B, 286 B | 3,566 B, 149 B | 1,592 B, 64 B |
+| put together as | a process per stage, the port at level 3 | one process, the port at level 2 | one process, no port |
+| `51-keeper` | 5,078 B flash, 292 B RAM | 4,002 B, 168 B | 1,804 B, 67 B |
+| `52-sentinel` | 4,270 B, 284 B | 3,708 B, 157 B | 1,726 B, 70 B |
+| `53-regulator` | 4,860 B, 290 B | 3,610 B, 151 B | 1,592 B, 64 B |
 
 Without the port a part runs on its settings as built, or as a programmer
 wrote them into EEPROM, and the records of the sentinel are read with a
@@ -444,7 +544,7 @@ Built with avr-gcc 7.3.0, `-Os` and link-time optimisation.
 | `42-shell-loader`: shell, ticker, blink, two slots, loader | ATmega328P | 8,738 | 970 |
 | the same | ATmega2560 | 8,906 | 1,116 |
 | `43-monitor`: monitor, ticker, blink, vcc, upper, keeper | ATmega328P | 6,990 | 557 |
-| `50-port`: port, ticker, blink, upper, two-pin serial line | ATtiny85 | 3,836 | 247 |
+| `50-port`: port at level 4, ticker, blink, two slots, two-pin serial line | ATtiny85 | 5,151 | 301 |
 
 | Loadable module, ATmega328P | Flash in its slot |
 |-----------------------------|-------------------|
@@ -459,9 +559,10 @@ core brings more than the stand-in of `tools/core`.
 ## Limits
 
 - Nothing has run on hardware.
-- The ATtiny parts do not load modules at run time. With the port the PC
-  could do the work of the loader, since these parts can program their own
-  flash from any address; that has not been built.
+- Loading through the port has run in protosim only. simavr does not model
+  clearing the page buffer (`CTPB`): a page sent a second time after a
+  failed one may keep words of the first in simulation; on a chip it does
+  not. Nor does simavr look at the `SELFPRGEN` fuse.
 - The ATtiny examples were built with avr-gcc and a stand-in for an Arduino
   core, not with an ATtiny core in the Arduino IDE.
 - What the sentinel draws was not measured: a simulator has no current. From

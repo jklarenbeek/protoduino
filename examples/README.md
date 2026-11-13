@@ -84,7 +84,7 @@ asked. What is left is room for work.
 
 | Sketch | Part | What it adds |
 |--------|------|--------------|
-| `50-port` | ATtiny85, 45 | The port, and `tools/port.mjs`, the shell on the PC: `ps`, `mods`, `ipc`, `stop`, `join`, `run`, `write` as in example 40. The watchdog as the tick, and sleep while idle. |
+| `50-port` | ATtiny85, 45 | The port, and `tools/port.mjs`, the shell on the PC: `ps`, `mods`, `ipc`, `stop`, `join`, `run`, `write` as in example 40, open after a press of the reset button. On the ATtiny85 also `get` and `del`: modules into two flash slots while it runs. The watchdog as the tick, and sleep while idle. |
 | `51-keeper` | ATtiny85, 45, 25 | A chip that looks after a bigger board: resets it when its heartbeat stops, holds it in reset while the supply is low, resets it on request, and counts what it did in EEPROM. |
 | `52-sentinel` | ATtiny85, 45, 25 | Asleep nearly always: wakes on its watchdog, measures the temperature of the chip and its supply, keeps the last samples and the extremes in EEPROM. |
 | `53-regulator` | ATtiny85, 45, 25 | `sense \| smooth \| curve \| pwm`: a signal in, a smooth answer out. A fan that follows a temperature, as built. |
