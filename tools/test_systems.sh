@@ -95,10 +95,39 @@ seen() {
 
 echo "== 50-port: the shell on the PC, a port on the ATtiny85 =="
 build attiny85 8000000 examples/6-attiny/50-port/50-port.ino
-port "processes, modules, pipes, pause, start, write and kill through the port" $O/50-port-attiny85.elf "-m attiny85 $TINY" \
-  ps expect:"port     R 2" mods expect:"2 upper -" "join ticker blink" ipc expect:"ticker > blink" \
-  "stop blink" ps expect:"blink    P 3" "cont blink" "run 2" mods expect:"2 upper +" \
-  "join upper serial:0" "write upper hello" "kill upper" ps "kill port" expect:"?" "join nobody blink" expect:"?"
+K=$O/50-port-attiny85.elf
+port "after a power-on the port only looks and does settings; a reset through the pin opens the rest" $K "-m attiny85 $TINY" \
+  door expect:"levels 3 and 4: closed" ps expect:"port     R 2" mods expect:"2 ticker +" \
+  "join ticker blink" expect:"are closed. Reset the part through its reset pin" \
+  reset door expect:"levels 3 and 4: open" door expect:"reset pin" \
+  "join ticker blink" ipc expect:"ticker > blink" "stop blink" ps expect:"blink    P 3" "cont blink" \
+  "kill port" expect:"?" "join nobody blink" expect:"nobody by the name nobody"
+for m in upper blink; do for sl in 0 1; do node tools/module.mjs $K $m $sl -o $O/$m-t85-slot$sl.elf -DBLINK_CONF_BIT=4 > /dev/null; done; done
+bash tools/build_sketch.sh attiny85 8000000 examples/6-attiny/50-port/50-port.ino -DPORT_CONF_WINDOW=3 > /dev/null 2>&1
+cp $O/50-port-attiny85.elf $O/50-port-other.elf
+node tools/module.mjs $O/50-port-other.elf upper 0 -o $O/upper-other-slot0.elf > /dev/null
+build attiny85 8000000 examples/6-attiny/50-port/50-port.ino    # the build the modules are for, once more
+port "modules into flash slots while the system runs; refused where they do not belong; kept over a power cycle" $K \
+  "-m attiny85 $TINY --reset-cause pin" door expect:"SELFPRGEN fuse: programmed" \
+  "get 0 $O/upper-t85-slot0.elf" expect:"5 pages" mods expect:"0 upper +" \
+  ps expect:"upper    W 3" "join upper serial:0" "write upper hello" wait:0.3 "unjoin upper" \
+  "get 1 $O/blink-t85-slot1.elf" mods expect:"1 blink +" \
+  "get 0 $O/blink-t85-slot0.elf" expect:"holds a module" \
+  "get 1 $O/upper-t85-slot0.elf" expect:"is linked for 0x1500, slot 1 is at 0x1900" \
+  "get 0 $O/upper-other-slot0.elf" expect:"another build" \
+  "raw B 0 0x0100" expect:"status 3" "raw B 0 0x1d00" expect:"status 3" "raw L 3 62 1 2 3 4 5 6" expect:"status 3" \
+  "raw T 1 5" expect:"status 0 a3" "raw Q 0 0" expect:"status 5" \
+  "del 0" mods expect:"0 (free)" "get 0 $O/blink-t85-slot0.elf" mods expect:"0 blink +" \
+  power wait:0.5 door expect:"levels 3 and 4: closed" mods expect:"0 blink +" mods expect:"1 blink +" \
+  "del 1" expect:"are closed"
+port "the door closes when nobody uses it for its window (3 s), and a watchdog reset does not open it" $O/50-port-other.elf \
+  "-m attiny85 $TINY --reset-cause pin --reset-at 12000:watchdog" "join ticker blink" expect:"ok" wait:4 \
+  "join ticker blink" expect:"are closed" wait:7 door expect:"levels 3 and 4: closed"
+
+echo "== 50-port on the ATtiny45: level 3, no slots =="
+build attiny45 8000000 examples/6-attiny/50-port/50-port.ino
+port "closed after a power-on, open after a reset through the pin" $O/50-port-attiny45.elf "-m attiny45 $TINY" \
+  "join ticker blink" expect:"are closed" reset "join ticker blink" ipc expect:"ticker > blink" "get 0 x.elf" expect:"no flash slots"
 
 # The board the keeper watches: a heartbeat every 200 ms that stops after 6 s and returns at 14 s;
 # a supply of 5 V that sags to 4.0 V from 20 s to 24 s. The reset line has the pull-up of the board.
@@ -112,9 +141,10 @@ for mcu in attiny85 attiny45 attiny25; do
   build $mcu 8000000 examples/6-attiny/51-keeper/51-keeper.ino
   E=$O/51-keeper-$mcu.elf
   if [ $mcu != attiny25 ]; then
-    port "counts and settings through the port; a reset on request" $E "-m $mcu $TINY $BOARD" \
+    port "counts and settings through the port; a reset on request; nothing else without the reset pin" $E "-m $mcu $TINY $BOARD" \
       wait:1.5 resets expect:"resets after a missed heartbeat: 1" resets expect:"times the supply was low: 1" \
-      "write keeper R" wait:0.3 resets expect:"resets asked for: 1" "set timeout 9" settings expect:"timeout      9   (  4)"
+      actions expect:"restart" restart wait:0.3 resets expect:"resets asked for: 1" \
+      "set timeout 9" settings expect:"timeout      9   (  4)" "poke 0x60 1" expect:"?"
     seen "reset after 4 s of silence, held while the supply is low, released when it is back" $O/sim.log "$LINE" "$LOW" "$BACK"
   else
     "$SIM" $E -m $mcu -f 8000000 $BOARD --run-ms 30000 --dump-eeprom 16:3 > $O/sim.log 2>&1

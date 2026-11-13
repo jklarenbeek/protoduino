@@ -14,31 +14,37 @@
 41-shell-tiny85-attiny85     flash  5914 B   RAM  275 B
 [PASS] processes, modules and pipes over the two-pin line
 == 50-port: the shell on the PC, a port on the ATtiny85 ==
-50-port-attiny85             flash  3836 B   RAM  247 B
-[PASS] processes, modules, pipes, pause, start, write and kill through the port
+50-port-attiny85             flash  5151 B   RAM  301 B
+[PASS] after a power-on the port only looks and does settings; a reset through the pin opens the rest
+50-port-attiny85             flash  5151 B   RAM  301 B
+[PASS] modules into flash slots while the system runs; refused where they do not belong; kept over a power cycle
+[PASS] the door closes when nobody uses it for its window (3 s), and a watchdog reset does not open it
+== 50-port on the ATtiny45: level 3, no slots ==
+50-port-attiny45             flash  3874 B   RAM  172 B
+[PASS] closed after a power-on, open after a reset through the pin
 == 51-keeper on the attiny85: a process per stage, with the port ==
-51-keeper-attiny85           flash  4666 B   RAM  288 B
-[PASS] counts and settings through the port; a reset on request
+51-keeper-attiny85           flash  5078 B   RAM  292 B
+[PASS] counts and settings through the port; a reset on request; nothing else without the reset pin
 [PASS] reset after 4 s of silence, held while the supply is low, released when it is back
 == 52-sentinel on the attiny85: a process per stage, with the port ==
-52-sentinel-attiny85         flash  3902 B   RAM  280 B
+52-sentinel-attiny85         flash  4270 B   RAM  284 B
 [PASS] temperature and supply recorded in EEPROM and shown
-[PASS] asleep all but a few milliseconds of ten minutes: asleep 99.99% of 647168.613 ms, awake 42.077 ms
+[PASS] asleep all but a few milliseconds of ten minutes: asleep 99.99% of 647168.618 ms, awake 42.153 ms
 == 53-regulator on the attiny85: a process per stage, with the port ==
-53-regulator-attiny85        flash  4492 B   RAM  286 B
+53-regulator-attiny85        flash  4860 B   RAM  290 B
 [PASS] input below the curve: off
 [PASS] input above it: full
 [PASS] input on it: 60 %; a setting changed while it runs: 73 %
 == 51-keeper on the attiny45: one process, with the port ==
-51-keeper-attiny45           flash  3916 B   RAM  166 B
-[PASS] counts and settings through the port; a reset on request
+51-keeper-attiny45           flash  4002 B   RAM  168 B
+[PASS] counts and settings through the port; a reset on request; nothing else without the reset pin
 [PASS] reset after 4 s of silence, held while the supply is low, released when it is back
 == 52-sentinel on the attiny45: one process, with the port ==
-52-sentinel-attiny45         flash  3664 B   RAM  155 B
+52-sentinel-attiny45         flash  3708 B   RAM  157 B
 [PASS] temperature and supply recorded in EEPROM and shown
-[PASS] asleep all but a few milliseconds of ten minutes: asleep 99.99% of 647168.399 ms, awake 38.830 ms
+[PASS] asleep all but a few milliseconds of ten minutes: asleep 99.99% of 647168.399 ms, awake 38.772 ms
 == 53-regulator on the attiny45: one process, with the port ==
-53-regulator-attiny45        flash  3566 B   RAM  149 B
+53-regulator-attiny45        flash  3610 B   RAM  151 B
 [PASS] input below the curve: off
 [PASS] input above it: full
 [PASS] input on it: 60 %; a setting changed while it runs: 73 %

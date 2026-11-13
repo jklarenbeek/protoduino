@@ -52,8 +52,9 @@
  * So the RAM of the part decides how this sketch is put together, and both
  * can be set here or on the command line of the build:
  *
- *   ATtiny85  512 bytes   every stage a process, and the port
+ *   ATtiny85  512 bytes   every stage a process, and the port up to level 3
  *   ATtiny45  256 bytes   the stages as functions of one process, and the port
+ *                         at level 2: settings and actions
  *   ATtiny25  128 bytes   the stages as functions of one process, no port:
  *                         it runs on the settings as built
  */
@@ -102,9 +103,14 @@
 #define SENTINEL_SUPPLY      (SENTINEL_TEMPERATURE + 2 + SENTINEL_CONF_SAMPLES)
 
 #if SENTINEL_CONF_PORT
-/* 1 look, 2 also change settings, 3 also call: everything the PC can do */
+/* 1 look, 2 also settings, 3 also anything: behind the guard, open for a
+ * minute after a reset through the reset pin */
 #ifndef PORT_CONF_LEVEL
-#define PORT_CONF_LEVEL 3
+#if defined(__AVR_ATtiny85__)
+#define PORT_CONF_LEVEL PORT_LEVEL_WORK
+#else
+#define PORT_CONF_LEVEL PORT_LEVEL_SETTINGS /* the 4 KB of an ATtiny45 hold no more */
+#endif
 #endif
 #include <mod/port.h>
 

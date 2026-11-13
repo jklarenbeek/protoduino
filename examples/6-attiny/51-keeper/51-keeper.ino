@@ -15,7 +15,7 @@
  *   The keeper resets the board when the heartbeat stops, holds it in reset
  *   while the supply is low, and resets it when the PC says so:
  *
- *     node tools/port.mjs 51-keeper.elf --port /dev/ttyUSB0 "write keeper R"
+ *     node tools/port.mjs 51-keeper.elf --port /dev/ttyUSB0 restart
  *
  *   A bootloader that waits for a sketch after a reset through the pin,
  *   as the one in boot/ does, gets its reset this way on a board without
@@ -37,6 +37,12 @@
  *   What is fixed at build time has a #define with an #ifndef around it:
  *   set it on the command line of the build, or change it here.
  *
+ * THE DOOR
+ * --------
+ *   Reading, the settings and "restart" are open to whoever is at the line.
+ *   Everything else the port can do ("join", "write", any memory) opens
+ *   for a minute after a reset of the keeper through its own reset pin.
+ *
  * WIRING   (ATtiny85, 45 or 25 at 8 MHz, internal oscillator)
  *   PB0  serial in     to TX of a USB serial adapter, 9600 baud
  *   PB1  serial out    to RX of the adapter
@@ -55,8 +61,9 @@
  * So the RAM of the part decides how this sketch is put together, and both
  * can be set here or on the command line of the build:
  *
- *   ATtiny85  512 bytes   every stage a process, and the port
+ *   ATtiny85  512 bytes   every stage a process, and the port up to level 3
  *   ATtiny45  256 bytes   the stages as functions of one process, and the port
+ *                         at level 2: settings and actions
  *   ATtiny25  128 bytes   the stages as functions of one process, no port:
  *                         it runs on the settings as built
  */
@@ -101,10 +108,16 @@
 #include <sys/settings.h>
 
 #if KEEPER_CONF_PORT
-/* 1 look, 2 also change settings, 3 also call: everything the PC can do */
+/* 1 look, 2 also settings and actions, 3 also anything: behind the guard */
 #ifndef PORT_CONF_LEVEL
-#define PORT_CONF_LEVEL 3
+#if defined(__AVR_ATtiny85__)
+#define PORT_CONF_LEVEL PORT_LEVEL_WORK
+#else
+#define PORT_CONF_LEVEL PORT_LEVEL_SETTINGS /* the 4 KB of an ATtiny45 hold no more */
 #endif
+#endif
+static void restart_board(void);
+#define PORT_ACTIONS(X) X(restart, restart_board, "reset the board through its reset line now")
 #include <mod/port.h>
 
 PORT_VIEW(resets,
@@ -199,6 +212,12 @@ PROCESS_INSTANCE(keeper, keeper_proc);
 static bool connected;
 
 #endif
+
+/* the action the PC may run at level 2 */
+static void restart_board(void)
+{
+  keeper_request(&THE_KEEPER);
+}
 
 /* the settings, to where they are used; the PC calls this after a change */
 void settings_apply(void)
