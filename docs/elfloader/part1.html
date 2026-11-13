@@ -4,13 +4,13 @@
     <h1>A streaming ELF loader<br>for AVR</h1>
     <p class="sub">Functional and technical design of a compile-time configurable ELF32 loader: a bootloader that is one protothread, lent to the running system to load modules that are process types. With measurements and fixes for protoduino caveats.</p>
   </div>
-  <div class="meta"><span>Draft 0.9 &middot; 12 November 2026</span><span>jklarenbeek/protoduino &middot; branch ccr-8617b1c3-gjnqlx</span></div>
+  <div class="meta"><span>Draft 1.0 &middot; 13 November 2026</span><span>jklarenbeek/protoduino &middot; branch ccr-8617b1c3-gjnqlx</span></div>
 
   <div class="keyfacts">
     <div><div class="v">1 thread</div><div class="l">the bootloader is a Protothreads v2 thread, and the kernel schedules the same one</div></div>
     <div><div class="v">2,020 B</div><div class="l">in the 2 KB boot section of an ATmega328P, with the thread offered to the kernel</div></div>
     <div><div class="v">15,113</div><div class="l">turns a heartbeat process took while a module was loaded beside it</div></div>
-    <div><div class="v">61 of 61</div><div class="l">simulated scenarios behaved as designed, twenty of them in protosim itself</div></div>
+    <div><div class="v">64 of 64</div><div class="l">simulated scenarios behaved as designed, twenty-three of them in protosim itself</div></div>
   </div>
 
   <div class="box accent">
@@ -119,7 +119,7 @@
     <tr><td class="nw">ATmega328P</td><td class="num">32 KB</td><td class="num">2 KB</td><td class="num">128 B</td><td>0.5 to 4 KB</td><td>2 KB section <span class="tag m">measured</span></td><td>Yes. The load thread fits the 2 KB section and the kernel schedules it there. <span class="tag m">measured</span></td></tr>
     <tr><td class="nw">ATmega2560</td><td class="num">256 KB</td><td class="num">8 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section, every option <span class="tag m">measured</span></td><td>Yes. The thread sits in the 4 KB section, above 128 KB, and the kernel reaches it with a far call (6.7). <span class="tag m">measured</span></td></tr>
     <tr><td class="nw">ATmega1284P</td><td class="num">128 KB</td><td class="num">16 KB</td><td class="num">256 B</td><td>1 to 8 KB</td><td>4 KB section, every option <span class="tag m">measured</span></td><td>As the ATmega2560, without the far call: its boot section is in reach of a plain call. The kernel side was not run. <span class="tag p">proposed</span></td></tr>
-    <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>none</td><td><span class="tag b">built</span></td><td>Off by default: the workspace of the thread alone is 313 of its 512 bytes of RAM. These parts get a different arrangement: the shell on the PC and a port of 470 bytes on the part (9.2). <span class="tag m">measured</span></td></tr>
+    <tr><td class="nw">ATtiny85</td><td class="num">8 KB</td><td class="num">512 B</td><td class="num">64 B</td><td>none</td><td><span class="tag b">built</span></td><td>Off by default: the workspace of the thread alone is 313 of its 512 bytes of RAM. These parts get a different arrangement: the shell on the PC and a port on the part, which on the ATtiny85 also programs modules into flash slots, without a bootloader and without RAM for a page (9.2). <span class="tag m">measured</span></td></tr>
     <tr><td class="nw">ATtiny25 / 45</td><td class="num">2 / 4 KB</td><td class="num">128 / 256 B</td><td class="num">32 / 64 B</td><td>none</td><td>Needs a small-frame transport <span class="tag p">proposed</span></td><td>No. Excluded at compile time.</td></tr>
     <tr><td class="nw">ATtiny4/5/9/10</td><td class="num">&le; 1 KB</td><td class="num">32 B</td><td class="num">&ndash;</td><td>none</td><td>Out of scope</td><td>&ndash;</td></tr>
   </tbody>
