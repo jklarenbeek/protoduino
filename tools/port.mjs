@@ -21,6 +21,11 @@
 //   settings           the settings of the sketch, as they are and as built
 //   set <name> <value> change a setting; it is kept in EEPROM
 //   <view>             a view the sketch defines; "views" lists them
+//   <action>           an action the sketch defines; "actions" lists them
+//   door               how far the port opens, and whether it is open now
+//   get <slot> <file>  put a module into a flash slot and start it (level 4)
+//   del <slot>         end the module of a slot and take it out (level 4)
+//   raw <op> <n> <a> [byte ...]       one request as it is; prints its status
 //   read <symbol|address> [count]     memory, as hex
 //   poke <symbol|address> <byte> ...  write memory
 //   eeprom [address [count]]          EEPROM, as hex
@@ -36,7 +41,7 @@
 import fs from 'node:fs';
 import readline from 'node:readline';
 import { openLine } from './lib/line.mjs';
-import { readElf, avrImage } from './lib/elf.mjs';
+import { readElf, avrImage, crc16 } from './lib/elf.mjs';
 
 const CHECK = 0xa5;
 const STATES = '?IRWXP??';
@@ -98,13 +103,24 @@ function flashText(address) {
 
 const layoutSymbol = symbol('port_layout');
 if (!layoutSymbol) fail(`${file} has no port: the sketch has to include <mod/port.h>`);
-const layoutBytes = flashAt(layoutSymbol.value, 13);
-if (layoutBytes[0] !== 1) fail(`${file} was built with another version of the port than this tool knows`);
+const LAYOUT = 17;
+const layoutBytes = flashAt(layoutSymbol.value, LAYOUT);
+if (layoutBytes[0] !== 2) fail(`${file} was built with another version of the port than this tool knows`);
 const L = {
   level: layoutBytes[1], process: layoutBytes[2], next: layoutBytes[3], name: layoutBytes[4], prio: layoutBytes[5],
   thread: layoutBytes[6], pipein: layoutBytes[7], pipeout: layoutBytes[8], pipe: layoutBytes[9], wake: layoutBytes[10],
-  scratch: layoutBytes[11], scratchSize: layoutBytes[12],
+  scratch: layoutBytes[11], scratchSize: layoutBytes[12], guard: layoutBytes[13], window: layoutBytes[14],
+  page: layoutBytes[15] * 2, actions: layoutBytes[16],
 };
+const LEVELS = ['', 'look', 'settings', 'work', 'load'];
+
+// the flash slots of the sketch, if it has them (src/sys/module.h)
+const slotsSymbol = symbol('module_layout');
+const SLOTS = slotsSymbol ? (() => {
+  const b = flashAt(slotsSymbol.value, 20);
+  const [base, size, count, ramSize] = [0, 4, 8, 12].map((o) => b.readUInt32LE(o));
+  return { base, size, count, ramSize, table: base + count * size, kernel: crc16(image.flash) };
+})() : null;
 
 // the notes of the sketch: settings and views, kept in the file and not in the part
 const notes = [];
@@ -123,25 +139,55 @@ async function send(frame) {
   }
 }
 
-// one request; returns the bytes of the answer
+// what a request needs, for the messages
+const NEEDS = { R: 1, F: 1, E: 1, I: 1, e: 2, A: 2, W: 3, C: 3, B: 4, L: 4, G: 4, T: 4 };
+
+// why the part said no
+function refusal(op, status) {
+  if (status === 1) {
+    return `the part was built with PORT_CONF_LEVEL ${L.level} (${LEVELS[L.level]}); this needs level ${NEEDS[op]} (${LEVELS[NEEDS[op]]})`;
+  }
+  if (status === 2) {
+    return L.guard === 2
+      ? 'levels 3 and 4 are closed: port_may_open() of the sketch says so'
+      : `levels 3 and 4 are closed. Reset the part through its reset pin (a button, or "reset" here), then go on within ${L.window} s`;
+  }
+  if (status === 3) return 'that is outside what this request may touch';
+  if (status === 4) return 'the slot holds a module, or its module still runs: "del" it first';
+  return 'the part does not know this request';
+}
+
+class Refused extends Error {
+  constructor(op, status) {
+    super(refusal(op, status));
+    this.status = status;
+  }
+}
+
+// one request; returns the bytes of the answer, or throws Refused
 async function request(op, n, a, d = []) {
   const frame = Buffer.alloc(12);
   frame[0] = 0x70; frame[1] = op.charCodeAt(0); frame[2] = n; frame.writeUInt16LE(a & 0xffff, 3);
   Buffer.from(d).copy(frame, 5);
   frame[11] = frame.subarray(0, 11).reduce((x, value) => x ^ value, 0);
-  const expected = (op === 'W' || op === 'e' ? 0 : op === 'C' ? 2 : n) + 1;
+  const length = 'RFE'.includes(op) ? n : op === 'I' ? 3 : op === 'C' ? 2 : op === 'T' ? 1 : 0;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     line.take();
     await send(frame);
-    const answer = [];
-    while (answer.length < expected) {
-      const value = await line.byte(timeout);
-      if (value < 0) break;
-      answer.push(value);
-    }
-    if (answer.length === expected && answer.reduce((x, value) => x ^ value, CHECK) === 0) {
-      return Buffer.from(answer.slice(0, -1));
+    const status = await line.byte(timeout);
+    const answer = [status];
+    if (status >= 0) {
+      const expected = (status === 0 ? length : 0) + 2;
+      while (answer.length < expected) {
+        const value = await line.byte(timeout);
+        if (value < 0) break;
+        answer.push(value);
+      }
+      if (answer.length === expected && answer.reduce((x, value) => x ^ value, CHECK) === 0) {
+        if (status !== 0) throw new Refused(op, status);
+        return Buffer.from(answer.slice(1, -1));
+      }
     }
     await sleep(100); // let the line fall silent, then once more
   }
@@ -159,7 +205,6 @@ const read8 = async (address) => (await read('R', address, 1))[0];
 const read16 = async (address) => (await read('R', address, 2)).readUInt16LE(0);
 
 async function write(space, address, data) {
-  if (L.level < 2) throw new Error('this port only looks (PORT_CONF_LEVEL 1)');
   for (let done = 0; done < data.length; done += 6) {
     const chunk = data.subarray(done, done + 6);
     await request(space, chunk.length, address + done, chunk);
@@ -167,7 +212,7 @@ async function write(space, address, data) {
 }
 
 async function call(name, a = 0, b = 0, c = 0) {
-  if (L.level < 3) throw new Error('this port does not call functions (PORT_CONF_LEVEL is below 3)');
+  if (L.level < 3) throw new Refused('C', 1);
   const fn = symbol(name);
   if (!fn) throw new Error(`the sketch does not contain ${name}: name it in PORT_CONF_CALLS`);
   const d = Buffer.alloc(6);
@@ -182,11 +227,19 @@ function decode(address, bytes) {
   return {
     address,
     next: bytes.readUInt16LE(L.next),
-    name: L.name === 0xff ? `@${address.toString(16)}` : flashText(bytes.readUInt16LE(L.name)),
+    name: L.name === 0xff ? `@${address.toString(16)}` : null,
+    nameAt: L.name === 0xff ? 0 : bytes.readUInt16LE(L.name),
     prio: bytes[L.prio],
     state: flags & 7, device: ((flags >> 3) & 3) === 1, hasIn: (flags >> 6) & 1, hasOut: (flags >> 7) & 1,
     pipein: bytes.readUInt16LE(L.pipein), pipeout: bytes.readUInt16LE(L.pipeout),
   };
+}
+
+// a name in flash: in the file for the sketch itself, on the part for a module in a slot
+async function nameAt(address) {
+  if (address >= image.base && address < image.base + image.flash.length) return flashText(address);
+  const text = await read('F', address, 12);
+  return text.toString('latin1', 0, Math.max(0, text.indexOf(0)));
 }
 
 async function processes() {
@@ -195,6 +248,7 @@ async function processes() {
   const list = [];
   for (let p = await read16(ram(head)); p !== 0 && list.length < 32;) {
     const process = decode(p, await read('R', p, L.process));
+    if (process.name === null) process.name = await nameAt(process.nameAt);
     list.push(process);
     p = process.next;
   }
@@ -257,6 +311,83 @@ const UNITS = {
   percent: (x) => `${Math.round(x * 100 / 255)} %`,
 };
 
+// ---- flash slots ------------------------------------------------------------
+
+// what the slots hold: read from the part, not from the file
+async function slotList() {
+  if (!SLOTS) return [];
+  const table = await read('F', SLOTS.table, 2 + 2 * SLOTS.count);
+  const valid = table.readUInt16LE(0) === 0x4d70;
+  const ram = symbol('module_ram');
+  const list = [];
+  for (let slot = 0; slot < SLOTS.count; slot++) {
+    const x = { slot, name: null, running: false };
+    if (valid && table.readUInt16LE(2 + 2 * slot) === SLOTS.kernel) {
+      const at = SLOTS.base + slot * SLOTS.size;
+      const type = (await read('F', at + 6, 2)).readUInt16LE(0);
+      const name = (await read('F', type, 2)).readUInt16LE(0);
+      const text = await read('F', name, 12);
+      x.name = text.toString('latin1', 0, Math.max(0, text.indexOf(0)));
+      if (ram) x.running = ((await read8(ram.value + slot * SLOTS.ramSize + L.prio + 1)) & 7) !== 0;
+    }
+    list.push(x);
+  }
+  return list;
+}
+
+// a module into a slot: page by page, each read back, then checked and started by the part
+async function get(slot, moduleFile) {
+  if (!SLOTS) throw new Error('the sketch has no flash slots (sys/module.h)');
+  if (L.level < 4) throw new Refused('B', 1);
+  if (!(slot >= 0 && slot < SLOTS.count)) throw new Error(`no slot ${slot}: the sketch has 0 to ${SLOTS.count - 1}`);
+  let module;
+  try {
+    module = readElf(moduleFile);
+  } catch (error) {
+    throw new Error(error.message);
+  }
+  const text = module.section('.text');
+  const at = SLOTS.base + slot * SLOTS.size;
+  if (!text || !module.symbols.find((x) => x.name === 'module_descriptor')) throw new Error(`${moduleFile} is not a module: build it with tools/module.mjs`);
+  if (text.addr !== at) throw new Error(`${moduleFile} is linked for 0x${text.addr.toString(16)}, slot ${slot} is at 0x${at.toString(16)}: build it for this slot`);
+  const bytes = module.bytes(text);
+  if (bytes.length > SLOTS.size) throw new Error(`${moduleFile} takes ${bytes.length} bytes, a slot holds ${SLOTS.size}`);
+  if (bytes.readUInt16LE(4) !== SLOTS.kernel) throw new Error(`${moduleFile} is linked against another build of this sketch: build it again from ${file}`);
+
+  const pages = Math.ceil(bytes.length / L.page);
+  for (let p = 0; p < pages; p++) {
+    const page = at + p * L.page;
+    const data = Buffer.alloc(L.page, 0xff);
+    bytes.copy(data, 0, p * L.page, (p + 1) * L.page);
+    let done = false;
+    for (let attempt = 0; attempt < 3 && !done; attempt++) {
+      // a module that was just ended may take a turn to let go of its slot
+      for (let wait = 0; ; wait++) {
+        try {
+          await request('B', 0, page);
+          break;
+        } catch (error) {
+          if (!(error instanceof Refused) || error.status !== 4 || wait === 10) throw error;
+          await sleep(100);
+        }
+      }
+      for (let w = 0; w < L.page; w += 6) {
+        const chunk = data.subarray(w, Math.min(w + 6, L.page));
+        await request('L', chunk.length / 2, w, chunk);
+      }
+      await request('G', 0, 0);
+      done = (await read('F', page, L.page)).equals(data);
+    }
+    if (!done) {
+      throw new Error(`page 0x${page.toString(16)} did not take. Is the SELFPRGEN fuse programmed? ("door" says)`);
+    }
+  }
+  say(`[sent ${moduleFile}: ${bytes.length} bytes, ${pages} pages]`);
+  const code = (await request('T', 1, slot))[0];
+  const why = { 0x51: 'not a module', 0xd0: 'another version of the module format', 0xa4: 'linked against another build', 0xa6: 'the slot is in use', 0x20: 'its process struct does not fit the RAM of a slot' };
+  say(code === 0 ? 'ok' : `? the part refused the module: ${why[code] ?? `code 0x${hex([code])}`}`);
+}
+
 // ---- the commands -----------------------------------------------------------
 
 let transcript = '';
@@ -274,10 +405,13 @@ async function command(text) {
   if (c === 'ps') {
     for (const p of await processes()) say(`${p.name.padEnd(8)} ${STATES[p.state]} ${p.prio}`);
   } else if (c === 'mods') {
+    // the slots first, as the shell on a part lists them: the number of a slot is its number
+    const slots = await slotList();
+    for (const x of slots) say(`${x.slot} ${x.name ?? '(free)'}${x.name ? (x.running ? ' +' : ' -') : ''}`);
     const list = modules();
     for (let i = 0; i < list.length; i++) {
       const flags = await read8(list[i].instance + L.prio + 1);
-      say(`${i} ${list[i].name} ${(flags & 7) !== 0 ? '+' : '-'}`);
+      say(`${slots.length + i} ${list[i].name} ${(flags & 7) !== 0 ? '+' : '-'}`);
     }
   } else if (c === 'ipc') {
     const list = await processes();
@@ -310,8 +444,14 @@ async function command(text) {
     await call('process_destroy', p.address);
     say('ok');
   } else if (c === 'run') {
+    const count = SLOTS ? SLOTS.count : 0;
+    if (Number(words[1]) < count) {
+      const code = (await request('T', 2, Number(words[1])))[0];
+      say(code === 0 ? 'ok' : `? the slot does not start: 0x${hex([code])}`);
+      return;
+    }
     const list = modules();
-    const m = list[Number(words[1])] ?? list.find((x) => x.name === words[1]);
+    const m = list[Number(words[1]) - count] ?? list.find((x) => x.name === words[1]);
     if (!m || ((await read8(m.instance + L.prio + 1)) & 7) !== 0) { say('?'); return; }
     say(await call('process_new', m.type, m.instance) ? 'ok' : '?');
   } else if (c === 'join') {
@@ -345,8 +485,35 @@ async function command(text) {
     now[s.index] = v;
     // all of them and the mark behind them: from now on EEPROM says what the settings are
     await write('e', all.at, Buffer.from([...now, (SETTINGS_MARK ^ all.list.length) & 0xff]));
-    if (symbol('settings_apply') && L.level >= 3) await call('settings_apply');
+    await request('A', 0xff, 0); // and the sketch takes them over
     say('ok');
+  } else if (c === 'actions') {
+    for (const n of notes.filter((x) => x[0] === 'action')) say(`${n[1].padEnd(10)} ${n[2] ?? ''}`);
+  } else if (c === 'door') {
+    const [open, cause, fuse] = await request('I', 0, 0);
+    const causes = ['power-on', 'reset pin', 'brown-out', 'watchdog'].filter((_, i) => cause & (1 << i)).join(', ') || 'none';
+    say(`level ${L.level} (${LEVELS[L.level]})`);
+    if (L.level >= 3) {
+      say(`levels 3 and 4: ${open ? 'open' : 'closed'}, ${['always open', `open for ${L.window} s after a reset through the pin`, 'open when the sketch says so'][L.guard]}`);
+    }
+    say(`the last reset: ${causes}`);
+    if (L.level >= 4) say(`SELFPRGEN fuse: ${fuse & 1 ? 'not programmed: the part cannot program its flash' : 'programmed'}`);
+  } else if (c === 'raw') {
+    // one request as it is, for tests of what the part itself allows: raw <op> <n> <a> [<byte> ...]
+    try {
+      const answer = await request(words[1], Number(words[2]), Number(words[3]), words.slice(4).map(Number));
+      say(`status 0 ${hex(answer)}`);
+    } catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      say(`status ${error.status}`);
+    }
+  } else if (c === 'get') {
+    await get(Number(words[1]), words[2]);
+  } else if (c === 'del') {
+    const slot = Number(words[1]);
+    if (!SLOTS || !(slot >= 0 && slot < SLOTS.count)) throw new Error(`no slot ${words[1]}`);
+    const code = (await request('T', 0, slot))[0];
+    say(code === 0 ? 'ok' : `? 0x${hex([code])}`);
   } else if (c === 'views') {
     for (const n of notes.filter((x) => x[0] === 'view')) say(`${n[1].padEnd(10)} ${n[3] ?? ''}`);
   } else if (c === 'read') {
@@ -363,6 +530,13 @@ async function command(text) {
   } else if (c === 'ring' || c === 'byte') {
     await view(words);
   } else {
+    const actions = notes.filter((x) => x[0] === 'action');
+    const index = actions.findIndex((x) => x[1] === c);
+    if (index >= 0) {
+      await request('A', index, 0);
+      say('ok');
+      return;
+    }
     const n = notes.find((x) => x[0] === 'view' && x[1] === c);
     if (!n) throw new Error(`no command ${c}`);
     for (const part of n[2].split(';')) await view(words_of(part));
@@ -418,7 +592,7 @@ try {
 process.on('SIGINT', () => { line.close(); process.exit(130); });
 
 // is this the build the part runs? Its layout record has to be where the file says
-const there = await read('F', layoutSymbol.value, 13);
+const there = await read('F', layoutSymbol.value, LAYOUT);
 if (!there.equals(Buffer.from(layoutBytes))) fail(`the part does not run ${file}: build and upload again, or name the right file`);
 
 async function step(text) {
@@ -435,6 +609,7 @@ async function step(text) {
       await command(text);
     } catch (error) {
       say(`? ${error.message}`);
+      if (error instanceof TypeError || error instanceof ReferenceError || error instanceof RangeError) throw error; // a fault of this tool
     }
   }
 }

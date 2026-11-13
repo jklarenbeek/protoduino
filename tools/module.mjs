@@ -80,6 +80,10 @@ if (!mcu) {
   mcu = found[1];
 }
 
+if (image.length > base) {
+  fail(`the kernel ends at 0x${image.length.toString(16)}, above its first slot at 0x${base.toString(16)}: ` +
+    'move MODULE_CONF_BASE up, or make the sketch smaller');
+}
 const slot = Number(numberArg);
 if (!Number.isInteger(slot) || slot < 0 || slot >= slots) fail(`slot ${numberArg}: the kernel has slots 0 to ${slots - 1}`);
 const address = base + slot * slotSize;

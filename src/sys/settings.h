@@ -28,8 +28,9 @@
  * - The names and the help texts are for the PC. They are kept in the .elf
  *   file, in a section that is not loaded, and cost the part nothing.
  * - A sketch that copies settings into its processes does so in a function
- *   called settings_apply(); the PC calls it after a change, when the port
- *   lets it.
+ *   called settings_apply(); the port calls it after the PC has changed a
+ *   setting. Writing the settings is the one change a port allows at its
+ *   level 2 (src/mod/port.h).
  */
 
 #include <protoduino.h>
@@ -74,7 +75,7 @@ const uint8_t settings_defaults[] CC_PROGMEM = { SETTINGS(SETTINGS_DEFAULT) };
 #ifdef __cplusplus
 extern "C" {
 #endif
-void settings_apply(void) __attribute__((used, noinline));
+void settings_apply(void) __attribute__((weak, used, noinline));
 #ifdef __cplusplus
 }
 #endif

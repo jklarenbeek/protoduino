@@ -82,6 +82,9 @@
 #define TICK_CONF_MILLIS 16
 #endif
 
+// milliseconds per tick, for whoever counts ticks to measure time
+#define TICK_MILLIS ((uint32_t)(TICK_CONF_MILLIS))
+
 static CC_ALWAYS_INLINE void tick_start(void)
 {
 }
@@ -119,6 +122,10 @@ static CC_ALWAYS_INLINE void tick_run(void)
 #ifndef TICK_CONF_WATCHDOG_RESET
 #define TICK_CONF_WATCHDOG_RESET 0
 #endif
+
+// milliseconds per tick, for whoever counts ticks to measure time: 16 ms
+// for WDTO_15MS, doubling with each step up to 8192 ms for WDTO_8S
+#define TICK_MILLIS (16UL << (TICK_CONF_WATCHDOG))
 
 // the watchdog control register under its two names
 #ifdef WDTCSR
