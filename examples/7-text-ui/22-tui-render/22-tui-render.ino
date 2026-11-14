@@ -1,4 +1,4 @@
-// file: examples/22-tui-render/22-tui-render.ino
+// file: examples/7-text-ui/22-tui-render/22-tui-render.ino
 
 /*
  * 22-tui-render.ino  –  end-to-end smoke test for the TUI layout/render stack
@@ -42,19 +42,16 @@
 
 #include <string.h>
 
-/* NOTE: TUI_MAX_ELEMENTS is set via a build flag (build.extra_flags) so the
- * .ino and the library .c files agree on tui_context_t's size.  Defining it
- * only here would NOT reach the separately-compiled library sources.
- *
- * Build for the Uno with the documented small-RAM flag set (docs/tui.md):
+/* The TUI sizes follow the part: on one with 2 KB of RAM (the Uno) the
+ * defaults are 12 elements, a render queue of 8 commands and 6 scroll lines
+ * of 42 bytes, which this sketch fits. To change them, set them for the
+ * whole build, not in the sketch: a #define here does not reach the
+ * library's .c files, and both have to agree on the size of the structs.
  *
  *   arduino-cli compile --fqbn arduino:avr:uno --library . \
- *     --build-property "build.extra_flags=-DTUI_MAX_ELEMENTS=10 \
- *       -DTUI_MAX_RENDER_CMDS=32 -DTUI_SCROLL_LINES=6 -DTUI_SCROLL_LINE_BYTES=42" \
- *     examples/22-tui-render
- *
- * Without these flags the default TUI buffers (48 elements, 64 commands,
- * 16×81 scrollback) do not fit in the ATmega328P's 2 KB of SRAM. */
+ *     --build-property "build.extra_flags=-DTUI_MAX_ELEMENTS=16" \
+ *     examples/7-text-ui/22-tui-render
+ */
 
 #define SCR_ROWS 12
 #define SCR_COLS 40
