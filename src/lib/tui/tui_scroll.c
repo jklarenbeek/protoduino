@@ -36,6 +36,7 @@ void tui_scroll_init(tui_scrollbuf_t *sb)
     sb->count       = 0;
     sb->view_offset = 0;
     sb->dirty       = 1;
+    sb->shown_at    = 0;   /* not on the screen: drawn in full next time */
 }
 
 /* =========================================================================

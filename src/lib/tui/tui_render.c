@@ -550,8 +550,35 @@ static void _push_text(tui_render_queue_t *rq, mcurses_t *scr,
     tui_render_push(rq, &cmd);
 }
 
+/** Display columns of the first @p byte_len bytes of a RAM UTF-8 string. */
+static uint8_t _cols_of(const char *str, uint8_t byte_len)
+{
+    uint8_t cols = 0;
+    for (uint8_t i = 0; i < byte_len; ++i)
+        if (((uint8_t)str[i] & 0xC0u) != 0x80u)
+            ++cols;
+    return cols;
+}
+
+/** Signature of one row of a scroll area: its bytes and its attribute. */
+static uint16_t _row_sig(const char *str, uint8_t byte_len, uint16_t attr)
+{
+    uint16_t h = (uint16_t)(0x811Cu ^ attr);
+    for (uint8_t i = 0; i < byte_len; ++i)
+        h = (uint16_t)((h ^ (uint8_t)str[i]) * 0x0101u + 0x3Bu);
+    return h ? h : 1u;
+}
+
 /**
- * Render a scroll-area element: fill the rect, then one TEXT per visible row.
+ * Render a scroll-area element.
+ *
+ * In full (@p full, or the buffer was last drawn somewhere else): fill the
+ * rect, then one TEXT per visible row.  Otherwise row by row: a row whose
+ * text and attribute are what was drawn there last is left alone; a row
+ * that changed gets its new text, and spaces only as far as the old text
+ * reached.  A line appended to a log that is not full yet is then one row;
+ * a log that scrolls changes every row, and each costs its own text.
+ *
  * No clip region is used — each line is clamped to the element width in
  * display columns and the row loop is bounded by the element height, so the
  * output stays inside the rect.  Keeping every command independent lets the
@@ -559,24 +586,53 @@ static void _push_text(tui_render_queue_t *rq, mcurses_t *scr,
  * losing a clip or dropping commands.
  */
 static void _frame_scroll(tui_render_queue_t *rq, mcurses_t *scr,
-                          const tui_element_t *el)
+                          const tui_element_t *el, uint8_t full)
 {
     tui_scrollbuf_t *sb = (tui_scrollbuf_t *)el->data.scroll.sb;
     if (!sb || el->w == 0 || el->h == 0)
         return;
 
-    _push_box(rq, scr, TUI_CMD_FILL, el->x, el->y, el->w, el->h, el->style);
+    /* where the area is, and how it looks: drawn elsewhere means in full */
+    uint16_t at = (uint16_t)((((uint16_t)el->x << 8) | el->y) * 31u
+                           + (((uint16_t)el->w << 8) | el->h) * 7u + el->style);
+    if (at == 0)
+        at = 1;
+    if (sb->shown_at != at)
+        full = 1;
+
+    if (full)
+        _push_box(rq, scr, TUI_CMD_FILL, el->x, el->y, el->w, el->h, el->style);
 
     for (uint8_t row = 0; row < el->h; ++row) {
         const char *line = tui_scroll_get_line(sb, row, el->h);
-        if (!line || line[0] == '\0')
-            continue;
+        uint8_t  len  = (line && line[0] != '\0')
+                      ? _clip_cols(line, (uint8_t)strlen(line), el->w, 0) : 0;
+        uint16_t attr = len ? tui_scroll_get_attr(sb, row, el->h) : 0;
+        uint8_t  cols = len ? _cols_of(line, len) : 0;
+        uint16_t sig  = len ? _row_sig(line, len, attr) : 0;
 
-        uint8_t  len  = _clip_cols(line, (uint8_t)strlen(line), el->w, 0);
-        uint16_t attr = tui_scroll_get_attr(sb, row, el->h);
-        _push_text(rq, scr, el->x, (uint8_t)(el->y + row), attr, line, len, 0);
+        /* rows beyond what the buffer holds never have a line: blank since
+         * the last full draw */
+        if (row >= TUI_SCROLL_LINES) {
+            if (full && len)
+                _push_text(rq, scr, el->x, (uint8_t)(el->y + row), attr, line, len, 0);
+            continue;
+        }
+
+        if (!full && sig == sb->shown_sig[row] && cols == sb->shown_len[row])
+            continue; /* as it is on the screen */
+
+        if (len)
+            _push_text(rq, scr, el->x, (uint8_t)(el->y + row), attr, line, len, 0);
+        if (!full && sb->shown_len[row] > cols)
+            _push_box(rq, scr, TUI_CMD_FILL, (uint8_t)(el->x + cols), (uint8_t)(el->y + row),
+                      (uint8_t)(sb->shown_len[row] - cols), 1, el->style);
+
+        sb->shown_sig[row] = sig;
+        sb->shown_len[row] = cols;
     }
 
+    sb->shown_at = at;
     sb->dirty = 0;  /* content now reflected on screen */
 }
 
@@ -612,7 +668,8 @@ static void _render_one(tui_render_queue_t *rq, mcurses_t *scr, tui_element_t *e
     }
 
     case TUI_ELEM_SCROLL_AREA:
-        _frame_scroll(rq, scr, el);
+        /* dirty: the area itself changed, or what is around it was redrawn */
+        _frame_scroll(rq, scr, el, (el->flags & TUI_FLAG_DIRTY) ? 1u : 0u);
         break;
 
     default:
@@ -674,8 +731,10 @@ bool tui_render_element(struct tui_context *ctx,
      * inside it.  A parent is drawn before its children. */
     for (uint8_t i = top; i < ctx->elem_count && tui_is_inside(ctx, i, top); ++i) {
         tui_element_t *el = &ctx->elements[i];
-        if (el->flags & TUI_FLAG_VISIBLE)
+        if (el->flags & TUI_FLAG_VISIBLE) {
+            el->flags |= TUI_FLAG_DIRTY; /* drawn in full, whatever it was */
             _render_one(rq, scr, el);
+        }
     }
 
     tui_render_flush(rq, scr);

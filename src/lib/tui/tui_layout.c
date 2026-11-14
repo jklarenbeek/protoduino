@@ -891,6 +891,13 @@ static uint16_t _element_sig(const tui_element_t *el)
         _SIG_MIX((uint16_t)((p >> 16) & 0xFFFFu));
         _SIG_MIX(el->data.text.len);
         _SIG_MIX(el->flags & TUI_FLAG_PROGMEM); /* a flash and a RAM address may be the same number */
+        /* Text in RAM can be rewritten in place: a clock or a counter in one
+         * buffer keeps its pointer and length. Its bytes count, so that
+         * such a change is a change. Text in flash cannot change. */
+        if (!(el->flags & TUI_FLAG_PROGMEM) && el->data.text.str) {
+            for (uint8_t i = 0; i < el->data.text.len; ++i)
+                _SIG_MIX((uint8_t)el->data.text.str[i]);
+        }
     } else if (el->type == TUI_ELEM_SCROLL_AREA) {
         uintptr_t p = (uintptr_t)el->data.scroll.sb;
         _SIG_MIX((uint16_t)(p & 0xFFFFu));

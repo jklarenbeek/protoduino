@@ -92,6 +92,14 @@ typedef struct {
     uint8_t  count;        /**< Number of lines stored (0..TUI_SCROLL_LINES). */
     uint8_t  view_offset;  /**< 0 = latest at bottom, >0 = scrolled back. */
     uint8_t  dirty;        /**< Non-zero if content changed since render.  */
+
+    /* What the renderer last drew of this buffer, row by row, so that a new
+     * line costs the rows that changed and not the whole area.  Kept by
+     * tui_render.c; a buffer is drawn in one scroll area at a time (another
+     * area, or the same one moved, is drawn in full). */
+    uint16_t shown_at;                      /**< The area it was drawn in; 0: none. */
+    uint16_t shown_sig[TUI_SCROLL_LINES];   /**< Signature of each row's text.      */
+    uint8_t  shown_len[TUI_SCROLL_LINES];   /**< Columns each row's text took.      */
 } tui_scrollbuf_t;
 
 /* =========================================================================
