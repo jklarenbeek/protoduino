@@ -57,4 +57,13 @@
 #define PROCESS_CONF_PIPE_BUFFER_SIZE PT_CONF_PIPE_BUFFER_SIZE
 #endif
 
+/* Called after an interrupt (or anybody) asked the scheduler for a turn:
+ * process_poll() and a successful process_post(). On a part where the loop
+ * sleeps by itself when an interrupt arrives (AVR, RP2040) nothing has to
+ * happen. Where the loop runs as a task of an RTOS and blocks to save power
+ * (ESP32 under FreeRTOS), the port defines this to wake that task. */
+#ifndef PROCESS_CONF_WAKE
+#define PROCESS_CONF_WAKE() do { } while (0)
+#endif
+
 #endif /* __PROCESS_CONF_H__ */

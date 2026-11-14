@@ -466,6 +466,7 @@ void process_poll(struct process *p)
 
   p->needs_poll  = 1;
   poll_requested = 1;
+  PROCESS_CONF_WAKE();
 }
 
 /* ── process_post ─────────────────────────────────────────────────── */
@@ -489,6 +490,8 @@ int process_post(struct process *p, process_event_t ev, process_data_t data)
 #endif
   }
 
+  if (ok)
+    PROCESS_CONF_WAKE();
   return ok;
 }
 

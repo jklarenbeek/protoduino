@@ -42,7 +42,8 @@
  *   TICK_SOURCE_WATCHDOG  the watchdog interrupt. It needs no timer and no
  *                         clock of the core, and it also runs while the
  *                         part sleeps with everything else switched off:
- *                         the source for the small parts (see sys/idle.h).
+ *                         the source for the small parts, and the one that
+ *                         lets a part sleep deeply (see sys/idle.h).
  *                         The period is one of the watchdog's own,
  *                         TICK_CONF_WATCHDOG: WDTO_15MS ... WDTO_8S. The
  *                         watchdog oscillator is good for about 10 %.
@@ -95,15 +96,23 @@ static CC_ALWAYS_INLINE bool tick_is_pending(void)
   return false;
 }
 
+// when the next tick is due
+static clock_time_t tick_next;
+
 static CC_ALWAYS_INLINE void tick_run(void)
 {
-  static clock_time_t next;
-
-  if ((int32_t)(clock_time() - next) >= 0)
+  if ((int32_t)(clock_time() - tick_next) >= 0)
   {
-    next = clock_time() + clock_from_millis(TICK_CONF_MILLIS);
+    tick_next = clock_time() + clock_from_millis(TICK_CONF_MILLIS);
     process_post(NULL, EVENT_TICK, NULL);
   }
+}
+
+// milliseconds until the next tick: how long a platform may sleep
+static inline uint16_t tick_millis_left(void)
+{
+  int32_t left = (int32_t)(tick_next - clock_time());
+  return left <= 0 ? 0 : (uint16_t)(left / CLOCK_MILLIS);
 }
 
 #else /* TICK_SOURCE_WATCHDOG */
@@ -194,6 +203,12 @@ static inline void tick_start(void)
   TICK_WDT = _BV(WDCE) | _BV(WDE);
   TICK_WDT = TICK_WDT_BITS;
   SREG = sreg;
+}
+
+// milliseconds until the next tick, at most: how long a platform may sleep
+static CC_ALWAYS_INLINE uint16_t tick_millis_left(void)
+{
+  return tick_is_pending() ? 0 : (uint16_t)TICK_MILLIS;
 }
 
 static CC_ALWAYS_INLINE void tick_run(void)
