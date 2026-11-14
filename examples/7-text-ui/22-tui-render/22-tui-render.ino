@@ -13,8 +13,12 @@
  * It is written to be run head-less under protosim with deterministic UART
  * capture (no terminal needed):
  *
- *     protosim 22-tui-render.elf -m atmega328p -f 16000000 \
- *         --uart0-out out.txt --exit-on-uart "<DONE>" --max-steps 60000000
+ *     protosim 22-tui-render.elf -m atmega328p -f 16000000 --warp \
+ *         --uart0-out out.txt --exit-on-uart "<DONE>" --max-steps 600000000
+ *
+ * tools/test_tui.sh runs it, and once more built with -DTUI22_FULL_REDRAW,
+ * which redraws everything in every frame: each screen of the first has to
+ * be the screen of the second, cell for cell, in far fewer bytes.
  *
  * TX transport: instead of the interrupt-driven uart0 driver we drain the
  * mcurses TX pipe SYNCHRONOUSLY inside the pipe's wake callback (blocking
@@ -28,6 +32,12 @@
  *                                                     -> damage diff works)
  *   <C>  emitted after changing the status text and re-rendering
  *                                                    (expect output between B and C)
+ *   <D>  one more line in the log                    (expect that one row)
+ *   <E>  five more: the ring is full and wraps, every row of the log moves
+ *   <F>  the log scrolled back two lines
+ *   <G>  the log cleared
+ *   <H>  the status text rewritten in place: same buffer, same length
+ *                                                    (expect the status bar)
  *   <DONE> final sentinel
  */
 
@@ -70,6 +80,7 @@ static tui_scrollbuf_t    logbuf;
 
 /* The status line text is swapped between renders to prove damage tracking. */
 static const char *status_text = " Ready";
+static char        status_buf[]  = " Busy";   /* rewritten in place in frame H */
 
 /* =========================================================================
  * Polled blocking UART0 output (9600 8N1) via the platform uart API
@@ -157,6 +168,9 @@ static void build_ui(void)
 
 static void render(void)
 {
+#ifdef TUI22_FULL_REDRAW
+    tui_mark_all_dirty(&tui);  /* the reference: everything, every frame */
+#endif
     tui_render_frame(&tui, &rq, &scr);
 }
 
@@ -198,10 +212,35 @@ void setup(void)
     emit_marker("<B>");
 
     /* Frame 3: change the status text -> expect localized output. */
-    status_text = " Busy";
+    status_text = status_buf;
     build_ui();
     render();
     emit_marker("<C>");
+
+    /* Frame 4: one more line in the log -> one row. */
+    tui_scroll_add_line(&logbuf, "sensor 42", MCURSES_ATTR_NORMAL);
+    build_ui(); render(); emit_marker("<D>");
+
+    /* Frame 5: past the capacity of the ring: every row of the log moves. */
+    tui_scroll_add_line(&logbuf, "a much longer line than the others", MCURSES_ATTR_BOLD);
+    tui_scroll_add_line(&logbuf, "short", MCURSES_ATTR_NORMAL);
+    tui_scroll_add_line(&logbuf, "x", MCURSES_ATTR_NORMAL);
+    tui_scroll_add_line(&logbuf, "the ring wraps here", MCURSES_ATTR_NORMAL);
+    tui_scroll_add_line(&logbuf, "and here", MCURSES_ATTR_NORMAL);
+    build_ui(); render(); emit_marker("<E>");
+
+    /* Frame 6: back into the history. */
+    tui_scroll_up(&logbuf);
+    tui_scroll_up(&logbuf);
+    build_ui(); render(); emit_marker("<F>");
+
+    /* Frame 7: the log emptied. */
+    tui_scroll_clear(&logbuf);
+    build_ui(); render(); emit_marker("<G>");
+
+    /* Frame 8: the status rewritten in place: the same pointer and length. */
+    memcpy(status_buf, " Done", 5);
+    build_ui(); render(); emit_marker("<H>");
 
     emit_marker("<DONE>");
 }
