@@ -32,6 +32,14 @@
 
 #include <string.h>   /* memset */
 
+#ifdef __AVR__
+#  include <avr/pgmspace.h>
+#else
+#  ifndef pgm_read_byte
+#    define pgm_read_byte(p) (*(const uint8_t *)(p))
+#  endif
+#endif
+
 /* =========================================================================
  * Box-drawing character sets (Unicode code-points), selected by border style
  * =========================================================================
@@ -109,14 +117,19 @@ static uint8_t _encode_acs(uint16_t acs, char *buf)
 /**
  * @brief Write a single ACS character at the current cursor position.
  *
- * Encodes to UTF-8 on the stack and writes the bytes to the TX pipe.
+ * Encodes to UTF-8 on the stack and hands it to mcurses, like any other
+ * character: it goes through the back-pressure path (a full TX pipe is
+ * drained, or the loss is counted in tx_dropped, never silent), and the
+ * tracked cursor advances one column.  With the cursor tracked, the
+ * move_ex() before the next cell of a border row costs nothing, so a row of
+ * border is one cursor move and its glyphs, not a move per glyph.
  */
 static void _put_acs(mcurses_t *scr, uint16_t acs)
 {
     char buf[3];
     uint8_t n = _encode_acs(acs, buf);
     if (n > 0)
-        ipc_pipe_write(scr->txpipe, (const uint8_t *)buf, n);
+        addch_utf8_ex(scr, buf, n);
 }
 
 /* =========================================================================
@@ -189,7 +202,10 @@ static void _flush_text(const tui_render_cmd_t *cmd,
 
     move_ex(scr, cmd->y, cmd->x);
     attrset_ex(scr, cmd->style);
-    addnstr_ex(scr, cmd->data.text.str, cmd->data.text.byte_len);
+    if (cmd->data.text.in_flash)
+        addnstr_P_ex(scr, cmd->data.text.str, cmd->data.text.byte_len);
+    else
+        addnstr_ex(scr, cmd->data.text.str, cmd->data.text.byte_len);
 }
 
 /**
@@ -465,13 +481,14 @@ void tui_render_flush(tui_render_queue_t *rq, mcurses_t *scr)
  * One rune counts as one cell (the project's 1-rune ≈ 1-cell model).  A
  * trailing incomplete multi-byte sequence is excluded.
  */
-static uint8_t _clip_cols(const char *str, uint8_t byte_len, uint8_t max_cols)
+static uint8_t _clip_cols(const char *str, uint8_t byte_len, uint8_t max_cols,
+                          uint8_t in_flash)
 {
     uint8_t i = 0, cols = 0;
     if (!str)
         return 0;
     while (i < byte_len && cols < max_cols) {
-        uint8_t lead = (uint8_t)str[i];
+        uint8_t lead = in_flash ? pgm_read_byte(str + i) : (uint8_t)str[i];
         uint8_t n = (lead < 0x80u) ? 1u : (lead < 0xE0u) ? 2u
                   : (lead < 0xF0u) ? 3u : 4u;
         if ((uint16_t)i + n > byte_len)
@@ -516,7 +533,7 @@ static void _push_box(tui_render_queue_t *rq, mcurses_t *scr, uint8_t type,
 /** Push a TEXT command (byte_len already column-clamped), flush if full. */
 static void _push_text(tui_render_queue_t *rq, mcurses_t *scr,
                        uint8_t x, uint8_t y, uint16_t style,
-                       const char *str, uint8_t byte_len)
+                       const char *str, uint8_t byte_len, uint8_t in_flash)
 {
     if (!str || byte_len == 0)
         return;
@@ -528,6 +545,7 @@ static void _push_text(tui_render_queue_t *rq, mcurses_t *scr,
     cmd.style              = style;
     cmd.data.text.str      = str;
     cmd.data.text.byte_len = byte_len;
+    cmd.data.text.in_flash = in_flash;
     _flush_if_full(rq, scr);
     tui_render_push(rq, &cmd);
 }
@@ -554,12 +572,54 @@ static void _frame_scroll(tui_render_queue_t *rq, mcurses_t *scr,
         if (!line || line[0] == '\0')
             continue;
 
-        uint8_t  len  = _clip_cols(line, (uint8_t)strlen(line), el->w);
+        uint8_t  len  = _clip_cols(line, (uint8_t)strlen(line), el->w, 0);
         uint16_t attr = tui_scroll_get_attr(sb, row, el->h);
-        _push_text(rq, scr, el->x, (uint8_t)(el->y + row), attr, line, len);
+        _push_text(rq, scr, el->x, (uint8_t)(el->y + row), attr, line, len, 0);
     }
 
     sb->dirty = 0;  /* content now reflected on screen */
+}
+
+/* Push the commands that draw one element, and clear its dirty flag. */
+static void _render_one(tui_render_queue_t *rq, mcurses_t *scr, tui_element_t *el)
+{
+    switch (el->type) {
+    case TUI_ELEM_CONTAINER:
+        _push_box(rq, scr, TUI_CMD_FILL, el->x, el->y, el->w, el->h, el->style);
+        if ((el->flags & TUI_FLAG_HAS_BORDER) &&
+            el->border != TUI_BORDER_NONE) {
+            tui_render_cmd_t cmd;
+            memset(&cmd, 0, sizeof(cmd));
+            cmd.type                     = TUI_CMD_BORDER;
+            cmd.x                        = el->x;
+            cmd.y                        = el->y;
+            cmd.w                        = el->w;
+            cmd.h                        = el->h;
+            cmd.style                    = el->style;
+            cmd.data.border.border_style = el->border;
+            _flush_if_full(rq, scr);
+            tui_render_push(rq, &cmd);
+        }
+        break;
+
+    case TUI_ELEM_TEXT: {
+        /* Clamp the text to the element width in display columns so it
+         * cannot overflow its rect or split a UTF-8 sequence. */
+        uint8_t in_flash = (el->flags & TUI_FLAG_PROGMEM) ? 1u : 0u;
+        uint8_t len = _clip_cols(el->data.text.str, el->data.text.len, el->w, in_flash);
+        _push_text(rq, scr, el->x, el->y, el->style, el->data.text.str, len, in_flash);
+        break;
+    }
+
+    case TUI_ELEM_SCROLL_AREA:
+        _frame_scroll(rq, scr, el);
+        break;
+
+    default:
+        break;
+    }
+
+    el->flags &= (uint8_t)~TUI_FLAG_DIRTY;  /* consumed */
 }
 
 void tui_render_frame(struct tui_context *ctx,
@@ -588,45 +648,38 @@ void tui_render_frame(struct tui_context *ctx,
         if (!dirty)
             continue;
 
-        switch (el->type) {
-        case TUI_ELEM_CONTAINER:
-            _push_box(rq, scr, TUI_CMD_FILL, el->x, el->y, el->w, el->h, el->style);
-            if ((el->flags & TUI_FLAG_HAS_BORDER) &&
-                el->border != TUI_BORDER_NONE) {
-                tui_render_cmd_t cmd;
-                memset(&cmd, 0, sizeof(cmd));
-                cmd.type                     = TUI_CMD_BORDER;
-                cmd.x                        = el->x;
-                cmd.y                        = el->y;
-                cmd.w                        = el->w;
-                cmd.h                        = el->h;
-                cmd.style                    = el->style;
-                cmd.data.border.border_style = el->border;
-                _flush_if_full(rq, scr);
-                tui_render_push(rq, &cmd);
-            }
-            break;
-
-        case TUI_ELEM_TEXT: {
-            /* Clamp the text to the element width in display columns so it
-             * cannot overflow its rect or split a UTF-8 sequence. */
-            uint8_t len = _clip_cols(el->data.text.str, el->data.text.len, el->w);
-            _push_text(rq, scr, el->x, el->y, el->style, el->data.text.str, len);
-            break;
-        }
-
-        case TUI_ELEM_SCROLL_AREA:
-            _frame_scroll(rq, scr, el);
-            break;
-
-        default:
-            break;
-        }
-
-        el->flags &= (uint8_t)~TUI_FLAG_DIRTY;  /* consumed */
+        _render_one(rq, scr, el);
     }
 
     tui_render_flush(rq, scr);
+}
+
+bool tui_render_element(struct tui_context *ctx,
+                        tui_render_queue_t *rq,
+                        mcurses_t *scr,
+                        uint8_t id)
+{
+    uint8_t top;
+
+    if (!ctx || !rq || !scr)
+        return false;
+    top = tui_find(ctx, id);
+    if (top == TUI_INDEX_NONE)
+        return false;
+
+    tui_render_init(rq);
+
+    /* An element's descendants follow it in the array, in declaration
+     * order, so the subtree is the run of elements after it that lie
+     * inside it.  A parent is drawn before its children. */
+    for (uint8_t i = top; i < ctx->elem_count && tui_is_inside(ctx, i, top); ++i) {
+        tui_element_t *el = &ctx->elements[i];
+        if (el->flags & TUI_FLAG_VISIBLE)
+            _render_one(rq, scr, el);
+    }
+
+    tui_render_flush(rq, scr);
+    return true;
 }
 
 #else  /* __TUI_LAYOUT_H__ not available – keep a linkable no-op */
@@ -638,6 +691,18 @@ void tui_render_frame(struct tui_context *ctx,
     (void)ctx;
     (void)rq;
     (void)scr;
+}
+
+bool tui_render_element(struct tui_context *ctx,
+                        tui_render_queue_t *rq,
+                        mcurses_t *scr,
+                        uint8_t id)
+{
+    (void)ctx;
+    (void)rq;
+    (void)scr;
+    (void)id;
+    return false;
 }
 
 #endif /* __TUI_LAYOUT_H__ */

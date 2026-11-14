@@ -535,6 +535,30 @@ void addstr_P_ex(mcurses_t *scr, const char *s_P)
 #endif
 }
 
+void addnstr_P_ex(mcurses_t *scr, const char *s_P, uint_fast8_t byte_len)
+{
+    if (!scr || !s_P || byte_len == 0) return;
+    _emit_sgr(scr, scr->attr);
+
+    /* As addstr_P_ex(), for a byte range: flash is copied out in small
+     * chunks, and display columns are counted on lead bytes only. */
+    char    chunk[16];
+    uint8_t n = 0;
+    while (byte_len--) {
+        uint8_t c = pgm_read_byte(s_P);
+        chunk[n++] = (char)c;
+        if ((c & 0xC0u) != 0x80u)
+            _advance_col(scr);
+        if (n == (uint8_t)sizeof(chunk)) {
+            _emit(scr, chunk, n);
+            n = 0;
+        }
+        ++s_P;
+    }
+    if (n)
+        _emit(scr, chunk, n);
+}
+
 void refresh_ex(mcurses_t *scr)
 {
     /*

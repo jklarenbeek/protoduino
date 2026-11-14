@@ -27,6 +27,21 @@
 #include <stddef.h>
 
 #include <protoduino.h>
+#if defined(__AVR__)
+#  include <avr/io.h>
+#endif
+
+/* A part with 2 KB of RAM or less (ATmega328P, 168, 88) gets small TUI
+ * defaults that fit it. The library sources and the sketch see the same
+ * defaults, which a #define in a sketch cannot achieve in the Arduino IDE:
+ * there a sketch's #define does not reach the library's .c files. */
+#ifndef TUI_SMALL_RAM
+#  if defined(RAMEND) && (RAMEND < 0x900)
+#    define TUI_SMALL_RAM 1
+#  else
+#    define TUI_SMALL_RAM 0
+#  endif
+#endif
 #include "../text/mcurses.h"
 
 #ifdef __cplusplus
@@ -89,6 +104,7 @@ typedef struct {
         struct {
             const char *str;       /**< Pointer into caller's UTF-8 data. */
             uint8_t     byte_len;  /**< Byte length of the UTF-8 span.    */
+            uint8_t     in_flash;  /**< 1: str is in flash (PROGMEM).     */
         } text;
         struct {
             uint8_t ch;            /**< ASCII fill character (' ' common). */
@@ -97,7 +113,7 @@ typedef struct {
             uint8_t border_style;  /**< TUI_BORDER_SINGLE, etc.           */
         } border;
         struct {
-            uint8_t ch;            /**< Line character (ASCII or ACS_*).  */
+            uint16_t ch;           /**< Line character (ASCII or ACS_*).  */
         } line;
     } data;
 } tui_render_cmd_t;
@@ -106,9 +122,17 @@ typedef struct {
  * Render queue
  * ========================================================================= */
 
-/** Maximum render commands per frame (tuneable at compile time). */
+/** Maximum render commands queued before they are drawn (tuneable at
+ *  compile time).  tui_render_frame() draws the queue whenever it is full,
+ *  so for it the size only sets how often that happens: a frame looks the
+ *  same with 8 as with 64.  Code that pushes commands itself with
+ *  tui_render_push() and flushes later needs room for all of them. */
 #ifndef TUI_MAX_RENDER_CMDS
-#define TUI_MAX_RENDER_CMDS 64
+#  if TUI_SMALL_RAM
+#    define TUI_MAX_RENDER_CMDS 8
+#  else
+#    define TUI_MAX_RENDER_CMDS 64
+#  endif
 #endif
 
 /**
@@ -196,6 +220,21 @@ struct tui_context;  /* forward declaration – defined in tui_layout.h */
 CC_EXTERN void tui_render_frame(struct tui_context *ctx,
                                 tui_render_queue_t *rq,
                                 mcurses_t *scr);
+
+/**
+ * @brief Draw one element and everything inside it now, dirty or not.
+ *
+ * For a part of the screen that was overwritten from outside the TUI, or
+ * to show one panel before the others: the rest of the tree is left alone,
+ * and its dirty flags with it.  Call after tui_compute_layout().
+ *
+ * @param id  TUI_ID() hash of the element.
+ * @return true when the element was found and drawn.
+ */
+CC_EXTERN bool tui_render_element(struct tui_context *ctx,
+                                  tui_render_queue_t *rq,
+                                  mcurses_t *scr,
+                                  uint8_t id);
 
 #ifdef __cplusplus
 }

@@ -285,6 +285,9 @@ void addnstr_ex(mcurses_t *scr, const char *s, uint_fast8_t byte_len);
  *  On AVR the raw flash bytes are UTF-8 encoded; they are streamed directly. */
 void addstr_P_ex(mcurses_t *scr, const char *s_P);
 
+/** Write @p byte_len bytes of a UTF-8 string in flash (PROGMEM). */
+void addnstr_P_ex(mcurses_t *scr, const char *s_P, uint_fast8_t byte_len);
+
 /** Flush any pending output from the TX pipe to the transport layer. */
 void refresh_ex(mcurses_t *scr);
 

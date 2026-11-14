@@ -39,6 +39,21 @@
 #include <stddef.h>
 
 #include <protoduino.h>
+#if defined(__AVR__)
+#  include <avr/io.h>
+#endif
+
+/* A part with 2 KB of RAM or less (ATmega328P, 168, 88) gets small TUI
+ * defaults that fit it. The library sources and the sketch see the same
+ * defaults, which a #define in a sketch cannot achieve in the Arduino IDE:
+ * there a sketch's #define does not reach the library's .c files. */
+#ifndef TUI_SMALL_RAM
+#  if defined(RAMEND) && (RAMEND < 0x900)
+#    define TUI_SMALL_RAM 1
+#  else
+#    define TUI_SMALL_RAM 0
+#  endif
+#endif
 
 #ifdef __AVR__
 #  include <avr/pgmspace.h>
@@ -180,6 +195,7 @@ typedef struct {
 #define TUI_FLAG_VISIBLE     0x02u  /**< Element is visible.             */
 #define TUI_FLAG_FOCUSABLE   0x04u  /**< Element can receive focus.      */
 #define TUI_FLAG_HAS_BORDER  0x08u  /**< Element draws a border.         */
+#define TUI_FLAG_PROGMEM     0x10u  /**< Text lives in flash (PROGMEM). */
 
 /* =========================================================================
  * tui_element_t  –  retained element node
@@ -244,7 +260,11 @@ typedef struct tui_element {
 
 /** Maximum elements in a single layout tree (tune per-platform). */
 #ifndef TUI_MAX_ELEMENTS
-#define TUI_MAX_ELEMENTS  48
+#  if TUI_SMALL_RAM
+#    define TUI_MAX_ELEMENTS  12
+#  else
+#    define TUI_MAX_ELEMENTS  48
+#  endif
 #endif
 
 /** Maximum nesting depth of the build stack. */
@@ -367,6 +387,21 @@ CC_EXTERN void tui_text_element(tui_context_t *ctx,
                                  uint16_t attr);
 
 /**
+ * @brief Add a text leaf whose UTF-8 text lives in flash (PROGMEM).
+ *
+ * The same as tui_text_element(), for a string the sketch keeps in flash:
+ * on an AVR a string literal otherwise takes its length in RAM as well.
+ *
+ * @param text_P  UTF-8 string in program memory.
+ * @param len     Byte length of text (0 = use strlen_P internally).
+ * @param attr    MCURSES_ATTR_* packed attributes for the text.
+ */
+CC_EXTERN void tui_text_element_P(tui_context_t *ctx,
+                                   const char *text_P,
+                                   uint8_t len,
+                                   uint16_t attr);
+
+/**
  * @brief Add a scrollable text-area leaf bound to a scroll buffer.
  *
  * The element renders the visible window of @p scrollbuf within its
@@ -399,6 +434,38 @@ CC_EXTERN void tui_mark_dirty(tui_context_t *ctx, uint8_t id);
  * @brief Mark every visible element as dirty (full repaint).
  */
 CC_EXTERN void tui_mark_all_dirty(tui_context_t *ctx);
+
+/* =========================================================================
+ * Queries (after tui_compute_layout)
+ * ========================================================================= */
+
+/** A rectangle in character cells, as tui_get_rect() returns it. */
+typedef struct {
+    uint8_t x;   /**< Left column (0-based). */
+    uint8_t y;   /**< Top row (0-based).     */
+    uint8_t w;   /**< Width in cells.        */
+    uint8_t h;   /**< Height in rows.        */
+} tui_rect_t;
+
+/**
+ * @brief Index of the first element whose TUI_ID() hash is @p id, or
+ *        TUI_INDEX_NONE.  Like tui_mark_dirty(), the first match counts:
+ *        give elements that are looked up names of their own.
+ */
+CC_EXTERN uint8_t tui_find(const tui_context_t *ctx, uint8_t id);
+
+/**
+ * @brief Where the element @p id was laid out.
+ *
+ * @return true and @p out filled in, or false when there is no such element.
+ */
+CC_EXTERN bool tui_get_rect(const tui_context_t *ctx, uint8_t id, tui_rect_t *out);
+
+/** @brief Number of elements declared in the current frame. */
+CC_EXTERN uint8_t tui_element_count(const tui_context_t *ctx);
+
+/** @brief True when element @p idx lies inside element @p ancestor (or is it). */
+CC_EXTERN bool tui_is_inside(const tui_context_t *ctx, uint8_t idx, uint8_t ancestor);
 
 /* =========================================================================
  * Layout computation
@@ -475,6 +542,21 @@ CC_EXTERN void tui_compute_layout(tui_context_t *ctx);
  */
 #define TUI_TEXT(text_str, attr_val) \
     tui_text_element(_tui_ctx, (text_str), 0, (attr_val))
+
+/**
+ * @brief Add a text leaf from a string in flash (PROGMEM).
+ *
+ * @param text_P    Pointer to a UTF-8 string in program memory.
+ * @param attr_val  MCURSES_ATTR_* packed attributes.
+ */
+#define TUI_TEXT_P(text_P, attr_val) \
+    tui_text_element_P(_tui_ctx, (text_P), 0, (attr_val))
+
+/**
+ * @brief Add a text leaf from a string literal that stays in flash:
+ *        TUI_TEXT_F("Status", MCURSES_ATTR_REVERSE).
+ */
+#define TUI_TEXT_F(literal, attr_val) TUI_TEXT_P(PSTR(literal), (attr_val))
 
 /**
  * @brief Attach a scroll buffer to the current scope as a scrollable area.

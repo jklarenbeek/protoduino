@@ -28,6 +28,21 @@
 #include <stddef.h>
 
 #include <protoduino.h>
+#if defined(__AVR__)
+#  include <avr/io.h>
+#endif
+
+/* A part with 2 KB of RAM or less (ATmega328P, 168, 88) gets small TUI
+ * defaults that fit it. The library sources and the sketch see the same
+ * defaults, which a #define in a sketch cannot achieve in the Arduino IDE:
+ * there a sketch's #define does not reach the library's .c files. */
+#ifndef TUI_SMALL_RAM
+#  if defined(RAMEND) && (RAMEND < 0x900)
+#    define TUI_SMALL_RAM 1
+#  else
+#    define TUI_SMALL_RAM 0
+#  endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,13 +54,21 @@ extern "C" {
 
 /** Number of lines stored in the scroll buffer (ring depth). */
 #ifndef TUI_SCROLL_LINES
-#define TUI_SCROLL_LINES        16
+#  if TUI_SMALL_RAM
+#    define TUI_SCROLL_LINES     6
+#  else
+#    define TUI_SCROLL_LINES    16
+#  endif
 #endif
 
 /** Maximum bytes per line including NUL terminator.
  *  80 ASCII columns + NUL = 81.  UTF-8 multibyte may use more. */
 #ifndef TUI_SCROLL_LINE_BYTES
-#define TUI_SCROLL_LINE_BYTES   81
+#  if TUI_SMALL_RAM
+#    define TUI_SCROLL_LINE_BYTES 42   /* 40 ASCII columns, NUL, one spare */
+#  else
+#    define TUI_SCROLL_LINE_BYTES 81
+#  endif
 #endif
 
 /* =========================================================================

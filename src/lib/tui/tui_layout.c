@@ -18,6 +18,17 @@
 #ifdef __AVR__
 #  include <avr/pgmspace.h>
 #else
+#  ifndef pgm_read_byte
+#    define pgm_read_byte(p) (*(const uint8_t *)(p))
+#  endif
+#  ifndef strlen_P
+#    define strlen_P(s) strlen(s)
+#  endif
+#endif
+
+#ifdef __AVR__
+#  include <avr/pgmspace.h>
+#else
 #  ifndef PSTR
 #    define PSTR(s)          (s)
 #  endif
@@ -58,13 +69,13 @@ static inline uint8_t _clamp8(uint8_t v, uint8_t lo, uint8_t hi)
  * NOTE: assumes 1 rune ≈ 1 cell for simplicity on embedded targets.
  *       A proper wcwidth table could be added later.
  */
-static uint8_t _text_display_width(const char *str, uint8_t byte_len)
+static uint8_t _text_display_width(const char *str, uint8_t byte_len, uint8_t in_flash)
 {
     if (!str)
         return 0;
 
     if (byte_len == 0)
-        byte_len = (uint8_t)(strlen(str) & 0xFFu);
+        byte_len = (uint8_t)((in_flash ? strlen_P(str) : strlen(str)) & 0xFFu);
 
     /*
      * Walk the UTF-8 string counting runes (= columns).
@@ -73,7 +84,7 @@ static uint8_t _text_display_width(const char *str, uint8_t byte_len)
      */
     uint8_t cols = 0;
     for (uint8_t i = 0; i < byte_len; ++i) {
-        uint8_t c = (uint8_t)str[i];
+        uint8_t c = in_flash ? pgm_read_byte(str + i) : (uint8_t)str[i];
         if (c == 0)
             break;
         /* Skip continuation bytes */
@@ -302,6 +313,26 @@ void tui_text_element(tui_context_t *ctx,
     _attach_child(ctx, parent_idx, idx);
 }
 
+void tui_text_element_P(tui_context_t *ctx,
+                         const char *text_P,
+                         uint8_t len,
+                         uint16_t attr)
+{
+    uint8_t before;
+
+    if (!ctx || !text_P)
+        return;
+    if (len == 0)
+        len = (uint8_t)(strlen_P(text_P) & 0xFFu);
+    if (len == 0)
+        return; /* nothing to show, and 0 would mean "measure it" in RAM */
+
+    before = ctx->elem_count;
+    tui_text_element(ctx, text_P, len, attr);
+    if (ctx->elem_count != before)
+        ctx->elements[before].flags |= TUI_FLAG_PROGMEM;
+}
+
 void tui_scroll_element(tui_context_t *ctx, void *scrollbuf, uint16_t attr)
 {
     if (!ctx || !scrollbuf)
@@ -356,6 +387,47 @@ void tui_mark_dirty(tui_context_t *ctx, uint8_t id)
             return;
         }
     }
+}
+
+uint8_t tui_find(const tui_context_t *ctx, uint8_t id)
+{
+    if (!ctx)
+        return TUI_INDEX_NONE;
+    for (uint8_t i = 0; i < ctx->elem_count; ++i) {
+        if (ctx->elements[i].id == id)
+            return i;
+    }
+    return TUI_INDEX_NONE;
+}
+
+bool tui_get_rect(const tui_context_t *ctx, uint8_t id, tui_rect_t *out)
+{
+    uint8_t i = tui_find(ctx, id);
+    if (i == TUI_INDEX_NONE || !out)
+        return false;
+    out->x = ctx->elements[i].x;
+    out->y = ctx->elements[i].y;
+    out->w = ctx->elements[i].w;
+    out->h = ctx->elements[i].h;
+    return true;
+}
+
+uint8_t tui_element_count(const tui_context_t *ctx)
+{
+    return ctx ? ctx->elem_count : 0;
+}
+
+bool tui_is_inside(const tui_context_t *ctx, uint8_t idx, uint8_t ancestor)
+{
+    if (!ctx || ancestor >= ctx->elem_count)
+        return false;
+    /* parent links always point to an earlier element, so this ends */
+    for (uint8_t depth = 0; idx < ctx->elem_count && depth <= TUI_MAX_ELEMENTS; ++depth) {
+        if (idx == ancestor)
+            return true;
+        idx = ctx->elements[idx].parent;
+    }
+    return false;
 }
 
 void tui_mark_all_dirty(tui_context_t *ctx)
@@ -426,7 +498,8 @@ static uint8_t _intrinsic_w(tui_context_t *ctx, uint8_t idx)
 
     /* Text leaf: display width */
     if (el->type == TUI_ELEM_TEXT)
-        return _text_display_width(el->data.text.str, el->data.text.len);
+        return _text_display_width(el->data.text.str, el->data.text.len,
+                                   (el->flags & TUI_FLAG_PROGMEM) != 0);
 
     /* Scroll area: a flexible viewport with no intrinsic size.  It has no
      * layout config in its union, so it must NOT fall through to the
@@ -817,6 +890,7 @@ static uint16_t _element_sig(const tui_element_t *el)
         _SIG_MIX((uint16_t)(p & 0xFFFFu));
         _SIG_MIX((uint16_t)((p >> 16) & 0xFFFFu));
         _SIG_MIX(el->data.text.len);
+        _SIG_MIX(el->flags & TUI_FLAG_PROGMEM); /* a flash and a RAM address may be the same number */
     } else if (el->type == TUI_ELEM_SCROLL_AREA) {
         uintptr_t p = (uintptr_t)el->data.scroll.sb;
         _SIG_MIX((uint16_t)(p & 0xFFFFu));
