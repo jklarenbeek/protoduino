@@ -16,18 +16,23 @@ RUN="-m atmega328p -f 16000000 --warp --exit-on-uart <DONE> --max-steps 90000000
 
 build() { bash tools/build_sketch.sh "$@" 2>/dev/null | tail -n 1; }
 
-echo "== 22-tui-render: partial redraws against full ones, ATmega328P =="
-build atmega328p 16000000 examples/7-text-ui/22-tui-render/22-tui-render.ino -DTUI22_FULL_REDRAW
-mv $O/22-tui-render-atmega328p.elf $O/22-tui-render-full.elf
-build atmega328p 16000000 examples/7-text-ui/22-tui-render/22-tui-render.ino
-"$SIM" $O/22-tui-render-full.elf $RUN --uart0-out $O/tui-full.txt > /dev/null 2>&1
-"$SIM" $O/22-tui-render-atmega328p.elf $RUN --uart0-out $O/tui.txt > /dev/null 2>&1
-# B: nothing changed; D: one line more in the log; H: the status bar, rewritten in place
-if node tools/vt-compare.mjs 12 40 $O/tui.txt $O/tui-full.txt --budget B=0 --budget D=24 --budget H=80; then
-  echo "[PASS] every screen as a full redraw draws it, in the bytes the changes need"
-else
-  echo "[FAIL] the screens or the byte counts above"; fails=$((fails + 1))
-fi
+# the defaults differ: a log of 6 lines on a part with 2 KB of RAM, 16 on the Mega
+for mcu in atmega328p atmega2560; do
+  echo "== 22-tui-render: partial redraws against full ones, $mcu =="
+  RUN="-m $mcu -f 16000000 --warp --exit-on-uart <DONE> --max-steps 900000000"
+  build $mcu 16000000 examples/7-text-ui/22-tui-render/22-tui-render.ino -DTUI22_FULL_REDRAW
+  mv $O/22-tui-render-$mcu.elf $O/22-tui-render-full-$mcu.elf
+  build $mcu 16000000 examples/7-text-ui/22-tui-render/22-tui-render.ino
+  "$SIM" $O/22-tui-render-full-$mcu.elf $RUN --uart0-out $O/tui-full-$mcu.txt > /dev/null 2>&1
+  "$SIM" $O/22-tui-render-$mcu.elf $RUN --uart0-out $O/tui-$mcu.txt > /dev/null 2>&1
+  # B: nothing changed; D: one line more in the log; H: the status bar, rewritten in place
+  if node tools/vt-compare.mjs 12 40 $O/tui-$mcu.txt $O/tui-full-$mcu.txt --budget B=0 --budget D=24 --budget H=80; then
+    echo "[PASS] every screen as a full redraw draws it, in the bytes the changes need"
+  else
+    echo "[FAIL] the screens or the byte counts above"; fails=$((fails + 1))
+  fi
+done
+RUN="-m atmega328p -f 16000000 --warp --exit-on-uart <DONE> --max-steps 900000000"
 
 echo "== 25-tui-robust, ATmega328P =="
 build atmega328p 16000000 examples/7-text-ui/25-tui-robust/25-tui-robust.ino

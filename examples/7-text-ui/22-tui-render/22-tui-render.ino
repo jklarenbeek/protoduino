@@ -38,6 +38,9 @@
  *   <G>  the log cleared
  *   <H>  the status text rewritten in place: same buffer, same length
  *                                                    (expect the status bar)
+ *   <I>  ten lines into the empty log: more than its rows (the view follows
+ *        the newest line; on a part with 2 KB the ring also wraps)
+ *   <J>  scrolled back three lines     <K>  back to the newest line
  *   <DONE> final sentinel
  */
 
@@ -241,6 +244,21 @@ void setup(void)
     /* Frame 8: the status rewritten in place: the same pointer and length. */
     memcpy(status_buf, " Done", 5);
     build_ui(); render(); emit_marker("<H>");
+
+    /* Frame 9: more lines than the log has rows. */
+    {
+        static const char *const words[] = { "one", "two", "three", "four", "five",
+                                             "six", "seven", "eight", "nine", "ten" };
+        for (uint8_t i = 0; i < 10; ++i)
+            tui_scroll_add_line(&logbuf, words[i], (i & 1) ? MCURSES_ATTR_BOLD : MCURSES_ATTR_NORMAL);
+    }
+    build_ui(); render(); emit_marker("<I>");
+
+    /* Frame 10 and 11: back into the history, and back to the newest line. */
+    tui_scroll_up(&logbuf); tui_scroll_up(&logbuf); tui_scroll_up(&logbuf);
+    build_ui(); render(); emit_marker("<J>");
+    tui_scroll_to_bottom(&logbuf);
+    build_ui(); render(); emit_marker("<K>");
 
     emit_marker("<DONE>");
 }
