@@ -91,6 +91,7 @@
  * I/O clock on so that an edge of the heartbeat is noticed */
 #define TICK_CONF_SOURCE TICK_SOURCE_WATCHDOG
 #include <sys/tick.h>
+#define PROCESS_CONF_SLEEP PROCESS_SLEEP_WAIT
 #include <sys/idle.h>
 
 #include <mod/pulse.h>
@@ -251,14 +252,13 @@ void setup(void)
   settings_apply();
   /* time comes from the watchdog here: the clock of the core can stop */
   idle_stop_core_clock();
+  idle_start();
   tick_start();
 }
 
 void loop(void)
 {
-  process_run();
-  tick_run();
-  idle_run();
+  process_loop(); /* the scheduler, the tick, and sleep until there is work */
 
 #if !KEEPER_CONF_FUSED
   /* the wiring, once the readers have their pipes */

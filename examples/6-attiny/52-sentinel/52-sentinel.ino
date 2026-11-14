@@ -84,7 +84,7 @@
 #ifndef TICK_CONF_WATCHDOG
 #define TICK_CONF_WATCHDOG WDTO_8S
 #endif
-#define IDLE_CONF_MODE SLEEP_MODE_PWR_DOWN
+#define PROCESS_CONF_SLEEP PROCESS_SLEEP_DEEP
 #include <sys/tick.h>
 #include <sys/idle.h>
 
@@ -218,14 +218,13 @@ void setup(void)
   settings_apply();
   /* time comes from the watchdog here: the clock of the core can stop */
   idle_stop_core_clock();
+  idle_start();
   tick_start();
 }
 
 void loop(void)
 {
-  process_run();
-  tick_run();
-  idle_run();
+  process_loop(); /* the scheduler, the tick, and sleep until there is work */
 
 #if !SENTINEL_CONF_FUSED
   if (!connected)

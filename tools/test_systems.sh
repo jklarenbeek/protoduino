@@ -34,6 +34,13 @@ talk "processes, modules, pipes, pause, kill" "$O/40-shell-atmega328p.elf -m atm
   ipc expect:"upper > serial:0" "stop blink" ps expect:"blink    P 3" "cont blink" "kill upper" ps expect:"blink    W 3" \
   "join nobody blink" expect:"?"
 
+"$SIM" $O/40-shell-atmega328p.elf -m atmega328p --warp --uart0-out /dev/null --run-ms 3000 > $O/sim.log 2>&1
+if grep -q "asleep 9[0-9]\." $O/sim.log; then
+  echo "[PASS] idle, the shell sleeps between interrupts: $(grep -o 'asleep.*' $O/sim.log)"
+else
+  echo "[FAIL] the shell does not sleep while idle"; tail -n 3 $O/sim.log | sed 's/^/       /'; fails=$((fails + 1))
+fi
+
 echo "== 43-monitor: a fixed system and a shell that only looks, ATmega328P =="
 build atmega328p 16000000 examples/5-systems/43-monitor/43-monitor.ino
 talk "states, connections and the log are shown; nothing can be changed" "$O/43-monitor-atmega328p.elf -m atmega328p" \

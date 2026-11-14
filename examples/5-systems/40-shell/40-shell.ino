@@ -34,12 +34,24 @@
  *   > write blink x         one byte to blink: the LED changes
  *   > kill ticker
  *   > log
+ *
+ * POWER
+ * -----
+ *   Between two pieces of work the processor sleeps (PROCESS_CONF_SLEEP,
+ *   sys/idle.h): in idle mode the timers and the UART run on, so nothing
+ *   changes for the processes, and every interrupt wakes it. Set it to
+ *   PROCESS_SLEEP_NONE to let the loop spin as before.
  */
 
 #include <protoduino.h>
 #include <sys/process.h>
 #include <sys/process/serial.h>
 #include <sys/tick.h>
+
+#ifndef PROCESS_CONF_SLEEP
+#define PROCESS_CONF_SLEEP PROCESS_SLEEP_WAIT
+#endif
+#include <sys/idle.h>
 
 #include <mod/ticker.h>
 #include <mod/blink.h>
@@ -77,6 +89,5 @@ void setup(void)
 
 void loop(void)
 {
-  process_run();
-  tick_run();
+  process_loop(); /* the scheduler, the tick, and sleep until there is work */
 }

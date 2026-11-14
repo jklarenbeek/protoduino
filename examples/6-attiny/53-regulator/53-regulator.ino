@@ -74,6 +74,7 @@
  * the timer that makes the PWM runs on */
 #define TICK_CONF_SOURCE TICK_SOURCE_WATCHDOG
 #include <sys/tick.h>
+#define PROCESS_CONF_SLEEP PROCESS_SLEEP_WAIT
 #include <sys/idle.h>
 
 #include <mod/sense.h>
@@ -203,14 +204,13 @@ void setup(void)
   settings_apply();
   /* time comes from the watchdog here: the clock of the core can stop */
   idle_stop_core_clock();
+  idle_start();
   tick_start();
 }
 
 void loop(void)
 {
-  process_run();
-  tick_run();
-  idle_run();
+  process_loop(); /* the scheduler, the tick, and sleep until there is work */
 
 #if !REGULATOR_CONF_FUSED
   if (!connected)

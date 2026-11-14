@@ -53,8 +53,9 @@
  * ---------------
  *   - The tick comes from the watchdog, not from a timer, and the ticker
  *     counts ticks. No clock of a core is needed.
- *   - The loop ends with idle_run(): the processor sleeps until the next
- *     interrupt whenever no process has anything to do.
+ *   - The loop is process_loop() with PROCESS_CONF_SLEEP set: the
+ *     processor sleeps until the next interrupt whenever no process has
+ *     anything to do (sys/idle.h).
  *
  * WIRING   (ATtiny85 or 45 at 8 MHz, internal oscillator)
  *   PB0  serial in     to TX of a USB serial adapter, 9600 baud
@@ -71,6 +72,7 @@
 #define TICK_CONF_SOURCE  TICK_SOURCE_WATCHDOG
 #define TICKER_CONF_TICKS 32
 #include <sys/tick.h>
+#define PROCESS_CONF_SLEEP PROCESS_SLEEP_WAIT
 #include <sys/idle.h>
 
 #define BLINK_CONF_BIT 4
@@ -126,12 +128,11 @@ void setup(void)
 
   /* time comes from the watchdog here: the clock of the core can stop */
   idle_stop_core_clock();
+  idle_start();
   tick_start();
 }
 
 void loop(void)
 {
-  process_run();
-  tick_run();
-  idle_run();
+  process_loop(); /* the scheduler, the tick, and sleep until there is work */
 }
