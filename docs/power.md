@@ -74,7 +74,8 @@ level: it ends every protothread. A sketch that wants it asks for it itself.
   protosim.
 
 None of the currents above was measured here: a simulator has no current.
-What protosim measures is the share of time asleep (`--warp` prints it).
+What protosim measures is the share of time asleep: its `[SLEEP]` line at
+the end of a run.
 
 ## Other platforms
 
@@ -85,7 +86,7 @@ are a file of their own, not exceptions in the scheduler:
 |---|---|---|---|
 | AVR | idle mode | power-down | does not exist |
 | ESP32 | the loop task blocks until notified or the tick is due; FreeRTOS stops the CPU | the same, with automatic light sleep (about 0.8 mA) | deep sleep, hibernation |
-| RP2040 | wait for interrupt | dormant: oscillators off, a pin or the RTC wakes it | nothing on the chip |
+| RP2040 | wait for interrupt | dormant: oscillators off, a pin wakes it (the RTC only on an external clock) | nothing on the chip |
 | RP2350 | wait for interrupt | dormant, or power domains switched off with SRAM kept | the core domain off |
 
 Two hooks make that possible:
