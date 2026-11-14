@@ -459,7 +459,7 @@ The line storage lives **inside** `tui_scrollbuf_t` (no caller byte array).
 Its capacity is fixed at compile time via two macros, `TUI_SCROLL_LINES` and
 `TUI_SCROLL_LINE_BYTES`. Their defaults follow the RAM of the part (8):
 6 lines of 42 bytes with 2 KB of RAM or less, 16 lines of 81 bytes above,
-plus 3 bytes per line and 2 more for what the renderer drew (6.4).
+plus 3 bytes per line and 3 more for what the renderer drew (6.4).
 Override them with build flags to trade SRAM for history depth:
 
 ```c
@@ -519,24 +519,32 @@ tui_scroll_down(&scroll);        /* scroll viewport one line toward newest   */
 tui_scroll_to_bottom(&scroll);   /* jump to the most recent line             */
 ```
 
-Each of these sets the buffer's dirty flag, so the next `tui_render_frame()`
-repaints the scroll area automatically — no manual `tui_mark_dirty()` needed.
+Each of these sets the buffer's dirty flag when the view moves, so the next
+`tui_render_frame()` repaints the scroll area automatically — no manual
+`tui_mark_dirty()` needed.
+
+Scrolling back stops when the oldest line is at the top of the area. A log
+with no more lines than its area has rows has no history to show, and
+`tui_scroll_up()` leaves it as it is. The renderer records the height of the
+area in the buffer when it draws it; until then `tui_scroll_up()` lets the
+view go back as far as the oldest line, and what is drawn is clamped all the
+same.
 
 ### 6.6 Memory formula
 
 ```
-Total bytes ≈ TUI_SCROLL_LINES × (TUI_SCROLL_LINE_BYTES + 5) + 6
+Total bytes ≈ TUI_SCROLL_LINES × (TUI_SCROLL_LINE_BYTES + 5) + 7
                (2 bytes per line for its attribute, 3 for what was drawn on its row)
 ```
 
 | Lines | Line Bytes | Total |
 |---|---|---|
-| 6 | 42 | 288 bytes (the default with 2 KB of RAM) |
-| 8 | 41 | ~374 bytes |
-| 16 | 81 | 1,382 bytes (the default above) |
-| 32 | 81 | ~2,758 bytes |
+| 6 | 42 | 289 bytes (the default with 2 KB of RAM) |
+| 8 | 41 | ~375 bytes |
+| 16 | 81 | 1,383 bytes (the default above) |
+| 32 | 81 | ~2,759 bytes |
 
-> ⚠️ **MEMORY** — On ATmega328P (2KB SRAM) keep it small: the default there is 6×42 (288 bytes). The 16×81 default of the larger parts (1,382 bytes) is for an ATmega2560 (8KB) or more.
+> ⚠️ **MEMORY** — On ATmega328P (2KB SRAM) keep it small: the default there is 6×42 (289 bytes). The 16×81 default of the larger parts (1,383 bytes) is for an ATmega2560 (8KB) or more.
 
 ---
 
@@ -639,7 +647,7 @@ so that the library sources and the sketch agree on them without flags:
 | `TUI_SCROLL_LINES` × `TUI_SCROLL_LINE_BYTES` | 6 × 42 | 16 × 81 |
 | **`tui_context_t`** | **351 bytes** | **1,359 bytes** |
 | **`tui_render_queue_t`** | **94 bytes** | **710 bytes** |
-| **`tui_scrollbuf_t`** | **288 bytes** | **1,382 bytes** |
+| **`tui_scrollbuf_t`** | **289 bytes** | **1,383 bytes** |
 
 `TUI_SMALL_RAM` (1 or 0) overrides which column applies. A setting has to
 reach the library's `.c` files as well as the sketch, so set it for the whole
@@ -675,9 +683,9 @@ with the defaults, built by the Arduino IDE for an Uno:
 | `mcurses_t` | ~20 | Screen instance |
 | `tui_context_t` (12 elements + diff shadow) | 351 | Element array + `prev_sig` + stack |
 | `tui_render_queue_t` (8 commands) | 94 | Render queue |
-| Scroll buffer (6×42) | 288 | Optional |
-| Core, serial driver, the sketch's own | ~470 | including the test frames' buffers |
-| **Total** | **1,392 bytes** | Measured: 68% of 2 KB |
+| Scroll buffer (6×42) | 289 | Optional |
+| Core, serial driver, the sketch's own | ~545 | including the strings of its test frames, which stay in RAM: `TUI_TEXT_F` and `PSTR` would keep them in flash |
+| **Total** | **1,467 bytes** | Measured: 72% of 2 KB |
 
 > **TIP** — Keep `TUI_MAX_ELEMENTS` to the smallest value your UI needs:
 > each element is 28 bytes with its diff shadow. The render queue can stay

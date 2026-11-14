@@ -30,6 +30,7 @@ The TUI library is currently implemented as **Option B: Damage-Tracked Pipeline*
 > | status bar changed | 53 | 1,927 |
 > | one line added to a log | 19 | 1,942 |
 > | the log's ring wraps, every row moves | 126 | 2,021 |
+> | scrolled back in a log that fits its area (no history to show) | 0 | 2,021 |
 > | text rewritten in place | 65 | 1,899 |
 >
 > Border runs cost one cursor move per row, and a scroll area redraws only
