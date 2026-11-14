@@ -387,12 +387,13 @@ at every level; loading adds 690 bytes to level 3.
 ### The tick from the watchdog, and sleep
 
 ```cpp
-#define TICK_CONF_SOURCE TICK_SOURCE_WATCHDOG   // before <sys/tick.h>
+#define TICK_CONF_SOURCE   TICK_SOURCE_WATCHDOG   // before <sys/tick.h>
+#define PROCESS_CONF_SLEEP PROCESS_SLEEP_DEEP     // before <sys/idle.h>
 #include <sys/tick.h>
 #include <sys/idle.h>
 
-void setup(void) { ...  idle_stop_core_clock();  tick_start(); }
-void loop(void)  { process_run();  tick_run();  idle_run(); }
+void setup(void) { ...  idle_stop_core_clock();  idle_start();  tick_start(); }
+void loop(void)  { process_loop(); }
 ```
 
 - The watchdog interrupt is the tick: no timer and no clock of a core is
@@ -401,11 +402,13 @@ void loop(void)  { process_run();  tick_run();  idle_run(); }
   main loop does not take resets the part.
 - `PROCESS_WAIT_TICKS(counter, n)` waits for n ticks, counted in a field of
   the process. It takes the place of a timer.
-- `idle_run()` sleeps until the next interrupt when the scheduler has nothing
-  to do. `IDLE_CONF_MODE` is `SLEEP_MODE_IDLE` by default, in which timers and
-  PWM run on, or `SLEEP_MODE_PWR_DOWN`, in which only the watchdog and the pin
-  change interrupts do. The first bit of a request on the serial line wakes
-  the part.
+- `process_loop()` runs the scheduler and the tick, and then sleeps until the
+  next interrupt when no process has anything to do. `PROCESS_CONF_SLEEP` is
+  `PROCESS_SLEEP_WAIT` (idle mode: timers and PWM run on) or
+  `PROCESS_SLEEP_DEEP` (power-down: only the watchdog and the pin change
+  interrupts run). The first bit of a request on the serial line wakes the
+  part. The levels, and what they are on other chips, are in
+  [power.md](power.md).
 - `idle_stop_core_clock()` stops timer 0, which an Arduino core runs for
   `millis()` and which would wake the processor 488 times a second.
 
