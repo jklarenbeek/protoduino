@@ -19,6 +19,25 @@
 
 The TUI library is currently implemented as **Option B: Damage-Tracked Pipeline**. This roadmap describes **Option C: Full Virtual Terminal** — the next evolutionary step that adds a complete UTF-8 virtual screen buffer between the layout engine and the terminal.
 
+> **Where Option B stands.** Part of what Option C would bring, Option B now
+> does without a screen buffer. Measured on the 12 × 40 screen of
+> `examples/7-text-ui/22-tui-render` (`tools/test_tui.sh`):
+>
+> | Frame | Option B | Everything redrawn |
+> |---|---|---|
+> | first frame | 1,943 bytes | 1,943 |
+> | nothing changed | 0 | 1,928 |
+> | status bar changed | 53 | 1,927 |
+> | one line added to a log | 19 | 1,942 |
+> | the log's ring wraps, every row moves | 126 | 2,021 |
+> | text rewritten in place | 65 | 1,899 |
+>
+> Border runs cost one cursor move per row, and a scroll area redraws only
+> the rows that changed. What Option C still adds is mostly the first frame
+> (no overdraw where a container's fill is drawn over by its children), wide
+> characters and hit testing. Measure a UI against these numbers before
+> spending RAM on a screen buffer.
+
 ### Option B vs Option C
 
 | Aspect | Option B (Current) | Option C (Future) |
@@ -29,7 +48,7 @@ The TUI library is currently implemented as **Option B: Damage-Tracked Pipeline*
 | **Double-width chars** | Handled by mcurses (no cell tracking) | Tracked in cell buffer — correct cursor positioning for CJK |
 | **Hit testing** | Requires walking element tree | Direct lookup: `screen[y][x]` → element ID |
 | **RAM cost** | ~26 bytes per element (small) | ~7 bytes per cell × 80×24 = 13,440 bytes (large) |
-| **Best for** | AVR (2–8KB SRAM), simple UIs | ARM (32KB+), complex UIs, mouse support |
+| **Best for** | AVR (2–8KB SRAM), simple UIs | Parts with RAM to spare, complex UIs, mouse support; an ATmega2560 at small screen sizes (4.3) |
 
 ### What Option C adds on top of Option B
 
@@ -215,7 +234,10 @@ Buffer      = 1,920 × 7 = 13,440 bytes
 
 With scroll buffer (16×80): **~15,840 bytes**
 
-> ⚠️ **MINIMUM RAM** — Option C requires **at least 32KB of RAM**. This rules out ATmega328P (2KB) and ATmega2560 (8KB). Target platforms: ARM Cortex-M0+ (SAMD21: 32KB), STM32F1 (20KB — tight), ESP32 (520KB), native/protosim.
+> ⚠️ **RAM** — A full 80×24 screen with 7-byte cells needs about 14.6 KB:
+> that is a part with 32 KB or more, which protoduino does not build for yet
+> (it is an AVR library). On AVR, Option C means a smaller screen and a
+> smaller cell (4.3). It rules out the ATmega328P (2 KB).
 
 ### 4.3 Smaller screen sizes
 
@@ -228,6 +250,16 @@ For boards with limited RAM, reduce screen dimensions:
 | 80 × 24 | 1,920 | 13,440 bytes | ~14,600 bytes |
 | 80 × 40 | 3,200 | 22,400 bytes | ~23,500 bytes |
 | 120 × 40 | 4,800 | 33,600 bytes | ~34,800 bytes |
+
+**A compact cell for AVR.** A 16-bit character (the Basic Multilingual
+Plane, which is what `rune16` covers), an 8-bit attribute index and a byte of
+flags (dirty, wide, continuation) make a cell of 4 bytes instead of 7:
+
+| Screen Size | Buffer, 4-byte cells | On an ATmega2560 (8 KB) |
+|---|---|---|
+| 40 × 12 | 1,920 bytes | Fits: `22-tui-render` uses about 4 KB with the Option B buffers |
+| 60 × 16 | 3,840 bytes | Only with the Option B buffers shrunk: the render queue (710 bytes) is not needed in buffered mode, and the Mega's 48-element default is more than most UIs need |
+| 80 × 24 | 7,680 bytes | Does not fit |
 
 ---
 
@@ -288,21 +320,25 @@ For boards with limited RAM, reduce screen dimensions:
 
 | Board | MCU | RAM | Screen Size | Notes |
 |---|---|---|---|---|
-| Arduino Nano Every | ATmega4809 | 6KB | 40×12 | Tight — use reduced screen |
 | Adafruit Feather M0 | SAMD21 | 32KB | 80×24 | Primary ARM target |
 | STM32 Blue Pill | STM32F103 | 20KB | 60×16 | Possible with reduced screen |
 | ESP32 DevKit | ESP32 | 520KB | 80×40+ | No memory constraints |
 | Raspberry Pi Pico | RP2040 | 264KB | 80×40+ | Excellent Option C platform |
 | Native / Protosim | Host GCC | unlimited | any | Testing and development |
+| Arduino Mega | ATmega2560 | 8KB | 40×12, 60×16 with care | With the compact cell of 4.3 |
+
+The ARM boards above are where the roadmap could go. protoduino builds for
+AVR only today (`library.properties`, the clock and UART drivers), so they
+need a port first, and the ARM benchmarks of Phase 5 wait for it.
 
 ### 6.2 Not suitable
 
 | Board | MCU | RAM | Reason |
 |---|---|---|---|
 | Arduino Uno | ATmega328P | 2KB | Far too small. Use Option B. |
-| Arduino Mega | ATmega2560 | 8KB | Marginal even at 40×12. Use Option B. |
 | Arduino Nano (classic) | ATmega328P | 2KB | Same as Uno. |
 | ATtiny85 | ATtiny85 | 512B | Not a TUI target at all. |
+| Arduino Nano Every | ATmega4809 | 6KB | A megaAVR 0-series part: protoduino's AVR drivers and simavr do not support it. |
 
 ---
 

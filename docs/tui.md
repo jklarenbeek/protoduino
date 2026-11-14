@@ -500,6 +500,16 @@ The renderer calls `tui_scroll_get_line()` for each visible row within the
 element's bounding rect, honouring the current scroll offset, and clears the
 buffer's dirty flag once drawn.
 
+It keeps what it drew on each row, in the buffer: a signature of the row's
+text and attribute, and how many columns the text took. When only the
+content changed, a row that looks as it did is left alone, and a row that
+changed gets its new text and spaces only as far as the old text reached. A
+line added to a log that is not full is then one row (19 bytes in
+`22-tui-render`, where a full redraw of the area was 356); a log whose ring
+wraps changes every row, and each costs its own text. When the area itself
+moved, changed size or style, or its surroundings were redrawn, it is drawn
+in full. A buffer shown in two areas at once is drawn in full each time.
+
 ### 6.5 Scrolling
 
 ```c
@@ -568,8 +578,8 @@ flowchart LR
 | Action | Auto-dirty? | Notes |
 |---|---|---|
 | `TUI_TEXT()` with a new string pointer or length | Yes | Signature includes the text pointer + byte length. |
-| `TUI_TEXT()` with modified content at the **same** pointer/length | **No** | Signature unchanged — call `tui_mark_dirty()` (or pad to a fixed width). |
-| `TUI_SCROLL()` after `tui_scroll_add_line()` / scrolling | Yes | The renderer treats a scroll area as dirty when its buffer's dirty flag is set. |
+| `TUI_TEXT()` with modified content at the **same** pointer/length | Yes | The bytes of text in RAM are part of the signature, so a clock or a counter rewritten in one buffer redraws. Text in flash cannot change and is not read. |
+| `TUI_SCROLL()` after `tui_scroll_add_line()` / scrolling | Yes | The renderer treats a scroll area as dirty when its buffer's dirty flag is set, and redraws only its rows that changed. |
 | Style or border attribute changed | Yes | Signature includes `style` and `border`. |
 | Position or size changed (resize, reflow) | Yes | Signature includes `x, y, w, h`. |
 | Manual `tui_mark_dirty(&tui, id_hash)` | Yes | Matches an element by its `TUI_ID()` hash; forces re-render. |
@@ -900,6 +910,11 @@ mcurses tracks the cursor, so a row of border or text costs one cursor move,
 not one per character. The example frame of `22-tui-render` (12 × 40, a
 bordered body) is 1,943 bytes; with a cursor move per border glyph it was
 2,512.
+
+`tools/test_tui.sh` builds `22-tui-render` twice, as it is and redrawing
+everything in every frame, runs both in protosim and compares each screen
+cell for cell (`tools/vt-compare.mjs`), with byte budgets for the frames that
+change little. It then runs the checks of `25-tui-robust`.
 
 ---
 
