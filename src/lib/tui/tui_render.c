@@ -632,7 +632,8 @@ static void _frame_scroll(tui_render_queue_t *rq, mcurses_t *scr,
         sb->shown_len[row] = cols;
     }
 
-    sb->shown_at = at;
+    sb->shown_at   = at;
+    sb->shown_rows = el->h;   /* how far tui_scroll_up() may go back */
     sb->dirty = 0;  /* content now reflected on screen */
 }
 

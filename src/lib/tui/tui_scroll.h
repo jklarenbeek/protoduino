@@ -98,6 +98,7 @@ typedef struct {
      * tui_render.c; a buffer is drawn in one scroll area at a time (another
      * area, or the same one moved, is drawn in full). */
     uint16_t shown_at;                      /**< The area it was drawn in; 0: none. */
+    uint8_t  shown_rows;                    /**< Its height; 0: not drawn yet.      */
     uint16_t shown_sig[TUI_SCROLL_LINES];   /**< Signature of each row's text.      */
     uint8_t  shown_len[TUI_SCROLL_LINES];   /**< Columns each row's text took.      */
 } tui_scrollbuf_t;
@@ -193,12 +194,11 @@ CC_EXTERN uint16_t tui_scroll_get_attr(const tui_scrollbuf_t *sb,
  * ========================================================================= */
 
 /**
- * @brief Scroll the viewport one line towards older content.
+ * @brief Scroll the viewport one line back into the history.
  *
- * view_offset is clamped so that at least one viewport worth of
- * content remains visible (cannot scroll past the oldest line).
- *
- * @param sb  Scroll buffer.
+ * Stops when the oldest line is at the top of the area the buffer was last
+ * drawn in: a log with no more lines than rows has nothing to scroll back
+ * to.  Marks the buffer dirty when the view moved.
  */
 CC_EXTERN void tui_scroll_up(tui_scrollbuf_t *sb);
 

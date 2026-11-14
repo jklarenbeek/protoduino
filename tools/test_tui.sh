@@ -26,7 +26,7 @@ for mcu in atmega328p atmega2560; do
   "$SIM" $O/22-tui-render-full-$mcu.elf $RUN --uart0-out $O/tui-full-$mcu.txt > /dev/null 2>&1
   "$SIM" $O/22-tui-render-$mcu.elf $RUN --uart0-out $O/tui-$mcu.txt > /dev/null 2>&1
   # B: nothing changed; D: one line more in the log; H: the status bar, rewritten in place
-  if node tools/vt-compare.mjs 12 40 $O/tui-$mcu.txt $O/tui-full-$mcu.txt --budget B=0 --budget D=24 --budget H=80; then
+  if node tools/vt-compare.mjs 12 40 $O/tui-$mcu.txt $O/tui-full-$mcu.txt --budget B=0 --budget D=24 --budget H=80 $( [ $mcu = atmega328p ] && echo --budget F=0 ); then
     echo "[PASS] every screen as a full redraw draws it, in the bytes the changes need"
   else
     echo "[FAIL] the screens or the byte counts above"; fails=$((fails + 1))

@@ -37,6 +37,7 @@ void tui_scroll_init(tui_scrollbuf_t *sb)
     sb->view_offset = 0;
     sb->dirty       = 1;
     sb->shown_at    = 0;   /* not on the screen: drawn in full next time */
+    sb->shown_rows  = 0;
 }
 
 /* =========================================================================
@@ -140,7 +141,14 @@ static bool _viewport_to_slot(const tui_scrollbuf_t *sb,
      * Logical index for viewport_idx:
      *   logical = top_logical + viewport_idx
      */
-    int16_t bot_logical = (int16_t)sb->count - 1 - (int16_t)sb->view_offset;
+    /* Scrolling back stops when the oldest line reaches the top: with
+     * fewer lines than rows there is no history to show, and the view
+     * stays where it was. The stored offset may be larger (the area grew
+     * since); what is shown is clamped. */
+    uint8_t most   = (uint8_t)(sb->count - visible);   /* count >= visible */
+    uint8_t offset = sb->view_offset > most ? most : sb->view_offset;
+
+    int16_t bot_logical = (int16_t)sb->count - 1 - (int16_t)offset;
     int16_t top_logical = bot_logical - (int16_t)(visible - 1);
     int16_t logical     = top_logical + (int16_t)viewport_idx;
 
@@ -198,23 +206,24 @@ uint16_t tui_scroll_get_attr(const tui_scrollbuf_t *sb,
  * Scroll navigation
  * ========================================================================= */
 
+/* How far back the view can go: until the oldest line is at the top of
+ * the area the buffer was last drawn in.  Before it was drawn the height is
+ * not known, and the bound is the old one: the oldest line at the bottom. */
+static uint8_t _max_offset(const tui_scrollbuf_t *sb)
+{
+    if (sb->count == 0)
+        return 0;
+    if (sb->shown_rows == 0)
+        return (uint8_t)(sb->count - 1u);
+    return sb->count > sb->shown_rows ? (uint8_t)(sb->count - sb->shown_rows) : 0u;
+}
+
 void tui_scroll_up(tui_scrollbuf_t *sb)
 {
     if (!sb)
         return;
 
-    /*
-     * view_offset can be at most count - 1 (viewing only the oldest line
-     * at the bottom of the viewport).  In practice this is conservative;
-     * a tighter bound would account for viewport_height, but we don't
-     * store that in the scroll buffer.  The renderer just won't find
-     * valid lines for viewport indices past the stored content.
-     *
-     * Guard against an empty buffer: `sb->count - 1u` promotes to unsigned
-     * and would wrap to a huge value when count == 0, letting view_offset
-     * drift.  Use an addition form that is safe for count 0 and 1.
-     */
-    if ((uint8_t)(sb->view_offset + 1u) < sb->count) {
+    if (sb->view_offset < _max_offset(sb)) {
         ++sb->view_offset;
         sb->dirty = 1;
     }
@@ -225,6 +234,10 @@ void tui_scroll_down(tui_scrollbuf_t *sb)
     if (!sb)
         return;
 
+    /* an offset left over from a smaller area first comes into range, so
+     * that every press moves the view */
+    if (sb->view_offset > _max_offset(sb))
+        sb->view_offset = _max_offset(sb);
     if (sb->view_offset > 0) {
         --sb->view_offset;
         sb->dirty = 1;
