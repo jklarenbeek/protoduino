@@ -8,9 +8,11 @@
 > tui_compute_layout → tui_render_frame`. Damage tracking is real (an
 > unchanged frame emits **zero** bytes; a localized change repaints only the
 > affected subtree). See the runnable smoke test
-> [`examples/22-tui-render`](../examples/22-tui-render/22-tui-render.ino),
+> [`examples/7-text-ui/22-tui-render`](../examples/7-text-ui/22-tui-render/22-tui-render.ino),
 > which renders a header / bordered body / scroll log / status bar and is
-> validated head-less under protosim.
+> validated head-less under protosim, and the tests of
+> [`examples/7-text-ui/25-tui-robust`](../examples/7-text-ui/25-tui-robust/25-tui-robust.ino).
+> Both build for an Arduino Uno with the default sizes.
 >
 > **API note.** The declarative macros take **pointers to config structs**,
 > built as compound literals — there is no `TUI_LAYOUT()`/`TUI_STYLE()`
@@ -193,6 +195,12 @@ void render_ui(void) {
 }
 ```
 
+> **Text in flash.** On an AVR a string literal costs its length in RAM as
+> well as in flash. Labels that never change belong in flash:
+> `TUI_TEXT_F(" Protoduino TUI", MCURSES_ATTR_REVERSE)` keeps the literal
+> there, and `TUI_TEXT_P(label_P, attr)` takes a pointer to a `PROGMEM`
+> string. They are measured, laid out and drawn like text in RAM.
+
 > The text-attribute argument to `TUI_TEXT(str, attr)` styles the glyphs
 > themselves; the container's `tui_style_config_t.attr` styles its background
 > fill and border. They are independent.
@@ -212,7 +220,7 @@ void render_ui(void) {
 1. `tui_begin_layout()` resets the element counter and opens a new frame.
 2. `TUI_CTX(&ctx) { ... }` binds the context to the implicit `_tui_ctx` used by the `TUI()` / `TUI_TEXT()` / `TUI_SCROLL()` macros.
 3. Each `TUI()` macro pushes one `tui_element_t` into the context's static array, recording parent/child relationships, the layout config, and style.
-4. `TUI_TEXT(str, attr)` attaches a UTF-8 string pointer (RAM or PROGMEM) and its glyph attribute; `TUI_SCROLL(sb, attr)` attaches a scroll buffer.
+4. `TUI_TEXT(str, attr)` attaches a UTF-8 string pointer in RAM and its glyph attribute; `TUI_TEXT_P(str_P, attr)` and `TUI_TEXT_F("literal", attr)` the same for a string in flash. `TUI_SCROLL(sb, attr)` attaches a scroll buffer.
 5. `tui_end_layout()` closes the tree.
 6. `tui_compute_layout()` walks the tree top-down, resolving sizes and computing `(x, y, w, h)` for every element, then runs the **damage diff** (signature comparison vs. the previous frame).
 7. `tui_render_frame()` walks the tree again, skipping clean elements and drawing only dirty ones via mcurses.
@@ -448,18 +456,12 @@ The `tui_scrollbuf_t` provides a scrollable ring buffer of UTF-8 text lines. It 
 ### 6.2 Allocation
 
 The line storage lives **inside** `tui_scrollbuf_t` (no caller byte array).
-Its capacity is fixed at compile time via two macros; override them with
-build flags to trade SRAM for history depth:
+Its capacity is fixed at compile time via two macros, `TUI_SCROLL_LINES` and
+`TUI_SCROLL_LINE_BYTES`. Their defaults follow the RAM of the part (8):
+6 lines of 42 bytes with 2 KB of RAM or less, 16 lines of 81 bytes above.
+Override them with build flags to trade SRAM for history depth:
 
 ```c
-/* Defaults (tune with -DTUI_SCROLL_LINES=.. -DTUI_SCROLL_LINE_BYTES=..) */
-#ifndef TUI_SCROLL_LINES
-#  define TUI_SCROLL_LINES       16
-#endif
-#ifndef TUI_SCROLL_LINE_BYTES
-#  define TUI_SCROLL_LINE_BYTES  81   /* 80 columns + NUL */
-#endif
-
 static tui_scrollbuf_t scroll;
 tui_scroll_init(&scroll);             /* zero lines, view at bottom */
 ```
@@ -522,7 +524,7 @@ Total bytes ≈ TUI_SCROLL_LINES × TUI_SCROLL_LINE_BYTES   (+ 2 bytes/line for 
 | 16 | 81 | ~1,328 bytes |
 | 32 | 81 | ~2,656 bytes |
 
-> ⚠️ **MEMORY** — On ATmega328P (2KB SRAM) keep it small (e.g. 6×42 ≈ 264 bytes). The 16×81 default (~1.3 KB) is better suited to ATmega2560 (8KB) or ARM targets (32KB+).
+> ⚠️ **MEMORY** — On ATmega328P (2KB SRAM) keep it small: the default there is 6×42 (268 bytes). The 16×81 default of the larger parts (1,332 bytes) is for an ATmega2560 (8KB) or more.
 
 ---
 
@@ -613,32 +615,45 @@ container's inline layout config (the largest member) dominates:
 | Payload **union** | ~11 bytes | container layout config (largest) **or** text {ptr,len} **or** scroll {ptr} |
 | **Total per element** | **~26 bytes** | |
 
-### 8.2 Budget table
+### 8.2 Defaults
 
-The render queue is **independent** of the element count — it is sized by
-`TUI_MAX_RENDER_CMDS` (each command ≈ 12 bytes), and at the default of 64
-commands it is ~768 bytes, the single largest TUI allocation. The context
-also carries the damage-diff shadow (`prev_sig[]`, 2 bytes per element).
+The sizes are build settings, and their defaults follow the RAM of the part,
+so that the library sources and the sketch agree on them without flags:
+
+| Setting | 2 KB of RAM or less (ATmega328P) | More (ATmega2560) |
+|---|---|---|
+| `TUI_MAX_ELEMENTS` | 12 | 48 |
+| `TUI_MAX_RENDER_CMDS` | 8 | 64 |
+| `TUI_SCROLL_LINES` × `TUI_SCROLL_LINE_BYTES` | 6 × 42 | 16 × 81 |
+| **`tui_context_t`** | **351 bytes** | **1,359 bytes** |
+| **`tui_render_queue_t`** | **94 bytes** | **710 bytes** |
+| **`tui_scrollbuf_t`** | **268 bytes** | **1,332 bytes** |
+
+`TUI_SMALL_RAM` (1 or 0) overrides which column applies. A setting has to
+reach the library's `.c` files as well as the sketch, so set it for the whole
+build (`build.extra_flags` in the Arduino IDE or `arduino-cli`, `build_flags`
+in PlatformIO), never with a `#define` in the sketch.
+
+**The render queue only sets how often output is drawn.**
+`tui_render_frame()` draws the queue whenever it is full, so a frame looks
+the same with 8 commands as with 64; the larger queue only batches more.
+Code that pushes commands itself with `tui_render_push()` and flushes later
+needs room for all of them: a full queue drops further pushes.
 
 | `TUI_MAX_ELEMENTS` | Element array (×26) | + diff shadow & stack | **Context total** |
 |---|---|---|---|
 | 8 | 208 | ~32 | **~240 bytes** |
-| 12 | 312 | ~40 | **~352 bytes** |
+| 12 | 312 | ~40 | **~351 bytes** |
 | 16 | 416 | ~48 | **~464 bytes** |
 | 24 | 624 | ~64 | **~688 bytes** |
 | 32 | 832 | ~80 | **~912 bytes** |
 
-| `TUI_MAX_RENDER_CMDS` | Render queue (×~12) |
-|---|---|
-| 24 | ~288 bytes |
-| 32 | ~384 bytes |
-| 64 (default) | ~768 bytes |
+A render command is 11 bytes.
 
 ### 8.3 Total system RAM breakdown (ATmega328P)
 
-Realistic small config — matches the verified
-[`examples/22-tui-render`](../examples/22-tui-render/22-tui-render.ino)
-(`-DTUI_MAX_ELEMENTS=10 -DTUI_MAX_RENDER_CMDS=32 -DTUI_SCROLL_LINES=6 -DTUI_SCROLL_LINE_BYTES=42`):
+[`examples/7-text-ui/22-tui-render`](../examples/7-text-ui/22-tui-render/22-tui-render.ino)
+with the defaults, built by the Arduino IDE for an Uno:
 
 | Component | Bytes | Notes |
 |---|---|---|
@@ -646,16 +661,15 @@ Realistic small config — matches the verified
 | RX pipe buffer | 16 | UART input |
 | `ipc_pipe_t` × 2 | ~24 | Pipe structs |
 | `mcurses_t` | ~20 | Screen instance |
-| `tui_context_t` (10 elems + diff shadow) | ~300 | Element array + `prev_sig` + stack |
-| `tui_render_queue_t` (32 cmds) | ~384 | Render queue |
-| Scroll buffer (6×42) | ~264 | Optional |
-| Stack + locals + core | ~250 | Estimated |
-| **Total** | **~1,386 bytes** | Measured: 1,374 bytes global (67% of 2 KB) |
+| `tui_context_t` (12 elements + diff shadow) | 351 | Element array + `prev_sig` + stack |
+| `tui_render_queue_t` (8 commands) | 94 | Render queue |
+| Scroll buffer (6×42) | 268 | Optional |
+| Core, serial driver, the sketch's own | ~360 | |
+| **Total** | **1,264 bytes** | Measured: 62% of 2 KB |
 
-> **TIP** — Keep `TUI_MAX_ELEMENTS` **and** `TUI_MAX_RENDER_CMDS` to the
-> smallest values your UI needs. A full screen redraw can queue many
-> commands (per-cell fills, per-cell border), so the render queue, not the
-> element array, is usually the dominant cost on AVR.
+> **TIP** — Keep `TUI_MAX_ELEMENTS` to the smallest value your UI needs:
+> each element is 28 bytes with its diff shadow. The render queue can stay
+> at 8 for anything drawn with `tui_render_frame()`.
 
 ---
 
@@ -818,10 +832,12 @@ while (1) {
 | `TUI_CTX(ctx) { ... }` | Bind the context for the `TUI()`/`TUI_TEXT()`/`TUI_SCROLL()` macros. |
 | `TUI(id, layout_ptr, style_ptr) { ... }` | Declare a container element. Pass `&(tui_layout_config_t){...}` and `&(tui_style_config_t){...}` (or `NULL`). Children go inside the braces. |
 | `TUI_TEXT(str, attr)` | Add a UTF-8 text leaf with glyph attribute `attr`. |
+| `TUI_TEXT_P(str_P, attr)` | The same for a UTF-8 string in flash (`PROGMEM`). |
+| `TUI_TEXT_F("literal", attr)` | The same for a string literal that stays in flash: `TUI_TEXT_P(PSTR("literal"), attr)`. |
 | `TUI_SCROLL(sb, attr)` | Add a scroll-area leaf bound to scroll buffer `sb`; `attr` styles the background fill. |
 | `TUI_ID(str)` | Compile-time string ID for an element (FNV-1a, hashed to `uint8_t`). |
 
-> There is no `TUI_LAYOUT()` / `TUI_STYLE()` macro and no `TUI_BEGIN` / `TUI_END` / `TUI_TEXT_P`. Build configs as compound literals; use `tui_begin_layout`/`tui_end_layout` + `TUI_CTX`.
+> There is no `TUI_LAYOUT()` / `TUI_STYLE()` macro and no `TUI_BEGIN` / `TUI_END`. Build configs as compound literals; use `tui_begin_layout`/`tui_end_layout` + `TUI_CTX`.
 
 ### Sizing macros (build a `tui_size_t`)
 
@@ -842,11 +858,24 @@ while (1) {
 | `tui_mark_dirty(ctx, id_hash)` | Force-dirty the element whose `TUI_ID()` hash matches `id_hash`. |
 | `tui_mark_all_dirty(ctx)` | Mark all visible elements dirty (forces full redraw). |
 
+### Queries (after `tui_compute_layout`)
+
+| Function | Description |
+|---|---|
+| `tui_find(ctx, id_hash)` | Index of the first element with that `TUI_ID()` hash, or `TUI_INDEX_NONE`. |
+| `tui_get_rect(ctx, id_hash, &rect)` | Where the element was laid out, as a `tui_rect_t` {x, y, w, h}; false when there is no such element. |
+| `tui_element_count(ctx)` | Number of elements declared in the current frame. |
+| `tui_is_inside(ctx, idx, ancestor_idx)` | True when element `idx` lies inside `ancestor_idx` (or is it). |
+
+IDs are 8-bit hashes, so two names can share one; give elements you look up
+names that do not collide, and the first match counts.
+
 ### Rendering
 
 | Function | Description |
 |---|---|
 | `tui_render_frame(ctx, rq, scr)` | Walk the tree and render only dirty elements (FILL/BORDER/TEXT/scroll) to the mcurses screen; clears dirty flags. |
+| `tui_render_element(ctx, rq, scr, id_hash)` | Draw one element and everything inside it now, dirty or not; the rest of the tree and its dirty flags are left alone. For a region overwritten from outside the TUI. False when there is no such element. |
 | `tui_render_push(rq, cmd)` | Low-level: append one render command (manual command building). |
 | `tui_render_flush(rq, scr)` | Low-level: drain the command queue to mcurses and `refresh_ex`. |
 
@@ -862,7 +891,15 @@ while (1) {
 | `tui_scroll_to_bottom(sb)` | Jump to the most recent line. |
 | `tui_scroll_clear(sb)` | Clear all lines and reset the viewport. |
 
-> **Not yet implemented** (documented for the roadmap, absent in code): element-query helpers `tui_find` / `tui_get_rect` / `tui_element_count`, and `tui_render_element`. Query an element's rect by keeping its index from `tui_open_element()` if you need it.
+### Output
+
+Everything the renderer sends goes through mcurses, box-drawing glyphs
+included: a full TX pipe is drained through the hook of `mcurses_set_drain()`,
+or what could not be sent is counted in `tx_dropped`, never lost silently.
+mcurses tracks the cursor, so a row of border or text costs one cursor move,
+not one per character. The example frame of `22-tui-render` (12 × 40, a
+bordered body) is 1,943 bytes; with a cursor move per border glyph it was
+2,512.
 
 ---
 
