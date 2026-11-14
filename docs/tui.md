@@ -458,7 +458,8 @@ The `tui_scrollbuf_t` provides a scrollable ring buffer of UTF-8 text lines. It 
 The line storage lives **inside** `tui_scrollbuf_t` (no caller byte array).
 Its capacity is fixed at compile time via two macros, `TUI_SCROLL_LINES` and
 `TUI_SCROLL_LINE_BYTES`. Their defaults follow the RAM of the part (8):
-6 lines of 42 bytes with 2 KB of RAM or less, 16 lines of 81 bytes above.
+6 lines of 42 bytes with 2 KB of RAM or less, 16 lines of 81 bytes above,
+plus 3 bytes per line and 2 more for what the renderer drew (6.4).
 Override them with build flags to trade SRAM for history depth:
 
 ```c
@@ -524,17 +525,18 @@ repaints the scroll area automatically — no manual `tui_mark_dirty()` needed.
 ### 6.6 Memory formula
 
 ```
-Total bytes ≈ TUI_SCROLL_LINES × TUI_SCROLL_LINE_BYTES   (+ 2 bytes/line for attrs)
+Total bytes ≈ TUI_SCROLL_LINES × (TUI_SCROLL_LINE_BYTES + 5) + 6
+               (2 bytes per line for its attribute, 3 for what was drawn on its row)
 ```
 
-| Lines | Line Bytes | Total (incl. attrs) |
+| Lines | Line Bytes | Total |
 |---|---|---|
-| 6 | 42 | ~264 bytes |
-| 8 | 41 | ~344 bytes |
-| 16 | 81 | ~1,328 bytes |
-| 32 | 81 | ~2,656 bytes |
+| 6 | 42 | 288 bytes (the default with 2 KB of RAM) |
+| 8 | 41 | ~374 bytes |
+| 16 | 81 | 1,382 bytes (the default above) |
+| 32 | 81 | ~2,758 bytes |
 
-> ⚠️ **MEMORY** — On ATmega328P (2KB SRAM) keep it small: the default there is 6×42 (268 bytes). The 16×81 default of the larger parts (1,332 bytes) is for an ATmega2560 (8KB) or more.
+> ⚠️ **MEMORY** — On ATmega328P (2KB SRAM) keep it small: the default there is 6×42 (288 bytes). The 16×81 default of the larger parts (1,382 bytes) is for an ATmega2560 (8KB) or more.
 
 ---
 
@@ -578,7 +580,7 @@ flowchart LR
 | Action | Auto-dirty? | Notes |
 |---|---|---|
 | `TUI_TEXT()` with a new string pointer or length | Yes | Signature includes the text pointer + byte length. |
-| `TUI_TEXT()` with modified content at the **same** pointer/length | Yes | The bytes of text in RAM are part of the signature, so a clock or a counter rewritten in one buffer redraws. Text in flash cannot change and is not read. |
+| `TUI_TEXT()` with modified content at the **same** pointer/length | Yes | The bytes of text in RAM are part of the signature, so a clock or a counter rewritten in one buffer redraws. Text in flash cannot change and is not read. The signature has 16 bits: two different texts may, rarely, give the same one, and that one update is then skipped until the next change. |
 | `TUI_SCROLL()` after `tui_scroll_add_line()` / scrolling | Yes | The renderer treats a scroll area as dirty when its buffer's dirty flag is set, and redraws only its rows that changed. |
 | Style or border attribute changed | Yes | Signature includes `style` and `border`. |
 | Position or size changed (resize, reflow) | Yes | Signature includes `x, y, w, h`. |
@@ -637,7 +639,7 @@ so that the library sources and the sketch agree on them without flags:
 | `TUI_SCROLL_LINES` × `TUI_SCROLL_LINE_BYTES` | 6 × 42 | 16 × 81 |
 | **`tui_context_t`** | **351 bytes** | **1,359 bytes** |
 | **`tui_render_queue_t`** | **94 bytes** | **710 bytes** |
-| **`tui_scrollbuf_t`** | **268 bytes** | **1,332 bytes** |
+| **`tui_scrollbuf_t`** | **288 bytes** | **1,382 bytes** |
 
 `TUI_SMALL_RAM` (1 or 0) overrides which column applies. A setting has to
 reach the library's `.c` files as well as the sketch, so set it for the whole
@@ -673,9 +675,9 @@ with the defaults, built by the Arduino IDE for an Uno:
 | `mcurses_t` | ~20 | Screen instance |
 | `tui_context_t` (12 elements + diff shadow) | 351 | Element array + `prev_sig` + stack |
 | `tui_render_queue_t` (8 commands) | 94 | Render queue |
-| Scroll buffer (6×42) | 268 | Optional |
-| Core, serial driver, the sketch's own | ~360 | |
-| **Total** | **1,264 bytes** | Measured: 62% of 2 KB |
+| Scroll buffer (6×42) | 288 | Optional |
+| Core, serial driver, the sketch's own | ~470 | including the test frames' buffers |
+| **Total** | **1,392 bytes** | Measured: 68% of 2 KB |
 
 > **TIP** — Keep `TUI_MAX_ELEMENTS` to the smallest value your UI needs:
 > each element is 28 bytes with its diff shadow. The render queue can stay

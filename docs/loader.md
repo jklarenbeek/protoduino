@@ -515,6 +515,8 @@ else.
 | `port.mjs <sketch.elf> --port <tty> <command> ...` | The shell on the PC for a part that runs a port: the commands of the shell, `settings`, `set`, the views of the sketch, `read`, `poke`, `eeprom`. `--sim` as for `talk.mjs`. |
 | `talk.mjs --port <tty> <step> ...` | Talks to a system over its serial line: types commands, waits for the prompt, sends files with XMODEM-CRC (`send:<file>`), checks answers (`expect:<text>`). `--sim "<protosim> <file.elf> -m <mcu>"` talks to a simulated part instead. Linux and macOS. |
 | `build_sketch.sh <mcu> <f_cpu> <sketch.ino>` | Builds a sketch with avr-gcc alone, for the simulator and for parts no Arduino core is at hand for. |
+| `test_tui.sh` | Builds `22-tui-render` as it is and redrawing everything every frame, for the ATmega328P and the ATmega2560, runs both in protosim and compares every screen cell for cell; then runs `25-tui-robust`. |
+| `vt-compare.mjs <rows> <cols> <out.txt> [<reference.txt>]` | Replays terminal output on a small VT screen: bytes per frame, the screen at each marker, and whether it matches a reference. |
 | `test_systems.sh` | Builds and runs the systems of `examples/5-systems` and `examples/6-attiny` in protosim and checks each conversation. |
 
 A whole session, on a board with the protoduino bootloader:
