@@ -46,14 +46,11 @@ static CC_ALWAYS_INLINE void timer_set(struct timer *t, const clock_time_t inter
  * \return The differences in microseconds.
  */
 static CC_ALWAYS_INLINE clock_time_t timer_diff(const struct timer *t) {
-  register clock_time_t d = clock_time();
-  register clock_time_t s = t->start;
-  if (d > s) {
-    return d - s;
-  }
-  else {
-    return (0xFFFFFFFFL - s) + d;
-  }
+  /* unsigned: right across the wrap of the clock too. It took a clock that
+   * had not moved since timer_set() for one that had gone all the way
+   * round, and the timer expired at once: a 125 MHz RP2040 reads its 1 us
+   * clock twice within the same microsecond. */
+  return (clock_time_t)(clock_time() - t->start);
 }
 
 /**
