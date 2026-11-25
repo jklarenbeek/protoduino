@@ -67,7 +67,7 @@ PROCESS_THREAD(smooth, ev, data)
 
   while (1)
   {
-    PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
+    PROCESS_WAIT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
     ipc_pipe_read(PROCESS_PIPEIN(), &self->byte, 1);
 
     self->byte = smooth_step(&self->smooth, self->byte);

@@ -469,6 +469,11 @@ typedef struct {
 #define PROCESS_EXIT()                   PT_EXIT(&pt_process->pt)
 #define PROCESS_WAIT_EVENT()             PT_YIELD(&pt_process->pt)
 #define PROCESS_WAIT_EVENT_UNTIL(c)      PT_YIELD_UNTIL(&pt_process->pt, (c))
+/* Waits only while c is false. A process that reads its input pipe waits
+ * with this: PROCESS_WAIT_EVENT_UNTIL lets go after every byte, and a pipe
+ * wakes its reader only when it goes from empty to not empty, so the rest
+ * of what arrived at once stayed there until something else happened. */
+#define PROCESS_WAIT_UNTIL(c)            PT_WAIT_UNTIL(&pt_process->pt, (c))
 #define PROCESS_SPAWN(child, thread)     PT_SPAWN(&pt_process->pt, (child), (thread))
 
 /* ------------------------------------------------------------------ */

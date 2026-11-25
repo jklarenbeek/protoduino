@@ -47,7 +47,9 @@
  */
 
 #include <sys/process.h>
+#if defined(__AVR__)
 #include <avr/pgmspace.h>
+#endif
 
 #ifndef SHELL_CONF_LINE
 #define SHELL_CONF_LINE 24
@@ -555,7 +557,7 @@ PROCESS_THREAD(shell, ev, data)
 #endif
 
     /* ---- nothing: the next character of a line ---- */
-    PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
+    PROCESS_WAIT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
     ipc_pipe_read(PROCESS_PIPEIN(), &self->byte, 1);
     shell_key(self, pt_process);
   }

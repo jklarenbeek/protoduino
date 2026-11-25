@@ -71,7 +71,7 @@ PROCESS_THREAD(dots, ev, data)
   while (1)
   {
     /* rule 3: wait for a byte */
-    PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
+    PROCESS_WAIT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
     ipc_pipe_read(PROCESS_PIPEIN(), &self->byte, 1);
 
     if (self->byte < '0' || self->byte > '9' || !pt_process->has_pipeout)
