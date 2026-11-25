@@ -6,7 +6,7 @@
 
 #include "../../lib/ringb8.h"
 
-#include <util/atomic.h> // <-- important!!
+#include <cc.h> // CC_ATOMIC_RESTORE() on every platform
 
 RINGB8(CC_TMPL_VAR(rx), SERIAL_RX_BUFFER_SIZE);
 RINGB8(CC_TMPL_VAR(tx), SERIAL_TX_BUFFER_SIZE);
@@ -290,7 +290,7 @@ uint_fast8_t CC_TMPL_FN(flush)(void)
     return 0;
 
   // are the global interrupts disabled?
-  if (bit_is_set(SREG, SREG_I))
+  if (CC_IRQ_ENABLED())
   {
     // is the transmit register empty?
     if (!CC_TMPL2_FN(tx_is_ready)())

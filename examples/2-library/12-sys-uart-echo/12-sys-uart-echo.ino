@@ -17,7 +17,7 @@ void delay(unsigned long ms);
 RINGB8(echo_rx, SERIAL_RX_BUFFER_SIZE);
 RINGB8(echo_tx, SERIAL_TX_BUFFER_SIZE);
 
-static bool echo_rx_buffer = false;
+static volatile bool echo_rx_buffer = false; /* set in the receive interrupt */
 
 static void on_rx_complete(uint_fast8_t data) {
   // is there room in the buffer?

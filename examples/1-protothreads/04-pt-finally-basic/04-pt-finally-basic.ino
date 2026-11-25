@@ -18,7 +18,8 @@ forever:
 
     PT_WAIT_ONE(self);
 
-    uint8_t v = random(0, 6);
+    uint8_t v; /* no initializer: PT_EXIT below is a case label, which may not jump over one */
+    v = random(0, 6);
     if (v == 2)
       PT_EXIT(self);
     else if (v == 3)

@@ -73,7 +73,7 @@ static CC_ALWAYS_INLINE uint32_t timer_expired(const struct timer *t) {
 #if defined ARDUSIM
     return std::min(1,(int)d);
 #else
-    return min(1, d);
+    return d ? 1 : 0; /* min(1, d) */
 #endif
   }
   if (d > t->interval)

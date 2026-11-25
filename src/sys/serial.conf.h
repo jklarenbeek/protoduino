@@ -11,7 +11,7 @@
 #endif
 
 #ifndef SERIAL_RX_BUFFER_SIZE
-#if ((RAMEND - RAMSTART) < 1023)
+#if defined(RAMEND) && ((RAMEND - RAMSTART) < 1023)
 #define SERIAL_RX_BUFFER_SIZE 16
 #else
 #define SERIAL_RX_BUFFER_SIZE 64
@@ -19,7 +19,7 @@
 #endif
 
 #ifndef SERIAL_TX_BUFFER_SIZE
-#if ((RAMEND - RAMSTART) < 1023)
+#if defined(RAMEND) && ((RAMEND - RAMSTART) < 1023)
 #define SERIAL_TX_BUFFER_SIZE 16
 #else
 #define SERIAL_TX_BUFFER_SIZE 64

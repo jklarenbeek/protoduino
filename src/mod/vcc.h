@@ -8,8 +8,8 @@
  *
  *   vcc | serial:0        a battery monitor on the line
  *
- * No part and no pin is needed: the ADC measures its own 1.1 V reference
- * against the supply, and the supply follows from the reading:
+ * On an AVR no part and no pin is needed: the ADC measures its own 1.1 V
+ * reference against the supply, and the supply follows from the reading:
  *
  *   reading = 1.1 V / Vcc * 1024      Vcc = 1126.4 V / reading
  *
@@ -23,11 +23,18 @@
 #include <sys/process.h>
 #include <sys/tick.h>
 #include <sys/timer.h>
-#include <avr/io.h>
 
 #ifndef VCC_CONF_MILLIS
 #define VCC_CONF_MILLIS 2000
 #endif
+
+#if defined(CC_ARCH_RP2)
+/* RP2040, RP2350: the supply as a Pico board shows it, a third of VSYS on
+ * GP29 (ADC input 3), against the 3.3 V reference. A board without that
+ * divider reads what is on GP29. */
+#include "hardware/adc.h"
+#else
+#include <avr/io.h>
 
 // the 1.1 V reference as input, the supply as reference
 #if defined(__AVR_ATtiny85__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny25__)
@@ -39,6 +46,7 @@
 #else
 #error "vcc: no reference channel known for this part"
 #endif
+#endif /* CC_ARCH_RP2 */
 
 PROCESS_DEFINE(vcc, "vcc", 3,
   struct timer period;
@@ -61,6 +69,14 @@ PROCESS_THREAD(vcc, ev, data)
     PROCESS_WAIT_EVENT_UNTIL(timer_expired(&self->period));
     timer_reset(&self->period);
 
+#if defined(CC_ARCH_RP2)
+    {
+      /* a conversion takes 2 microseconds: no need to let go meanwhile */
+      adc_init();
+      adc_gpio_init(29);
+      adc_select_input(3);
+      uint8_t tenths = (uint8_t)(((uint32_t)adc_read() * 99u + 2048u) / 4096u); /* 3 x 3.3 V x 10, rounded */
+#else
     ADMUX = VCC_ADMUX;
     for (self->pass = 0; self->pass < 2; self->pass++)
     {
@@ -71,6 +87,7 @@ PROCESS_THREAD(vcc, ev, data)
     {
       uint16_t reading = ADC;
       uint8_t tenths = reading ? (uint8_t)(11264u / reading) : 0; /* 1.1 * 1024 * 10 */
+#endif
 
       self->text[0] = (char)('0' + tenths / 10);
       self->text[1] = '.';
@@ -79,7 +96,9 @@ PROCESS_THREAD(vcc, ev, data)
       self->text[4] = '\r';
       self->text[5] = '\n';
     }
+#if !defined(CC_ARCH_RP2)
     ADCSRA = 0; /* the ADC is off between two measurements */
+#endif
 
     if (pt_process->has_pipeout)
       PROCESS_PIPE_WRITE(self->text, sizeof(self->text));
@@ -87,7 +106,9 @@ PROCESS_THREAD(vcc, ev, data)
 
   /* ended, perhaps in the middle of a conversion: the ADC is switched off */
   PT_FINALLY(&pt_process->pt)
+#if !defined(CC_ARCH_RP2)
   ADCSRA = 0;
+#endif
 
   PROCESS_END();
 }

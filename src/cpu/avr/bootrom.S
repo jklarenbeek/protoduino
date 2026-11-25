@@ -1,3 +1,4 @@
+#if defined(__AVR__) /* far calls into an AVR boot section */
 ; file: ./src/cpu/avr/bootrom.S
 ;
 ; The far calls of ./src/sys/bootrom.h, for parts with more than 128 KB of
@@ -38,4 +39,5 @@ bootrom_far_page_write:
   ret
   .size bootrom_far_page_write, .-bootrom_far_page_write
 
+#endif
 #endif

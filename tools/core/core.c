@@ -36,6 +36,20 @@ unsigned long micros(void)
   return ((m << 8) + t) * CORE_MICROS_PER_COUNT;
 }
 
+unsigned long millis(void)
+{
+  return micros() / 1000;
+}
+
+void delay(unsigned long ms)
+{
+  unsigned long start = micros();
+  while (micros() - start < ms * 1000UL)
+    ;
+}
+
+#include "random.h"
+
 extern void setup(void);
 extern void loop(void);
 

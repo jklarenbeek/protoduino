@@ -1,3 +1,4 @@
+#if defined(__AVR__) /* the flash loader is for AVR parts */
 // file: ./src/sys/elf/load.c
 
 #include "load.h"
@@ -274,3 +275,4 @@ PT_THREAD(elf_load_thread(struct elf_load *self))
 
   PT_END(pt);
 }
+#endif

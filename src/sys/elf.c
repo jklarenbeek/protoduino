@@ -1,3 +1,4 @@
+#if defined(__AVR__) /* the flash loader is for AVR parts */
 // file: ./src/sys/elf.c
 
 #include "elf.h"
@@ -255,3 +256,4 @@ done:
   s->result = r;
   return (ptstate_t)r;
 }
+#endif

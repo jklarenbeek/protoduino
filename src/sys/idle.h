@@ -35,7 +35,8 @@
  *   AVR        idle mode                   power-down, the watchdog ticks
  *   ESP32      block the loop task:        the same, with automatic light
  *              FreeRTOS idles the CPU      sleep                  (to come)
- *   RP2040     wait for interrupt          dormant                (to come)
+ *   RP2040     WFE until an interrupt, an  dormant                (to come)
+ *              event or the next tick
  *
  * A level that loses memory, so that waking up is a restart (deep sleep of
  * an ESP32, the core powered off on an RP2350), is not an idle level: it ends
@@ -61,6 +62,8 @@
 
 #if defined(__AVR__)
 #include "../cpu/avr/idle.h"
+#elif defined(CC_ARCH_RP2)
+#include "../cpu/rp2/idle.h"
 #else
 #error "idle: Unsupported Platform!"
 #endif

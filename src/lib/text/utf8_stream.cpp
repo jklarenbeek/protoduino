@@ -1,3 +1,4 @@
+#if defined(ARDUINO) && defined(__has_include) && __has_include(<Stream.h>) /* for the Stream class of an Arduino core */
 
 #include "utf8_stream.h"
 
@@ -189,3 +190,4 @@ int utf8_puti(Stream *st, uint8_t value)
 {
   return st->print(value);
 }
+#endif

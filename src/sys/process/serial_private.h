@@ -26,11 +26,14 @@ static const char CC_CONCAT2(CC_TMPL_PREFIX, _name)[]
 serial_process_t CC_CONCAT2(CC_TMPL_PREFIX, _proc);
 
 // ---- ISR-safe RX callback -----------------------------------------------
-static void CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
+// true: the byte is taken here, and does not go into the ring buffer of the
+// serial driver as well (serial_onrecieved_fn)
+static bool CC_CONCAT2(CC_TMPL_PREFIX, _on_rx)(uint_fast8_t ch)
 {
   uint8_t b = (uint8_t)ch;
   ipc_pipe_write(&CC_CONCAT2(CC_TMPL_PREFIX, _proc).rx_pipe, &b, 1);
   process_poll(&CC_CONCAT2(CC_TMPL_PREFIX, _proc).base);
+  return true;
 }
 
 // ---- Thread function body ------------------------------------------------

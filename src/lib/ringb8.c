@@ -1,7 +1,7 @@
 // file: ./src/lib/ringb8.c
 #include "ringb8.h"
 
-void ringb8_init(struct ringb8_t *self, uint_fast8_t *buffer, uint_fast16_t size)
+void ringb8_init(struct ringb8_t *self, uint8_t *buffer, uint_fast16_t size)
 {
     self->mask = (uint8_t)(size - 1);
     self->tail = 0;

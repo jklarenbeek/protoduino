@@ -63,7 +63,14 @@
  * happen. Where the loop runs as a task of an RTOS and blocks to save power
  * (ESP32 under FreeRTOS), the port defines this to wake that task. */
 #ifndef PROCESS_CONF_WAKE
+#if (defined(PICO_RP2040) && PICO_RP2040) || (defined(PICO_RP2350) && PICO_RP2350) || defined(ARDUINO_ARCH_RP2040)
+// RP2040, RP2350: the loop waits with WFE (cpu/rp2/idle.h). An event sent
+// here is latched: work that arrives between the look and the wait ends the
+// wait at once, from an interrupt or from the other core.
+#define PROCESS_CONF_WAKE() __asm volatile("sev" ::: "memory")
+#else
 #define PROCESS_CONF_WAKE() do { } while (0)
+#endif
 #endif
 
 #endif /* __PROCESS_CONF_H__ */

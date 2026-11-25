@@ -52,6 +52,25 @@
 
 #include <sys/process.h>
 #include <sys/tick.h>
+#if defined(CC_ARCH_RP2)
+/* RP2040, RP2350: inputs 0 to 3 on GP26 to GP29, 4 the temperature sensor,
+ * 12 bits of the 3.3 V reference, taken as 10 so that offset and shift mean
+ * what they mean on an AVR. sense_supply() reads GP29, which carries a
+ * third of VSYS on a Pico board; sense_chip() turns the sensor into degrees
+ * above -40 C itself (0.706 V at 27 C, -1.721 mV a degree). */
+#include "hardware/adc.h"
+#include "hardware/gpio.h"
+
+#define SENSE_PIN(n)  (n)
+#define SENSE_VCC     0x83
+#define SENSE_TEMP    0x84
+#define SENSE_SUPPLY_INVERSE 0
+
+#ifndef SENSE_CONF_TEMP_OFFSET
+#define SENSE_CONF_TEMP_OFFSET 0
+#endif
+
+#else
 #include <avr/io.h>
 #include <util/delay.h>
 
@@ -89,6 +108,7 @@
 #else
 #define SENSE_ADPS (_BV(ADPS1) | _BV(ADPS0))
 #endif
+#endif /* CC_ARCH_RP2 */
 
 typedef struct sense {
   uint8_t  admux;   /* what is measured                  */
@@ -97,6 +117,32 @@ typedef struct sense {
   uint16_t inverse; /* or: this divided by the reading   */
 } sense_t;
 
+#if defined(CC_ARCH_RP2)
+static uint8_t sense_read(const sense_t *s)
+{
+  uint16_t x;
+  uint8_t input = s->admux & 7;
+
+  adc_init();
+  if (input < 4)
+    adc_gpio_init(26 + input);
+  adc_set_temp_sensor_enabled(input == 4);
+  adc_select_input(input);
+  x = adc_read() >> 2;
+  adc_set_temp_sensor_enabled(false);
+
+  if (s->admux == SENSE_TEMP)
+  {
+    /* 67 at 27 C; a degree is 1.721 mV, 0.534 steps of 3.3 V / 1024 */
+    int32_t t = 67 - (((int32_t)x * 3300 / 1024 - 706) * 1000 / 1721) + (int16_t)s->offset;
+    return t < 0 ? 0 : t > 255 ? 255 : (uint8_t)t;
+  }
+  if (s->admux == SENSE_VCC)
+    return (uint8_t)(((uint32_t)x * 99 + 512) / 1024); /* tenths of a volt: 3 x 3.3 V, rounded */
+  x = (x > s->offset ? x - s->offset : 0) >> s->shift;
+  return x > 255 ? 255 : (uint8_t)x;
+}
+#else
 static uint8_t sense_read(const sense_t *s)
 {
   uint16_t x;
@@ -119,6 +165,7 @@ static uint8_t sense_read(const sense_t *s)
     x = (x > s->offset ? x - s->offset : 0) >> s->shift;
   return x > 255 ? 255 : (uint8_t)x;
 }
+#endif
 
 static inline void sense_supply(sense_t *s)
 {
@@ -168,7 +215,9 @@ PROCESS_THREAD(sense, ev, data)
 
   PT_FINALLY(&pt_process->pt)
   {
+#if !defined(CC_ARCH_RP2)
     ADCSRA = 0;
+#endif
   }
 
   PROCESS_END();

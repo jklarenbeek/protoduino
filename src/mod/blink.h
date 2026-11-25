@@ -11,11 +11,26 @@
  *   process_connect(writer, blink). It reads through PROCESS_PIPEIN(), so
  *   a device can be connected to it as well.
  * - The LED is the one on the board: PB5 on an ATmega328P (Uno), PB7 on an
- *   ATmega2560 (Mega). On an ATtiny85 it is PB4, because PB0 and PB1 carry
- *   the serial line. BLINK_CONF_PORT, _DDR, _PIN and _BIT choose another.
+ *   ATmega2560 (Mega), GP25 on a Pico. On an ATtiny85 it is PB4, because PB0
+ *   and PB1 carry the serial line. BLINK_CONF_PORT, _DDR, _PIN and _BIT
+ *   choose another on an AVR, BLINK_CONF_GPIO on an RP2040 or RP2350.
  */
 
 #include <sys/process.h>
+
+#if defined(CC_ARCH_RP2)
+/* RP2040, RP2350: a GPIO, GP25 by default (the LED of a Pico) */
+#include "hardware/gpio.h"
+
+#ifndef BLINK_CONF_GPIO
+#define BLINK_CONF_GPIO 25
+#endif
+
+#define BLINK_OUT()     do { gpio_init(BLINK_CONF_GPIO); gpio_set_dir(BLINK_CONF_GPIO, GPIO_OUT); } while (0)
+#define BLINK_TOGGLE()  gpio_xor_mask(1u << BLINK_CONF_GPIO)
+#define BLINK_RELEASE() do { gpio_put(BLINK_CONF_GPIO, 0); gpio_set_dir(BLINK_CONF_GPIO, GPIO_IN); } while (0)
+
+#else
 #include <avr/io.h>
 
 #ifndef BLINK_CONF_PORT
@@ -32,6 +47,12 @@
 #else
 #define BLINK_CONF_BIT 5
 #endif
+#endif
+
+#define BLINK_OUT()     BLINK_CONF_DDR |= _BV(BLINK_CONF_BIT)
+/* writing the PIN register toggles the pin */
+#define BLINK_TOGGLE()  BLINK_CONF_PIN = _BV(BLINK_CONF_BIT)
+#define BLINK_RELEASE() do { BLINK_CONF_PORT &= (uint8_t)~_BV(BLINK_CONF_BIT); BLINK_CONF_DDR &= (uint8_t)~_BV(BLINK_CONF_BIT); } while (0)
 #endif
 
 PROCESS_DEFINE(blink, "blink", 3,
@@ -55,20 +76,19 @@ PROCESS_THREAD(blink, ev, data)
     ipc_pipe_init(&self->in, self->buf, sizeof(self->buf), process_ipc_wake, (void *)pt_process);
     PROCESS_SET_PIPEIN(&self->in);
   }
-  BLINK_CONF_DDR |= _BV(BLINK_CONF_BIT);
+  BLINK_OUT();
 
   while (1)
   {
     PROCESS_WAIT_EVENT_UNTIL(ipc_pipe_available(PROCESS_PIPEIN()) > 0);
 
     while (ipc_pipe_read(PROCESS_PIPEIN(), &self->byte, 1) == 1)
-      BLINK_CONF_PIN = _BV(BLINK_CONF_BIT); /* writing the PIN register toggles the pin */
+      BLINK_TOGGLE();
   }
 
   /* ended: the pin is given back as it was found */
   PT_FINALLY(&pt_process->pt)
-  BLINK_CONF_PORT &= (uint8_t)~_BV(BLINK_CONF_BIT);
-  BLINK_CONF_DDR &= (uint8_t)~_BV(BLINK_CONF_BIT);
+  BLINK_RELEASE();
 
   PROCESS_END();
 }

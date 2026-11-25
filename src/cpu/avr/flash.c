@@ -1,3 +1,4 @@
+#if defined(__AVR__) /* the flash loader is for AVR parts */
 // file: ./src/cpu/avr/flash.c
 
 #include "flash.h"
@@ -257,3 +258,4 @@ void flash_page_write(flash_addr_t base, const uint8_t *data)
 #endif
 
 #endif /* FLASH_CONF_DRIVER != FLASH_DRIVER_NONE */
+#endif

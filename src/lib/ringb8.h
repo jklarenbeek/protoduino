@@ -69,7 +69,7 @@ static struct ringb8_t VAR_RINGB8(name) = { \
  *
  * @warning The size parameter of the buffer can not exceed 256 and MUST be an exponent of 2.
  */
-CC_EXTERN void ringb8_init(struct ringb8_t *self, uint_fast8_t *buffer, uint_fast16_t size);
+CC_EXTERN void ringb8_init(struct ringb8_t *self, uint8_t *buffer, uint_fast16_t size);
 #define RINGB8_INIT(name, buffer, size) ringb8_init(&VAR_RINGB8(name), buffer, size)
 
 /**

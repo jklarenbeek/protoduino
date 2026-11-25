@@ -117,6 +117,10 @@ static inline uint16_t tick_millis_left(void)
 
 #else /* TICK_SOURCE_WATCHDOG */
 
+#if !defined(__AVR__)
+#error "tick: TICK_SOURCE_WATCHDOG is the watchdog interrupt of an AVR; use TICK_SOURCE_CLOCK"
+#endif
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/wdt.h>

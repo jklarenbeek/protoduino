@@ -3,6 +3,7 @@
 #include "logger.h"
 #include "../ipc.h"
 #include "../serial.h"
+#include "../../dbg/errors.h"
 
 PROCESS_DEFINE(error_logger_process, "Error Logger", 0, );
 struct process error_logger_process;
@@ -16,7 +17,7 @@ PROCESS_THREAD(error_logger_process, ev, data)
     if (data == 0)
       serial0_open(9600);
     else
-      serial0_open(data);
+      serial0_open((uint32_t)(uintptr_t)data);
 
     print_P(PSTR("[Log] Ready\r\n"));
     serial0_flush();
