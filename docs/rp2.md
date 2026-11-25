@@ -46,7 +46,7 @@ warnings.
 | Modules ticker, upper, smooth, limit, curve | tested | builds | portable |
 | blink | tested | builds | a GPIO, GP25 by default (`BLINK_CONF_GPIO`) |
 | sense, vcc | tested with `--adc` | builds | the ADC: inputs 0 to 3 on GP26 to GP29, 4 the temperature sensor; the supply is VSYS / 3 on GP29 of a Pico board |
-| Both cores | see below | | |
+| Both cores: a scheduler on each | tested: nine interleavings, the shell across cores | builds | `PROCESS_CONF_CORES 2`; mailboxes, pipes and pools that hold across cores (below) |
 | Settings (EEPROM) | not ported | not ported | there is no EEPROM; a flash sector would do, when something on the RP2040 needs it |
 | Flash loader, slots, bootrom, ELF modules | not ported | not ported | they write AVR flash and relocate AVR code |
 | Port (`mod/port.h`) | not ported | not ported | its requests carry 16-bit addresses |
@@ -59,6 +59,63 @@ warnings.
 target runs the Pico SDK on its Cortex-M33 only as far as the UART, and not
 its timer alarms (finding BR16 in protosim's report).
 
+## Both cores
+
+With `PROCESS_CONF_CORES 2` each core runs a scheduler of its own: the same
+`process_loop()` in `loop()` on core 0 and in `loop1()` on core 1 (as in the
+arduino-pico core; `tools/core-rp2` does the same).
+
+```cpp
+void setup(void)  { process_init(&shell_proc.base); /* the processes of core 0 */ }
+void loop(void)   { process_loop(); }
+void setup1(void) { process_init(NULL); process_new(&process_type_upper, &upper_proc); }
+void loop1(void)  { process_loop(); }
+```
+
+- **A process belongs to the core that starts it**, and only that core runs
+  it and writes its state.
+- **`process_post()` and `process_poll()`** for a process of the other core
+  go through a mailbox: a ring with one writer (the sending core, interrupts
+  off while it writes) and one reader (the receiving core, in
+  `process_run()`), so neither needs a lock; an SEV wakes the other core
+  from its WFE. An event waits in the mailbox while the queue of its core is
+  full; a poll that finds the mailbox full is counted, and the receiving
+  core then polls all of its processes, so that no wake is lost.
+  `PROCESS_CONF_MAILBOX_SIZE` is 16.
+- **`process_destroy()`, `process_pause()` and `process_resume()`** of a
+  process of the other core go through the mailbox too: the shell on core 0
+  stops and kills modules on core 1.
+- **A broadcast** (`process_post(NULL, ...)`) reaches the processes of the
+  core that posts it: each core has its own tick.
+- **`process_next()`, `process_lookup()` and `process_reader()`** see the
+  processes of both cores: `ps` in the shell lists them all.
+- **Pipes** may have writers on both cores (the shell and a module both write
+  to the serial line), and **pools** are taken from on one core and given back
+  on the other: both take the hardware spinlock 15 of the SIO with interrupts
+  off (`CC_ATOMIC_SHARED()`), with a memory barrier before an index is
+  published.
+- **The log** (`process_warn()` and the rest) is kept per core.
+- **`process_connect()`** writes the pipe of the writer: call it while the
+  writer waits, as the examples do once both cores have started their
+  processes.
+- `PROCESS_CONF_CORES` must be the same in every file of the build: set it
+  in `src/protoduino-config.h` or as a build flag (`-DPROCESS_CONF_CORES=2`),
+  not in the sketch alone. With one core, an AVR build is byte for byte the
+  same as without this code.
+
+**Tested** in protosim: `examples/8-multicore/61-cross-core` sends 3000
+numbers from core 0 to core 1 as events and as messages from a pool of four,
+and core 1 sends each back through a pipe, under nine orders of the two
+cores (`--core-skew`: n steps of core 0, then m of core 1, from 64:1 to
+1:64); every count and sum is right. `60-two-cores` runs the shell's steps
+of `40-shell` with the modules on core 1. Two cores that run at the very
+same moment, as on a chip, protosim does not show: what such a race would
+break is guarded by the barriers and the spinlock, not tested.
+
+Found by the orders: a process that waits for room in a pipe with
+`PROCESS_WAIT_EVENT()` takes the next event and loses it. The sink of the
+example writes as much as the pipe takes and never waits for room.
+
 ## Differences from an AVR
 
 - **Time.** The clock counts microseconds as `micros()` does on an AVR; the
@@ -67,7 +124,7 @@ its timer alarms (finding BR16 in protosim's report).
   core wakes an AVR every millisecond: the idle wait sets an alarm for the
   next tick.
 - **Interrupts.** `CC_ATOMIC_RESTORE()` holds off the interrupts of one core.
-  What both cores share takes more than that (below).
+  What both cores share takes more than that (above).
 - **The UART handlers** are protoduino's (`irq_set_exclusive_handler`): an
   arduino-pico `Serial1` on the same UART cannot be used beside them, as
   `USE_ARDUINO_HARDWARESERIAL` is the choice on an AVR.

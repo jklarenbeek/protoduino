@@ -62,6 +62,29 @@
  * sleeps by itself when an interrupt arrives (AVR, RP2040) nothing has to
  * happen. Where the loop runs as a task of an RTOS and blocks to save power
  * (ESP32 under FreeRTOS), the port defines this to wake that task. */
+// One scheduler per core. With 2, a process belongs to the core that starts
+// it; process_post() and process_poll() for a process of the other core go
+// through a mailbox. Set it where every file of the build sees it: in
+// protoduino-config.h, or as a build flag (-DPROCESS_CONF_CORES=2). RP2040
+// and RP2350 only.
+#ifndef PROCESS_CONF_CORES
+#define PROCESS_CONF_CORES 1
+#endif
+
+#if PROCESS_CONF_CORES > 1
+#if !((defined(PICO_RP2040) && PICO_RP2040) || (defined(PICO_RP2350) && PICO_RP2350) || defined(ARDUINO_ARCH_RP2040))
+#error "process: PROCESS_CONF_CORES > 1 needs a chip with more than one core (RP2040, RP2350)"
+#endif
+// the core this runs on: CPUID of the SIO
+#define PROCESS_CORE() ((uint8_t)(*(volatile const uint32_t *)0xd0000000u))
+// events and polls from one core to the other that can wait at a time
+#ifndef PROCESS_CONF_MAILBOX_SIZE
+#define PROCESS_CONF_MAILBOX_SIZE 16
+#endif
+#else
+#define PROCESS_CORE() 0
+#endif
+
 #ifndef PROCESS_CONF_WAKE
 #if (defined(PICO_RP2040) && PICO_RP2040) || (defined(PICO_RP2350) && PICO_RP2350) || defined(ARDUINO_ARCH_RP2040)
 // RP2040, RP2350: the loop waits with WFE (cpu/rp2/idle.h). An event sent

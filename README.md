@@ -25,6 +25,7 @@ A tiny, deterministic cooperative scheduler that manages process lifecycles and 
 - **Implementation**: [`src/sys/process.h`](./src/sys/process.h), [`src/sys/process.c`](./src/sys/process.c)
 - **Features**: Priority-based scheduling, zero-malloc design, ISR-safe event posting.
 - **Power**: [sleeping while idle](./docs/power.md), one setting (`PROCESS_CONF_SLEEP`) in the same words on every platform.
+- **Platforms**: AVR (ATmega328P, ATmega2560, ATtiny85) and [the RP2040 and RP2350](./docs/rp2.md), with a scheduler on each core.
 
 ### 2. [Protothreads v2](./docs/protothreads.md) (Multitasking)
 An enhanced version of Adam Dunkels' stackless coroutines, adding native exception handling.
@@ -138,6 +139,7 @@ Most examples in this repository include a `.ino` file. These folders also defin
 | [**Ontology**](./docs/ontology.md) | The mathematical framework for error/event duality. |
 | [**Common Errors**](./docs/common-errors.md) | Comprehensive list of ontological error codes. |
 | [**Common Events**](./docs/common-events.md) | Comprehensive list of ontological event codes. |
+| [**RP2040 and RP2350**](./docs/rp2.md) | The port: what runs where, building with the Pico SDK or arduino-pico, a scheduler on each core. |
 | [**Power**](./docs/power.md) | Sleeping while idle: the levels, what they are on an AVR, an ESP32 and an RP2040. |
 | [**Modules, Shell and Loader**](./docs/loader.md) | Modules, the shell, flash slots, the bootloader and the host tools. |
 | [**ELF Loader Design**](./docs/elf-loader-design.pdf) | Functional and technical design of the streaming ELF loader and the bootloader, with measurements. |

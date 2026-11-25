@@ -11,6 +11,7 @@
 # 4. The terminal UI draws every screen as a full redraw does.
 # 5. Pins, the ADC and the supply.
 # 6. The RP2350 builds (protosim runs it only experimentally).
+# 7. Both cores: a scheduler on each, events, pools and pipes between them.
 #
 # Needs avr-gcc, arm-none-eabi-gcc, cmake, node and protosim built with
 # Bramble beside this repository (PROTOSIM=<path to bin/protosim> for
@@ -120,6 +121,25 @@ for e in 5-systems/40-shell 7-text-ui/22-tui-render; do
   n=$(basename $e)
   if rp2 rp2350 examples/$e/$n.ino | grep -q "flash"; then pass "$n builds for the RP2350"; else fail "$n does not build for the RP2350"; fi
 done
+
+echo "== 7. both cores (PROCESS_CONF_CORES 2) =="
+# protosim lets the cores take turns, n steps of core 0 and m of core 1
+# (--core-skew n:m): each ratio orders what crosses differently. That tests
+# the order; two cores that run at the same moment, as on a chip, it does not.
+rp2 rp2040 examples/8-multicore/61-cross-core/61-cross-core.ino -DPROCESS_CONF_CORES=2
+for k in 1:1 3:1 1:3 7:2 2:7 13:1 1:13 64:1 1:64; do
+  "$SIM" $O/61-cross-core-rp2040.elf --core-skew $k --warp --uart0-out $O/cross-$k.txt --run-ms 20000 --exit-on-uart PASS > $O/sim.log 2>&1
+  if grep -q "^PASS" $O/cross-$k.txt; then
+    pass "61-cross-core, steps $k: 3000 events, pool messages and pipe bytes each way, every sum right"
+  else
+    fail "61-cross-core, steps $k"; tr -d '\r' < $O/cross-$k.txt | tail -n 4 | sed 's/^/       /'
+  fi
+done
+rp2 rp2040 examples/8-multicore/60-two-cores/60-two-cores.ino -DPROCESS_CONF_CORES=2
+talk "60-two-cores: the shell on core 0 starts, joins, stops and kills the modules of core 1" "$O/60-two-cores-rp2040.elf" \
+  ps expect:"ticker   W 3" mods expect:"2 upper" "join upper serial:0" "write upper hello" expect:HELLO \
+  ipc expect:"upper > serial:0" "stop blink" ps expect:"blink    P 3" "cont blink" "kill upper" ps expect:"blink    W 3" \
+  "join nobody blink" expect:"?"
 
 echo
 [ $fails -eq 0 ] && echo "all passed" || echo "$fails failed"

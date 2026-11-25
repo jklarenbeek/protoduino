@@ -43,6 +43,49 @@ struct process_event_entry {
  * event_head is the NEXT slot to write (not the last written).
  * event_tail is the NEXT slot to read.
  */
+#if PROCESS_CONF_CORES > 1
+/* One scheduler per core: what follows, for each core, picked by the core
+ * that runs the code. The names below stand for the fields of this core. */
+struct process_core {
+  struct process_event_entry events_[PROCESS_CONF_EVENT_QUEUE_SIZE];
+  process_num_events_t       event_head_;
+  process_num_events_t       event_tail_;
+  struct process            *process_list_;
+  volatile uint8_t           poll_requested_;
+  struct process            *process_error_logger_;
+  struct error_info          error_pool_[PROCESS_CONF_ERROR_POOL_SIZE];
+  uint8_t                    error_pool_idx_;
+};
+static struct process_core process_cores[PROCESS_CONF_CORES];
+struct process *process_current_core[PROCESS_CONF_CORES];
+#define events               (process_cores[PROCESS_CORE()].events_)
+#define event_head           (process_cores[PROCESS_CORE()].event_head_)
+#define event_tail           (process_cores[PROCESS_CORE()].event_tail_)
+#define process_list         (process_cores[PROCESS_CORE()].process_list_)
+#define poll_requested       (process_cores[PROCESS_CORE()].poll_requested_)
+#define process_error_logger (process_cores[PROCESS_CORE()].process_error_logger_)
+#define error_pool           (process_cores[PROCESS_CORE()].error_pool_)
+#define error_pool_idx       (process_cores[PROCESS_CORE()].error_pool_idx_)
+
+/* From one core to another: a ring with one writer, the sending core, and
+ * one reader, the receiving one, so that neither needs a lock. The sender
+ * keeps interrupts off while it writes (an interrupt handler may send too);
+ * the receiver empties it in process_run(). An entry with no event is a
+ * poll. A poll that finds the ring full is counted in `lost`; the receiver
+ * then polls all of its processes, so that no wake is lost. */
+struct process_mail {
+  struct process  *dest;
+  process_event_t  ev;
+  process_data_t   data;
+};
+static struct {
+  struct process_mail slot[PROCESS_CONF_MAILBOX_SIZE];
+  volatile uint8_t    head;      /* written by the sending core   */
+  volatile uint8_t    tail;      /* written by the receiving core */
+  volatile uint8_t    lost;      /* written by the sending core   */
+  uint8_t             lost_seen; /* written by the receiving core */
+} process_mailbox[PROCESS_CONF_CORES][PROCESS_CONF_CORES]; /* [from][to] */
+#else
 static struct process_event_entry events[PROCESS_CONF_EVENT_QUEUE_SIZE];
 static process_num_events_t event_head = 0; /* next write position */
 static process_num_events_t event_tail = 0; /* next read  position */
@@ -61,6 +104,7 @@ static struct process *process_error_logger = NULL;
 /* Rotating pool of error_info records ----------------------------- */
 static struct error_info error_pool[PROCESS_CONF_ERROR_POOL_SIZE];
 static uint8_t           error_pool_idx = 0;
+#endif
 
 /* ================================================================== */
 /* §B  Ring-buffer helpers  (non-atomic; caller holds atomic context)  */
@@ -106,6 +150,89 @@ static int dequeue_event_nolock(struct process_event_entry *out)
                ((event_tail + 1u) % PROCESS_CONF_EVENT_QUEUE_SIZE);
   return 1;
 }
+
+#if PROCESS_CONF_CORES > 1
+/* With no event, the data of a mail says what to do to its process. */
+#define PROCESS_MAIL_POLL    ((process_data_t)0)
+#define PROCESS_MAIL_DESTROY ((process_data_t)1)
+#define PROCESS_MAIL_PAUSE   ((process_data_t)2)
+#define PROCESS_MAIL_RESUME  ((process_data_t)3)
+
+/* Sends an event, or with ev NONE an operation, to process p of core `to`. */
+static int process_mail(uint8_t to, struct process *p, process_event_t ev, process_data_t data)
+{
+  uint8_t from = PROCESS_CORE();
+  int ok = 0;
+
+  CC_ATOMIC_RESTORE() {
+    uint8_t head = process_mailbox[from][to].head;
+    uint8_t next = (uint8_t)((head + 1u) % PROCESS_CONF_MAILBOX_SIZE);
+    if (next != process_mailbox[from][to].tail) {
+      process_mailbox[from][to].slot[head].dest = p;
+      process_mailbox[from][to].slot[head].ev   = ev;
+      process_mailbox[from][to].slot[head].data = data;
+      CC_MEMORY_BARRIER(); /* the entry before the index that shows it */
+      process_mailbox[from][to].head = next;
+      ok = 1;
+    } else if (ev == PROCESS_EVENT_NONE && data == PROCESS_MAIL_POLL) {
+      process_mailbox[from][to].lost++;
+      ok = 1;
+    }
+  }
+  PROCESS_CONF_WAKE(); /* the other core may wait in WFE */
+  return ok;
+}
+
+static int process_post_here(struct process *p, process_event_t ev, process_data_t data);
+static void process_poll_here(struct process *p);
+
+/* What the other cores sent to this one, delivered here. An event waits in
+ * the mailbox while the queue of this core is full. */
+static void process_mail_receive(void)
+{
+  uint8_t to = PROCESS_CORE();
+
+  for (uint8_t from = 0; from < PROCESS_CONF_CORES; from++) {
+    if (from == to)
+      continue;
+    while (process_mailbox[from][to].tail != process_mailbox[from][to].head) {
+      uint8_t tail = process_mailbox[from][to].tail;
+      CC_MEMORY_BARRIER(); /* the index before the entry it shows */
+      struct process_mail m = process_mailbox[from][to].slot[tail];
+      if (m.ev != PROCESS_EVENT_NONE) {
+        if (!process_post_here(m.dest, m.ev, m.data))
+          break;
+      } else if (m.data == PROCESS_MAIL_DESTROY) {
+        process_destroy(m.dest);
+      } else if (m.data == PROCESS_MAIL_PAUSE) {
+        process_pause(m.dest);
+      } else if (m.data == PROCESS_MAIL_RESUME) {
+        process_resume(m.dest);
+      } else {
+        process_poll_here(m.dest);
+      }
+      CC_MEMORY_BARRIER(); /* read before the slot is given back */
+      process_mailbox[from][to].tail = (uint8_t)((tail + 1u) % PROCESS_CONF_MAILBOX_SIZE);
+    }
+    if (process_mailbox[from][to].lost != process_mailbox[from][to].lost_seen) {
+      process_mailbox[from][to].lost_seen = process_mailbox[from][to].lost;
+      for (struct process *pp = process_list; pp != NULL; pp = pp->next)
+        process_poll_here(pp);
+    }
+  }
+}
+
+/* something in a mailbox for this core */
+static int process_mail_waiting(void)
+{
+  uint8_t to = PROCESS_CORE();
+  for (uint8_t from = 0; from < PROCESS_CONF_CORES; from++)
+    if (from != to && (process_mailbox[from][to].tail != process_mailbox[from][to].head ||
+                       process_mailbox[from][to].lost != process_mailbox[from][to].lost_seen))
+      return 1;
+  return 0;
+}
+#endif /* PROCESS_CONF_CORES > 1 */
 
 /* ================================================================== */
 /* §C  Per-process inbox helpers (PROCESS_CONF_EVENT_INBOX)            */
@@ -382,6 +509,9 @@ void process_start(struct process *p, struct process_args *args)
   PT_INIT(&p->pt);
   p->state      = PROCESS_STATE_INIT;
   p->needs_poll = 0;
+#if PROCESS_CONF_CORES > 1
+  p->core       = PROCESS_CORE();
+#endif
 
 #if PROCESS_CONF_EVENT_INBOX
   p->inbox_head = 0;
@@ -441,6 +571,14 @@ void process_destroy(struct process *p)
   if (p->type == PROCESS_TYPE_DEVICE)
     return;
 
+#if PROCESS_CONF_CORES > 1
+  /* the state of a process is written by its own core */
+  if (p->core != PROCESS_CORE()) {
+    process_mail(p->core, p, PROCESS_EVENT_NONE, PROCESS_MAIL_DESTROY);
+    return;
+  }
+#endif
+
   p->state = PROCESS_STATE_EXITING;
   PT_FINAL(&p->pt); /* arm PT_FINALLY – runs on next scheduler tick */
 }
@@ -449,6 +587,9 @@ void process_destroy(struct process *p)
 
 void process_run(void)
 {
+#if PROCESS_CONF_CORES > 1
+  process_mail_receive();
+#endif
   /* Polls take priority over queued events to keep latency bounded. */
   if (do_poll())
     return;
@@ -457,7 +598,25 @@ void process_run(void)
 
 /* ── process_poll ─────────────────────────────────────────────────── */
 
+#if PROCESS_CONF_CORES > 1
 void process_poll(struct process *p)
+{
+  if (!p
+      || p->state == PROCESS_STATE_NONE
+      || p->state == PROCESS_STATE_EXITING)
+    return;
+  /* the needs_poll of a process of another core is its own to write */
+  if (p->core != PROCESS_CORE()) {
+    process_mail(p->core, p, PROCESS_EVENT_NONE, PROCESS_MAIL_POLL);
+    return;
+  }
+  process_poll_here(p);
+}
+
+static void process_poll_here(struct process *p)
+#else
+void process_poll(struct process *p)
+#endif
 {
   if (!p
       || p->state == PROCESS_STATE_NONE
@@ -471,7 +630,21 @@ void process_poll(struct process *p)
 
 /* ── process_post ─────────────────────────────────────────────────── */
 
+#if PROCESS_CONF_CORES > 1
+/* A process of another core gets its event through the mailbox. A
+ * broadcast (p NULL) reaches the processes of this core: each core has its
+ * own tick. */
 int process_post(struct process *p, process_event_t ev, process_data_t data)
+{
+  if (p && p->core != PROCESS_CORE())
+    return process_mail(p->core, p, ev, data);
+  return process_post_here(p, ev, data);
+}
+
+static int process_post_here(struct process *p, process_event_t ev, process_data_t data)
+#else
+int process_post(struct process *p, process_event_t ev, process_data_t data)
+#endif
 {
   int ok = 0;
 
@@ -522,7 +695,12 @@ static int process_match_n(const char *segment, size_t len,
 
 struct process *process_lookup_n(const char *name_segment, size_t len)
 {
+#if PROCESS_CONF_CORES > 1
+  /* the processes of all cores */
+  for (struct process *p = process_next(NULL); p != NULL; p = process_next(p)) {
+#else
   for (struct process *p = process_list; p != NULL; p = p->next) {
+#endif
     const char *pname = PROCESS_NAME_STRING(p);
     if (process_match_n(name_segment, len, pname))
       return p;
@@ -607,13 +785,26 @@ void process_ipc_wake(void *ctx)
 
 struct process *process_next(struct process *p)
 {
+#if PROCESS_CONF_CORES > 1
+  /* the processes of all cores, core 0 first */
+  uint8_t c = p ? p->core : 0;
+  struct process *n = p ? p->next : process_cores[0].process_list_;
+  while (!n && ++c < PROCESS_CONF_CORES)
+    n = process_cores[c].process_list_;
+  return n;
+#else
   return p ? p->next : process_list;
+#endif
 }
 
 int process_pause(struct process *p)
 {
   if (!p || p->state != PROCESS_STATE_CALLED)
     return 0;
+#if PROCESS_CONF_CORES > 1
+  if (p->core != PROCESS_CORE())
+    return process_mail(p->core, p, PROCESS_EVENT_NONE, PROCESS_MAIL_PAUSE);
+#endif
   p->state = PROCESS_STATE_PAUSED;
   return 1;
 }
@@ -622,6 +813,10 @@ int process_resume(struct process *p)
 {
   if (!p || p->state != PROCESS_STATE_PAUSED)
     return 0;
+#if PROCESS_CONF_CORES > 1
+  if (p->core != PROCESS_CORE())
+    return process_mail(p->core, p, PROCESS_EVENT_NONE, PROCESS_MAIL_RESUME);
+#endif
   p->state = PROCESS_STATE_CALLED;
   process_poll(p); /* whatever it missed, it looks again */
   return 1;
@@ -670,7 +865,11 @@ void process_disconnect(struct process *writer)
 
 struct process *process_reader(const ipc_pipe_t *pipe)
 {
+#if PROCESS_CONF_CORES > 1
+  for (struct process *p = process_next(NULL); p != NULL; p = process_next(p)) {
+#else
   for (struct process *p = process_list; p != NULL; p = p->next) {
+#endif
     if (p->type == PROCESS_TYPE_DEVICE
           ? (p->has_pipeout && p->pipeout == pipe)
           : (p->has_pipein && p->pipein == pipe))
@@ -690,7 +889,11 @@ int process_connect_pipe(struct process *writer, ipc_pipe_t *pipe)
 
 int process_is_idle(void)
 {
+#if PROCESS_CONF_CORES > 1
+  return !poll_requested && event_head == event_tail && !process_mail_waiting();
+#else
   return !poll_requested && event_head == event_tail;
+#endif
 }
 
 const struct error_info *process_log_entry(uint8_t age)

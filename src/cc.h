@@ -177,6 +177,12 @@ typedef double float64_t;
 /* true while interrupts are enabled */
 #define CC_IRQ_ENABLED() bit_is_set(SREG, SREG_I)
 
+/* one core: the order of memory accesses is the order of the program */
+#define CC_MEMORY_BARRIER() do { } while (0)
+
+/* one core: what is shared is shared with interrupts only */
+#define CC_ATOMIC_SHARED() CC_ATOMIC_RESTORE()
+
 #else
 
 #include <stdint.h>
@@ -254,11 +260,37 @@ static inline int cc_irq_enabled(void)
   return !(primask & 1);
 }
 #define CC_IRQ_ENABLED() cc_irq_enabled()
+
+/* Stores before it are seen by the other core before stores after it. */
+#define CC_MEMORY_BARRIER() __asm volatile("dmb" ::: "memory")
+
+/* What both cores change, a pool for one: interrupts off on this core and
+ * the hardware spinlock 15 of the SIO (PICO_SPINLOCK_ID_OS2, "for an
+ * operating system"), so that the other core waits too. */
+#define CC_SPINLOCK_SHARED (*(volatile uint32_t *)(0xd0000100u + 4u * 15u))
+static inline uint32_t cc_shared_lock(void)
+{
+  uint32_t primask = cc_irq_save();
+  while (!CC_SPINLOCK_SHARED)
+    ;
+  CC_MEMORY_BARRIER();
+  return primask;
+}
+static inline void cc_shared_unlock(const uint32_t *primask)
+{
+  CC_MEMORY_BARRIER();
+  CC_SPINLOCK_SHARED = 1;
+  cc_irq_restore(primask);
+}
+#define CC_ATOMIC_SHARED() \
+  for (uint32_t cc_primask_ __attribute__((cleanup(cc_shared_unlock))) = cc_shared_lock(), cc_once_ = 1; cc_once_; cc_once_ = 0)
 #else
 /* a build on the host: no interrupts */
 #define CC_ATOMIC_RESTORE()
 #define CC_ATOMIC_FORCEON()
 #define CC_IRQ_ENABLED() 1
+#define CC_MEMORY_BARRIER() do { } while (0)
+#define CC_ATOMIC_SHARED()
 #endif
 
 #endif /* __AVR__ */

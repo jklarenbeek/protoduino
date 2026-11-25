@@ -96,8 +96,13 @@ static CC_ALWAYS_INLINE bool tick_is_pending(void)
   return false;
 }
 
-// when the next tick is due
+// when the next tick is due, on each core
+#if PROCESS_CONF_CORES > 1
+static clock_time_t tick_next_core[PROCESS_CONF_CORES];
+#define tick_next (tick_next_core[PROCESS_CORE()])
+#else
 static clock_time_t tick_next;
+#endif
 
 static CC_ALWAYS_INLINE void tick_run(void)
 {

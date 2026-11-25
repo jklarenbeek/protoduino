@@ -79,23 +79,27 @@ the end of a run.
 
 ## Other platforms
 
-protoduino builds for AVR today. The levels were chosen so that other chips
-are a file of their own, not exceptions in the scheduler:
+protoduino builds for AVR and for the RP2040 and RP2350 ([rp2.md](rp2.md)).
+The levels were chosen so that other chips are a file of their own, not
+exceptions in the scheduler:
 
 | | `WAIT` | `DEEP` | Restart on waking (not an idle level) |
 |---|---|---|---|
 | AVR | idle mode | power-down | does not exist |
 | ESP32 | the loop task blocks until notified or the tick is due; FreeRTOS stops the CPU | the same, with automatic light sleep (about 0.8 mA) | deep sleep, hibernation |
-| RP2040 | wait for interrupt | dormant: oscillators off, a pin wakes it (the RTC only on an external clock) | nothing on the chip |
-| RP2350 | wait for interrupt | dormant, or power domains switched off with SRAM kept | the core domain off |
+| RP2040 | WFE until an interrupt, an event or an alarm at the next tick (`cpu/rp2/idle.h`: the shell is asleep 99.7% in protosim) | dormant: oscillators off, a pin wakes it (the RTC only on an external clock); not ported, the build stops | nothing on the chip |
+| RP2350 | the same as the RP2040 (built, not run) | dormant, or power domains switched off with SRAM kept; not ported | the core domain off |
 
 Two hooks make that possible:
 
 - The platform file implements `cpu_idle_wait(level, max_ms)`. `max_ms`
   comes from `tick_millis_left()`: how long until the tick is due, so that a
   platform that can sleep for a known time (the ESP32 with tickless idle)
-  knows it. An AVR ignores it: its tick is itself an interrupt.
+  knows it. An AVR ignores it: its tick is itself an interrupt. The RP2040
+  sets a timer alarm for it: nothing else would wake the core.
 - `PROCESS_CONF_WAKE()` runs after `process_poll()` and a successful
   `process_post()`. It is empty on an AVR, where an interrupt ends the sleep
-  by itself. On the ESP32 the loop is a FreeRTOS task that blocks to save
+  by itself. On the RP2040 it sends an event (SEV): it is latched, so work
+  given between the look and the WFE ends the wait at once, and it wakes the
+  other core too. On the ESP32 the loop is a FreeRTOS task that blocks to save
   power, and an interrupt that gives a process work has to wake that task.

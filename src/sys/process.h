@@ -214,6 +214,10 @@ struct process {
 
   process_thread_t thread;      /**< the protothread entry-point          */
 
+#if PROCESS_CONF_CORES > 1
+  uint8_t          core;        /**< the core it runs on: the one that started it */
+#endif
+
 #if PROCESS_CONF_PIPELINES > 0
   ipc_pipe_t *pipein;
   ipc_pipe_t *pipeout;
@@ -488,10 +492,20 @@ typedef struct {
  */
 /* "extern" also in C: without it every C file that includes this header
  * would define the variable again. */
+#if PROCESS_CONF_CORES > 1
+/* one per core */
+#ifdef __cplusplus
+extern "C" struct process *process_current_core[PROCESS_CONF_CORES];
+#else
+extern struct process *process_current_core[PROCESS_CONF_CORES];
+#endif
+#define process_current (process_current_core[PROCESS_CORE()])
+#else
 #ifdef __cplusplus
 extern "C" struct process *process_current;
 #else
 extern struct process *process_current;
+#endif
 #endif
 #define PROCESS_CURRENT() (process_current)
 

@@ -39,7 +39,7 @@ void *ipc_pool_alloc(struct ipc_pool *p)
   if (!p)
     return NULL;
   void *blk = NULL;
-  CC_ATOMIC_RESTORE()
+  CC_ATOMIC_SHARED() /* both cores may take from a pool */
   {
     blk = p->free_list;
     if (blk)
@@ -55,7 +55,7 @@ void ipc_pool_free(struct ipc_pool *p, void *blk)
 {
   if (!p || !blk)
     return;
-  CC_ATOMIC_RESTORE()
+  CC_ATOMIC_SHARED()
   {
     *((void **)blk) = p->free_list;
     p->free_list = blk;
@@ -161,9 +161,12 @@ size_t ipc_pipe_write(ipc_pipe_t *p, const uint8_t *src, size_t len)
   size_t written = 0;
   bool was_empty = false;
 
-  CC_ATOMIC_RESTORE()
+  CC_ATOMIC_SHARED() /* a pipe may have writers on both cores */
   {
     size_t space = ipc_pipe_space(p);
+#if defined(CC_ARCH_RP2)
+    size_t before = ipc_pipe_available(p);
+#endif
     if (space == 0)
     {
       written = 0;
@@ -184,9 +187,16 @@ size_t ipc_pipe_write(ipc_pipe_t *p, const uint8_t *src, size_t len)
         memcpy(&p->buf[h], src + first, second);
         h = (h + second) % p->size;
       }
+      CC_MEMORY_BARRIER(); /* the bytes before the index that shows them */
       p->head = h;
       written = towrite;
+#if defined(CC_ARCH_RP2)
+      /* empty before: the reader on the other core may have taken some of
+       * these already, and waits for the wake all the same */
+      was_empty = (towrite > 0 && before == 0);
+#else
       was_empty = (towrite > 0 && ipc_pipe_available(p) == towrite);
+#endif
     }
   } /* atomic end */
 
@@ -206,7 +216,7 @@ size_t ipc_pipe_read(ipc_pipe_t *p, uint8_t *dst, size_t len)
     return 0;
   size_t read = 0;
 
-  CC_ATOMIC_RESTORE()
+  CC_ATOMIC_SHARED()
   {
     size_t avail = ipc_pipe_available(p);
     if (avail == 0)
@@ -217,6 +227,7 @@ size_t ipc_pipe_read(ipc_pipe_t *p, uint8_t *dst, size_t len)
     {
       size_t toread = (len <= avail) ? len : avail;
       size_t t = p->tail;
+      CC_MEMORY_BARRIER(); /* the index before the bytes it shows */
       size_t first = p->size - t;
       if (first > toread)
         first = toread;
@@ -228,6 +239,7 @@ size_t ipc_pipe_read(ipc_pipe_t *p, uint8_t *dst, size_t len)
         memcpy(dst + first, &p->buf[t], second);
         t = (t + second) % p->size;
       }
+      CC_MEMORY_BARRIER(); /* read before the room is given back */
       p->tail = t;
       read = toread;
     }
@@ -240,7 +252,7 @@ void ipc_pipe_clear(ipc_pipe_t *p)
 {
   if (!p)
     return;
-  CC_ATOMIC_RESTORE()
+  CC_ATOMIC_SHARED()
   {
     p->head = p->tail = 0;
   }
