@@ -141,17 +141,16 @@ static void CC_TMPL_FN(tx_fill)(void)
   }
 }
 
+/* Fills the FIFO, on every call: a caller that waits for the ring to empty
+ * with interrupts off (flush() in a loop) gets it emptied all the same. */
 void CC_TMPL_FN(tx_enable_int)(void)
 {
   CC_ATOMIC_RESTORE()
   {
-    if (!CC_TMPL_VAR(tx_int))
-    {
-      CC_TMPL_VAR(tx_int) = true;
-      CC_TMPL_FN(tx_fill)();
-      if (CC_TMPL_VAR(tx_int))
-        uart_get_hw(__UART__)->imsc |= UART_UARTIMSC_TXIM_BITS;
-    }
+    CC_TMPL_VAR(tx_int) = true;
+    CC_TMPL_FN(tx_fill)();
+    if (CC_TMPL_VAR(tx_int))
+      uart_get_hw(__UART__)->imsc |= UART_UARTIMSC_TXIM_BITS;
   }
 }
 

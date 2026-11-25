@@ -18,6 +18,12 @@ int ipc_pool_init(struct ipc_pool *p, void *buffer, size_t block_size, uint16_t 
     return ERR_ARG_NULL;
   if (block_size < sizeof(void *))
     block_size = sizeof(void *);
+#if !defined(__AVR__)
+  /* a free block holds a pointer: on an Arm it has to be aligned for one,
+   * or the first access faults (a Cortex-M0+ takes no unaligned access) */
+  if (((uintptr_t)buffer % sizeof(void *)) != 0 || (block_size % sizeof(void *)) != 0)
+    return ERR_ARG_INVALID;
+#endif
   p->buffer = (uint8_t *)buffer;
   p->block_size = block_size;
   p->n_blocks = n_blocks;

@@ -53,8 +53,7 @@ SHELL_MODULES_BEGIN
   SHELL_MODULE(upper, upper_proc)
 SHELL_MODULES_END
 
-static volatile bool core1_ready;
-static bool connected;
+static bool connected; /* on core 1 */
 
 /* core 0: the line and the shell */
 void setup(void)
@@ -68,9 +67,6 @@ void setup(void)
 void loop(void)
 {
   process_loop();
-  /* the LED once both of its processes run, on core 1 */
-  if (!connected && core1_ready)
-    connected = process_connect(&ticker_proc.base, &blink_proc.base);
 }
 
 /* core 1: the modules */
@@ -81,10 +77,14 @@ void setup1(void)
   process_new(&process_type_blink, &blink_proc);
   process_new(&process_type_upper, &upper_proc);
   idle_start();
-  core1_ready = true;
 }
 
 void loop1(void)
 {
   process_loop();
+  /* the LED once both of its processes have started; connected on core 1,
+   * where both run (from core 0, process_connect() would go through the
+   * mailbox, as the shell's join does) */
+  if (!connected)
+    connected = process_connect(&ticker_proc.base, &blink_proc.base);
 }

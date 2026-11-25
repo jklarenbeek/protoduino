@@ -3,8 +3,10 @@
 protoduino runs on the RP2040 (Raspberry Pi Pico) and builds for the RP2350
 (Pico 2, its Arm cores). The platform files are in `src/cpu/rp2/`; a sketch
 for an AVR runs there unchanged when it uses the portable parts, and prints
-the same bytes: `tools/test_rp2.sh` runs sixteen examples on an ATmega328P and
-on an RP2040 in protosim and compares their output byte for byte.
+the same bytes: `tools/test_rp2.sh` runs fifteen examples on an ATmega328P and
+on an RP2040 in protosim and compares their output byte for byte, and the
+timer example line for line (its lines count passes through a busy loop,
+which a faster chip makes more of).
 
 ## Building
 
@@ -40,7 +42,7 @@ warnings.
 | Idle: `PROCESS_SLEEP_WAIT` | tested: the shell is asleep 99.7% | builds | WFE until an interrupt, an event or an alarm at the next tick; `process_poll()` and `process_post()` send an event (SEV), which is latched |
 | Idle: `PROCESS_SLEEP_DEEP` | not ported | not ported | dormant needs the clocks set up again after the wake, and cannot be tested in protosim: the build stops with an error |
 | `TICK_SOURCE_WATCHDOG` | not ported | not ported | an AVR's watchdog interrupt: the build stops with an error |
-| UART 0 and 1, `sys/serial`, the serial process | tested | builds | the PL011 with its interrupts: receive and receive timeout; the transmit FIFO is filled when the interrupt is enabled, the interrupt refills it |
+| UART 0 and 1, `sys/serial`, the serial process | tested: receive, receive timeout, and the transmit FIFO refilled in the interrupt (protosim sends at the baud rate through a FIFO of 32 bytes) | builds | the PL011 with its interrupts; `tx_enable_int()` fills the FIFO, the transmit interrupt refills it; `flush()` only enables it |
 | utf8, mcurses, ANSI parser, TUI | tested | builds | portable; `PROGMEM` and `pgm_read_*` are plain reads (`cc.h`) |
 | Shell, monitor | tested over the pseudo terminal | builds | portable |
 | Modules ticker, upper, smooth, limit, curve | tested | builds | portable |
@@ -55,7 +57,8 @@ warnings.
 | Examples 41, 42, 50 to 53 | | | ATtiny and the flash loader |
 | Examples 09, 13 | | | Arduino IDE only, on any target (`usleep`, `Stream`) |
 
-**The RP2350** is built by `tools/test_rp2.sh` but not run: protosim's Bramble
+**The RP2350** is built by `tools/test_rp2.sh` (the shell, the TUI, and both
+multicore examples) but not run: protosim's Bramble
 target runs the Pico SDK on its Cortex-M33 only as far as the UART, and not
 its timer alarms (finding BR16 in protosim's report).
 
@@ -95,9 +98,12 @@ void loop1(void)  { process_loop(); }
   off (`CC_ATOMIC_SHARED()`), with a memory barrier before an index is
   published.
 - **The log** (`process_warn()` and the rest) is kept per core.
-- **`process_connect()`** writes the pipe of the writer: call it while the
-  writer waits, as the examples do once both cores have started their
-  processes.
+- **`process_connect()` and `process_disconnect()`** for a process of the
+  other core go through the mailbox as well: the bits of a process (its
+  state, its poll, whether it has pipes) share one byte, and only its own
+  core writes them. The shell's `join` and `unjoin` work across cores so.
+- **The shell's `run`** starts a module on the shell's core; a sketch puts a
+  module on core 1 by starting it in `setup1()`.
 - `PROCESS_CONF_CORES` must be the same in every file of the build: set it
   in `src/protoduino-config.h` or as a build flag (`-DPROCESS_CONF_CORES=2`),
   not in the sketch alone. With one core, an AVR build is byte for byte the
@@ -133,6 +139,12 @@ example writes as much as the pipe takes and never waits for room.
   puts the macros away while it declares them (`push_macro`).
 - **`char` is unsigned** on Arm and signed on an AVR; the examples print the
   same bytes on both.
+- **Alignment.** A Cortex-M0+ faults on an unaligned word access, where
+  protosim does not: `ipc_pool_init()` refuses a buffer or a block size
+  that is not aligned for a pointer on an Arm.
+- **The RP2350's hardware spinlocks** are unsafe (erratum RP2350-E2):
+  `CC_ATOMIC_SHARED()` takes the SDK's spin lock, which is a lock in memory
+  there and the SIO's spinlock on an RP2040.
 - **`uint_fast8_t` is four bytes** on Arm: two places mixed it with `uint8_t`
   (`ringb8_init()` and the receive callback of the serial process), both
   fixed.
@@ -140,6 +152,12 @@ example writes as much as the pipe takes and never waits for room.
 ## Found on the way
 
 These were wrong on the AVR too, and show more on a faster chip:
+
+- `timer_diff()` took a clock that had not moved since `timer_set()` for one
+  that had gone all the way round, and the timer expired at once. An AVR's
+  `micros()` moves in steps of 4 us and never met it; a 125 MHz RP2040 reads
+  its 1 us clock twice in the same microsecond. It subtracts unsigned now,
+  which is right across the wrap too (it was one off there).
 
 - A process that reads its input pipe with `PROCESS_WAIT_EVENT_UNTIL` takes
   one byte per event, and the pipe wakes its reader only when it goes from

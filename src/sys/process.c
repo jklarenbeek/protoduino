@@ -76,7 +76,8 @@ struct process *process_current_core[PROCESS_CONF_CORES];
 struct process_mail {
   struct process  *dest;
   process_event_t  ev;
-  process_data_t   data;
+  uint8_t          op;   /* PROCESS_MAIL_*: what to do with dest     */
+  process_data_t   data; /* of the event, or the pipe of a connection */
 };
 static struct {
   struct process_mail slot[PROCESS_CONF_MAILBOX_SIZE];
@@ -152,14 +153,20 @@ static int dequeue_event_nolock(struct process_event_entry *out)
 }
 
 #if PROCESS_CONF_CORES > 1
-/* With no event, the data of a mail says what to do to its process. */
-#define PROCESS_MAIL_POLL    ((process_data_t)0)
-#define PROCESS_MAIL_DESTROY ((process_data_t)1)
-#define PROCESS_MAIL_PAUSE   ((process_data_t)2)
-#define PROCESS_MAIL_RESUME  ((process_data_t)3)
+/* What a mail asks of its process. Each of them writes the process, which
+ * only its own core does: the bits of its state, its poll and its pipes
+ * share one byte, and a write from the other core could undo another. */
+#define PROCESS_MAIL_EVENT   0 /* ev and data                            */
+#define PROCESS_MAIL_POLL    1
+#define PROCESS_MAIL_DESTROY 2
+#define PROCESS_MAIL_PAUSE   3
+#define PROCESS_MAIL_RESUME  4
+#define PROCESS_MAIL_PIPEIN  5 /* data: the pipe it reads from now       */
+#define PROCESS_MAIL_PIPEOUT 6 /* data: the pipe it writes to now        */
+#define PROCESS_MAIL_UNPIPE  7 /* it writes to no pipe                   */
 
-/* Sends an event, or with ev NONE an operation, to process p of core `to`. */
-static int process_mail(uint8_t to, struct process *p, process_event_t ev, process_data_t data)
+/* Sends an event, or an operation, to process p of core `to`. */
+static int process_mail_op(uint8_t to, struct process *p, uint8_t op, process_event_t ev, process_data_t data)
 {
   uint8_t from = PROCESS_CORE();
   int ok = 0;
@@ -170,17 +177,23 @@ static int process_mail(uint8_t to, struct process *p, process_event_t ev, proce
     if (next != process_mailbox[from][to].tail) {
       process_mailbox[from][to].slot[head].dest = p;
       process_mailbox[from][to].slot[head].ev   = ev;
+      process_mailbox[from][to].slot[head].op   = op;
       process_mailbox[from][to].slot[head].data = data;
       CC_MEMORY_BARRIER(); /* the entry before the index that shows it */
       process_mailbox[from][to].head = next;
       ok = 1;
-    } else if (ev == PROCESS_EVENT_NONE && data == PROCESS_MAIL_POLL) {
+    } else if (op == PROCESS_MAIL_POLL) {
       process_mailbox[from][to].lost++;
       ok = 1;
     }
   }
   PROCESS_CONF_WAKE(); /* the other core may wait in WFE */
   return ok;
+}
+
+static inline int process_mail(uint8_t to, struct process *p, process_event_t ev, process_data_t data)
+{
+  return process_mail_op(to, p, PROCESS_MAIL_EVENT, ev, data);
 }
 
 static int process_post_here(struct process *p, process_event_t ev, process_data_t data);
@@ -199,15 +212,26 @@ static void process_mail_receive(void)
       uint8_t tail = process_mailbox[from][to].tail;
       CC_MEMORY_BARRIER(); /* the index before the entry it shows */
       struct process_mail m = process_mailbox[from][to].slot[tail];
-      if (m.ev != PROCESS_EVENT_NONE) {
+      if (m.op == PROCESS_MAIL_EVENT) {
         if (!process_post_here(m.dest, m.ev, m.data))
           break;
-      } else if (m.data == PROCESS_MAIL_DESTROY) {
+      } else if (m.op == PROCESS_MAIL_DESTROY) {
         process_destroy(m.dest);
-      } else if (m.data == PROCESS_MAIL_PAUSE) {
+      } else if (m.op == PROCESS_MAIL_PAUSE) {
         process_pause(m.dest);
-      } else if (m.data == PROCESS_MAIL_RESUME) {
+      } else if (m.op == PROCESS_MAIL_RESUME) {
         process_resume(m.dest);
+#if PROCESS_CONF_PIPELINES > 0
+      } else if (m.op == PROCESS_MAIL_PIPEIN) {
+        m.dest->pipein     = (ipc_pipe_t *)m.data;
+        m.dest->has_pipein = 1;
+      } else if (m.op == PROCESS_MAIL_PIPEOUT) {
+        m.dest->pipeout     = (ipc_pipe_t *)m.data;
+        m.dest->has_pipeout = 1;
+      } else if (m.op == PROCESS_MAIL_UNPIPE) {
+        m.dest->has_pipeout = 0;
+        m.dest->pipeout     = NULL;
+#endif
       } else {
         process_poll_here(m.dest);
       }
@@ -574,7 +598,7 @@ void process_destroy(struct process *p)
 #if PROCESS_CONF_CORES > 1
   /* the state of a process is written by its own core */
   if (p->core != PROCESS_CORE()) {
-    process_mail(p->core, p, PROCESS_EVENT_NONE, PROCESS_MAIL_DESTROY);
+    process_mail_op(p->core, p, PROCESS_MAIL_DESTROY, PROCESS_EVENT_NONE, NULL);
     return;
   }
 #endif
@@ -607,7 +631,7 @@ void process_poll(struct process *p)
     return;
   /* the needs_poll of a process of another core is its own to write */
   if (p->core != PROCESS_CORE()) {
-    process_mail(p->core, p, PROCESS_EVENT_NONE, PROCESS_MAIL_POLL);
+    process_mail_op(p->core, p, PROCESS_MAIL_POLL, PROCESS_EVENT_NONE, NULL);
     return;
   }
   process_poll_here(p);
@@ -803,7 +827,7 @@ int process_pause(struct process *p)
     return 0;
 #if PROCESS_CONF_CORES > 1
   if (p->core != PROCESS_CORE())
-    return process_mail(p->core, p, PROCESS_EVENT_NONE, PROCESS_MAIL_PAUSE);
+    return process_mail_op(p->core, p, PROCESS_MAIL_PAUSE, PROCESS_EVENT_NONE, NULL);
 #endif
   p->state = PROCESS_STATE_PAUSED;
   return 1;
@@ -815,7 +839,7 @@ int process_resume(struct process *p)
     return 0;
 #if PROCESS_CONF_CORES > 1
   if (p->core != PROCESS_CORE())
-    return process_mail(p->core, p, PROCESS_EVENT_NONE, PROCESS_MAIL_RESUME);
+    return process_mail_op(p->core, p, PROCESS_MAIL_RESUME, PROCESS_EVENT_NONE, NULL);
 #endif
   p->state = PROCESS_STATE_CALLED;
   process_poll(p); /* whatever it missed, it looks again */
@@ -837,6 +861,10 @@ int process_connect(struct process *writer, struct process *reader)
     pipe = writer->pipein;
     pipe->wake_cb  = process_ipc_wake;
     pipe->wake_ctx = (void *)reader;
+#if PROCESS_CONF_CORES > 1
+    if (reader->core != PROCESS_CORE())
+      return process_mail_op(reader->core, reader, PROCESS_MAIL_PIPEIN, PROCESS_EVENT_NONE, pipe);
+#endif
     reader->pipein     = pipe;
     reader->has_pipein = 1;
     return 1;
@@ -850,6 +878,10 @@ int process_connect(struct process *writer, struct process *reader)
   if (!pipe)
     return 0;
 
+#if PROCESS_CONF_CORES > 1
+  if (writer->core != PROCESS_CORE())
+    return process_mail_op(writer->core, writer, PROCESS_MAIL_PIPEOUT, PROCESS_EVENT_NONE, pipe);
+#endif
   writer->pipeout     = pipe;
   writer->has_pipeout = 1;
   return 1;
@@ -859,6 +891,12 @@ void process_disconnect(struct process *writer)
 {
   if (!writer || writer->type == PROCESS_TYPE_DEVICE)
     return;
+#if PROCESS_CONF_CORES > 1
+  if (writer->core != PROCESS_CORE()) {
+    process_mail_op(writer->core, writer, PROCESS_MAIL_UNPIPE, PROCESS_EVENT_NONE, NULL);
+    return;
+  }
+#endif
   writer->has_pipeout = 0;
   writer->pipeout     = NULL;
 }
@@ -881,6 +919,10 @@ int process_connect_pipe(struct process *writer, ipc_pipe_t *pipe)
 {
   if (!writer || !pipe || writer->type == PROCESS_TYPE_DEVICE)
     return 0;
+#if PROCESS_CONF_CORES > 1
+  if (writer->core != PROCESS_CORE())
+    return process_mail_op(writer->core, writer, PROCESS_MAIL_PIPEOUT, PROCESS_EVENT_NONE, pipe);
+#endif
   writer->pipeout     = pipe;
   writer->has_pipeout = 1;
   return 1;

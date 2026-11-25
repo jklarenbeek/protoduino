@@ -264,23 +264,19 @@ static inline int cc_irq_enabled(void)
 /* Stores before it are seen by the other core before stores after it. */
 #define CC_MEMORY_BARRIER() __asm volatile("dmb" ::: "memory")
 
-/* What both cores change, a pool for one: interrupts off on this core and
- * the hardware spinlock 15 of the SIO (PICO_SPINLOCK_ID_OS2, "for an
- * operating system"), so that the other core waits too. */
-#define CC_SPINLOCK_SHARED (*(volatile uint32_t *)(0xd0000100u + 4u * 15u))
+/* What both cores change, a pool or a pipe: interrupts off on this core and
+ * the spin lock PICO_SPINLOCK_ID_OS2 of the SDK ("for an operating
+ * system"), so that the other core waits too. The SDK takes the hardware
+ * spinlock of the SIO on an RP2040, and a lock in memory on an RP2350,
+ * whose hardware spinlocks an erratum (RP2350-E2) makes unsafe. */
+#include "hardware/sync.h"
 static inline uint32_t cc_shared_lock(void)
 {
-  uint32_t primask = cc_irq_save();
-  while (!CC_SPINLOCK_SHARED)
-    ;
-  CC_MEMORY_BARRIER();
-  return primask;
+  return spin_lock_blocking(spin_lock_instance(PICO_SPINLOCK_ID_OS2));
 }
 static inline void cc_shared_unlock(const uint32_t *primask)
 {
-  CC_MEMORY_BARRIER();
-  CC_SPINLOCK_SHARED = 1;
-  cc_irq_restore(primask);
+  spin_unlock(spin_lock_instance(PICO_SPINLOCK_ID_OS2), *primask);
 }
 #define CC_ATOMIC_SHARED() \
   for (uint32_t cc_primask_ __attribute__((cleanup(cc_shared_unlock))) = cc_shared_lock(), cc_once_ = 1; cc_once_; cc_once_ = 0)

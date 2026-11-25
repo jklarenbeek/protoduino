@@ -40,7 +40,7 @@ talk() {
 echo "== 1. the same output as on an ATmega328P =="
 SAME="1-protothreads/01-pt-wait-one-basic 1-protothreads/02-pt-wait-one-block 1-protothreads/03-pt-wait-until-while
       1-protothreads/04-pt-finally-basic 1-protothreads/05-pt-finally-extended 1-protothreads/06-pt-catch-basic
-      1-protothreads/07-pt-yield-basic 1-protothreads/08-pt-yield-foreach 1-protothreads/10-pt-wait-for-timer
+      1-protothreads/07-pt-yield-basic 1-protothreads/08-pt-yield-foreach
       2-library/11-lib-ringb8-basic 3-processes/22-process-serial 4-modules/31-filter 4-modules/33-your-own-module
       7-text-ui/23-ansi-parser 7-text-ui/24-ansi-keys 7-text-ui/26-rune-conformance"
 for e in $SAME; do
@@ -55,6 +55,21 @@ for e in $SAME; do
     fail "$n: $(wc -c < $O/same-$n-atmega328p.txt) bytes on the AVR, $(wc -c < $O/same-$n-rp2040.txt) on the RP2040"
   fi
 done
+
+# The timers: the same lines, after both have expired (12 s). Each line
+# starts with a count of passes through a busy loop, which a faster chip
+# makes larger: that count is left out.
+n=10-pt-wait-for-timer; f=examples/1-protothreads/$n/$n.ino
+avr $f > /dev/null; rp2 rp2040 $f > /dev/null
+for t in atmega328p rp2040; do
+  "$SIM" $O/$n-$t.elf --warp --uart0-out $O/same-$n-$t.txt --run-ms 12000 > /dev/null 2>&1
+done
+if [ "$(grep -c expired $O/same-$n-rp2040.txt)" -ge 3 ] &&
+   cmp -s <(sed 's/^[0-9]* - //' $O/same-$n-atmega328p.txt) <(sed 's/^[0-9]* - //' $O/same-$n-rp2040.txt); then
+  pass "$n: the timers expire after 3 s and 5 s, the same lines as on the AVR"
+else
+  fail "$n: the timers"
+fi
 
 echo "== 2. the shell over the pseudo terminal =="
 rp2 rp2040 examples/5-systems/40-shell/40-shell.ino
@@ -120,6 +135,13 @@ echo "== 6. the RP2350 =="
 for e in 5-systems/40-shell 7-text-ui/22-tui-render; do
   n=$(basename $e)
   if rp2 rp2350 examples/$e/$n.ino | grep -q "flash"; then pass "$n builds for the RP2350"; else fail "$n does not build for the RP2350"; fi
+done
+for e in 60-two-cores 61-cross-core; do
+  if rp2 rp2350 examples/8-multicore/$e/$e.ino -DPROCESS_CONF_CORES=2 | grep -q "flash"; then
+    pass "$e builds for the RP2350, with two cores"
+  else
+    fail "$e does not build for the RP2350"
+  fi
 done
 
 echo "== 7. both cores (PROCESS_CONF_CORES 2) =="

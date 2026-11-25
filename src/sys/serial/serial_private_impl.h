@@ -289,6 +289,13 @@ uint_fast8_t CC_TMPL_FN(flush)(void)
   if (cnt == 0)
     return 0;
 
+#if defined(CC_ARCH_RP2)
+  // A PL011 takes bytes while its FIFO has room, and its interrupt fills
+  // the FIFO from the ring (tx_enable_int fills it at once). A byte taken
+  // from the ring here, beside that interrupt, could be taken twice.
+  CC_TMPL2_FN(tx_enable_int)();
+  return cnt;
+#else
   // are the global interrupts disabled?
   if (CC_IRQ_ENABLED())
   {
@@ -306,4 +313,5 @@ uint_fast8_t CC_TMPL_FN(flush)(void)
 
   // and return the number of bytes in the buffer
   return cnt;
+#endif
 }

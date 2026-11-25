@@ -6,7 +6,11 @@
 #if PROCESS_CONF_AUTO_IPC_POOL
 // Define the static buffer and the global pool structure instance.
 // The size is calculated at compile time based on IPC_CONF_MSG_BLOCK_COUNT.
-static uint8_t sys_pool_buffer[sizeof(ipc_msg_t) * IPC_CONF_MSG_BLOCK_COUNT];
+static uint8_t sys_pool_buffer[sizeof(ipc_msg_t) * IPC_CONF_MSG_BLOCK_COUNT]
+#if !defined(__AVR__)
+    CC_ALIGN(sizeof(void *)) /* a free block holds a pointer (ipc_pool_init) */
+#endif
+    ;
 struct ipc_pool g_sys_msg_pool;
 #endif
 
