@@ -333,12 +333,17 @@ static uint8_t shell_command(process_shell_t *s, struct process *self, uint8_t c
       }
       if (!module_is_installed(number) || loader_is_running() || !flash_is_writable())
         return 0;
-      // del: no new start from the table, and the process ends on its next turn
+      // del: no new start from the table, and the process ends on its next
+      // turn. The poll gives it that turn at once, before the next command:
+      // "get" of the same slot, right after, finds it free. Polled after
+      // process_destroy() it would wait for the next tick, as a process that
+      // is ending takes no poll.
       module_table_write(number, false, loader_workspace.bytes);
       instance = module_process(number);
       if (instance->state != PROCESS_STATE_NONE)
       {
         process_resume(instance);
+        process_poll(instance);
         process_destroy(instance);
       }
       return 1;
